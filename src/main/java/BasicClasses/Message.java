@@ -2,15 +2,15 @@ package BasicClasses;
 
 import lombok.Data;
 
-import java.util.Date;
+import java.time.Instant;
 import java.util.List;
 @Data
 public class Message {
   private Integer id;
-  private Integer roomId;
-  private List<Integer> collaborators;
-  private Date date;
-  private Date dateCreated;
-  private Boolean deleted;
-  private Integer createdBy;
+  private Room room;
+  private List<User> collaborators;
+  private Instant date;
+  private Instant dateCreated;
+  private Boolean isDeleted;
+  private User createdBy;
 }
