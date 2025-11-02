@@ -2,14 +2,13 @@ package BasicClasses;
 
 import lombok.Data;
 
-import java.util.Date;
+import java.time.Instant;
 @Data
 public class Notification {
   private Integer id;
-  private Integer userId;
-  private String type;
+  private User user;
   private String title;
   private String content;
   private boolean isRead;
-  private Date createdAt;
+  private Instant createdAt;
 }

@@ -9,7 +9,7 @@ CREATE TABLE rooms (
     id SERIAL PRIMARY KEY,
     destription TEXT,
     interestType INTEGER,
-    geoposition VARCHAR(1023),
+    geoposition TEXT,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     createdBy INTEGER,
     maxColaborators INTEGER
@@ -30,9 +30,9 @@ CREATE TABLE roomsColaborators (
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,
     createdBy INTEGER REFERENCES users (id) ON DELETE CASCADE,
-    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    RoomID INTEGER REFERENCES rooms (id) ON DELETE CASCADE,
-    ImageID INTEGER
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    roomID INTEGER REFERENCES rooms (id) ON DELETE CASCADE,
+    imageID INTEGER
 );
 CREATE TABLE posts (
     id SERIAL PRIMARY KEY,

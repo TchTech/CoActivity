@@ -5,7 +5,7 @@ import lombok.Data;
 @Data
 public class Interest {
   private String name;
-  private String category;
+  private InterestCategory category;
   private String description;
   private Integer id;
 }
