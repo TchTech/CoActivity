@@ -4,8 +4,8 @@ import lombok.Data;
 
 @Data
 public class Feedback {
-  private Integer authorId;
+  private User author;
   private Integer id;
   private String text;
-  private Integer userId;
+  private User reviewedUser;
 }
