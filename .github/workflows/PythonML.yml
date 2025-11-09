@@ -1,0 +1,54 @@
+# .github/workflows/test.yml
+name: Test FastAPI
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd ml/fastapi
+          pip install -r requirements.txt
+
+      - name: Start FastAPI server
+        run: |
+          cd ml/fastapi
+          python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
+          sleep 5
+
+      - name: Test if server is running
+        run: |
+          curl -f http://localhost:8000/ || exit 1
+          curl -f http://localhost:8000/health || exit 1
+          echo "✅ FastAPI сервер запущен и работает"
+
+      - name: Test sample endpoints
+        run: |
+          curl -f http://localhost:8000/sample-rooms > /dev/null || exit 1
+          echo "✅ Эндпоинт sample-rooms работает"
+
+      - name: Test recommendations endpoint
+        run: |
+          curl -f -X POST http://localhost:8000/recommend-from-sample \
+            -H "Content-Type: application/json" \
+            -d '{"interests": ["python"]}' > /dev/null || exit 1
+          echo "✅ Эндпоинт рекомендаций работает"
+
+      - name: Stop server
+        run: |
+          pkill -f uvicorn || true
