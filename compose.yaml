@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: Gr1zBear
+      POSTGRES_PASSWORD: qwerty
+      POSTGRES_DB: CoPos
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: coactivity_app
+    depends_on:
+      - postgres
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/CoPos
+      SPRING_DATASOURCE_USERNAME: Gr1zBear
+      SPRING_DATASOURCE_PASSWORD: qwerty
+    ports:
+      - "8080:8080"
+
+volumes:
+  pg_data:
