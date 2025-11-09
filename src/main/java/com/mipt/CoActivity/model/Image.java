@@ -1,4 +1,4 @@
-package BasicClasses;
+package com.mipt.CoActivity.model;
 
 import lombok.Data;
 
