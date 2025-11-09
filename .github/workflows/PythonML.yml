@@ -26,4 +26,5 @@ jobs:
 
       - name: Run tests
         run: |
-          python ml/fastapi/test.py
+          cd ml/fastapi
+          python test.py
