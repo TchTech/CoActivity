@@ -1,0 +1,59 @@
+/* Цветовая палитра в стиле FAANG - графит + золото */
+:root {
+  /* Основные цвета фона */
+  --bg-primary: #121212;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #242424;
+  --bg-hover: #2a2a2a;
+
+  /* Текстовые цвета */
+  --text-primary: #f5f5f5;
+  --text-secondary: #e0e0e0;
+  --text-muted: #888888;
+  --text-disabled: #555555;
+
+  /* Акцентные цвета - золото */
+  --accent-gold: #d4af37;
+  --accent-gold-light: #e5c158;
+  --accent-gold-dark: #c9a86b;
+
+  /* Границы и разделители */
+  --border-color: #333333;
+  --border-light: #404040;
+
+  /* Статусы */
+  --success-color: #4caf50;
+  --error-color: #f44336;
+  --warning-color: #ff9800;
+  --info-color: #2196f3;
+
+  /* Тени */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
+
+  /* Радиусы скругления */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Интервалы */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* Размеры шрифтов */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 32px;
+  --font-size-4xl: 40px;
+}

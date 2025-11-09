@@ -1,0 +1,217 @@
+/* Стили для создания постов и комнат */
+
+.create-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--spacing-lg);
+  padding-bottom: 80px;
+}
+
+.create-header {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.create-form {
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+}
+
+.form-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.form-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+/* Улучшенные стили для поля загрузки изображения */
+.file-upload-area {
+  display: block;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.file-upload-area:hover {
+  border-color: var(--accent-gold);
+  background-color: var(--bg-tertiary);
+}
+
+.file-upload-empty {
+  padding: var(--spacing-xl);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.file-upload-icon-svg {
+  width: 64px;
+  height: 64px;
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  margin-bottom: var(--spacing-sm);
+}
+
+.file-upload-preview {
+  position: relative;
+  width: 100%;
+}
+
+.image-preview-full {
+  width: 100%;
+  max-height: 400px;
+  object-fit: cover;
+  display: block;
+}
+
+.file-upload-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.file-upload-preview:hover .file-upload-overlay {
+  opacity: 1;
+}
+
+.file-upload-overlay .file-upload-icon-svg {
+  width: 48px;
+  height: 48px;
+  stroke: var(--accent-gold);
+}
+
+.file-upload-overlay .file-upload-text {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.file-upload {
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.file-upload:hover {
+  border-color: var(--accent-gold);
+  background-color: var(--bg-tertiary);
+}
+
+.file-upload-icon {
+  font-size: 48px;
+  color: var(--text-muted);
+  margin-bottom: var(--spacing-md);
+}
+
+.file-upload-text {
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+}
+
+.file-upload-hint {
+  color: var(--text-disabled);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.image-preview {
+  margin-top: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+}
+
+.radio-group {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.radio-option {
+  flex: 1;
+  position: relative;
+}
+
+.radio-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+}
+
+.radio-label {
+  display: block;
+  padding: var(--spacing-md);
+  background-color: var(--bg-tertiary);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+.radio-option input[type="radio"]:checked + .radio-label {
+  border-color: var(--accent-gold);
+  background-color: rgba(212, 175, 55, 0.1);
+  color: var(--accent-gold);
+}
+
+.radio-label:hover {
+  border-color: var(--accent-gold);
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: flex-end;
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
+}
+
+.char-counter {
+  text-align: right;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: var(--spacing-xs);
+}
+
+.char-counter.warning {
+  color: var(--warning-color);
+}
+
+.char-counter.error {
+  color: var(--error-color);
+}
+
+select.input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%23888888' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-md) center;
+  padding-right: calc(var(--spacing-md) * 2 + 12px);
+}
