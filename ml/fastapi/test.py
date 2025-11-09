@@ -1,13 +1,11 @@
-# test.py
 import pytest
 import requests
 import json
-from main import app, RecommendationService, sample_rooms
 from fastapi.testclient import TestClient
-from main import Room, UserInterests, RecommendationRequest
+from main import app  # Ensure this import is correct for your FastAPI app
 
 # Инициализация тестового клиента - исправленная версия
-client = TestClient(app)
+client = TestClient(app)  # Make sure the app is correctly passed here
 
 def test_root_endpoint():
     """Тест корневого эндпоинта"""
