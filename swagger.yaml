@@ -971,106 +971,82 @@ paths:
 
 components:
   schemas:
-    User:
+    InterestCategory:
       type: object
       properties:
-        id:
-          type: integer
         name:
           type: string
-        email:
+        description:
           type: string
-        createdAt:
-          type: string
-          format: date-time
-        profilePicture:
-          type: string
-          format: uri
-        rooms:
-          type: array
-          items:
-            type: integer
-          description: Список ID комнат, в которых состоит пользователь
-        friends:
-          type: array
-          items:
-            type: integer
-          description: Список друзей пользователя
+        id:
+          type: integer
 
-    Post:
+    Notification:
       type: object
       properties:
         id:
           type: integer
-        authorId:
+        userId:
           type: integer
+        title:
+          type: string
         content:
           type: string
+        isRead:
+          type: boolean
         createdAt:
           type: string
           format: date-time
-        roomId:
-          type: integer
-          description: ID комнаты, к которой относится пост
-
-    Comment:
-      type: object
-      properties:
-        id:
-          type: integer
-        authorId:
-          type: integer
-        content:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        postId:
-          type: integer
-          description: ID поста, к которому относится комментарий
 
     Message:
       type: object
       properties:
         id:
           type: integer
-        senderId:
-          type: integer
-        receiverId:
-          type: integer
-        content:
-          type: string
         roomId:
           type: integer
-          description: ID комнаты, в которой было отправлено сообщение
-        imageId:
-          type: integer
-          description: ID изображения, прикрепленного к сообщению (если есть)
+        collaborators:
+          type: array
+          items:
+            type: integer
+        date:
+          type: string
+          format: date-time
+        isDeleted:
+          type: boolean
         createdAt:
           type: string
           format: date-time
-
-    FriendRequest:
-      type: object
-      properties:
-        userId:
-          type: integer
-        friendId:
+        createdBy:
           type: integer
 
-    Feedback:
+    User:
       type: object
       properties:
+        name:
+          type: string
+        email:
+          type: string
         id:
           type: integer
-        userId:
-          type: integer
-        postId:
-          type: integer
-        rating:
-          type: integer
-        comment:
+        passwordHash:
           type: string
+        rooms:
+          type: array
+          items:
+            type: integer
+        interests:
+          type: array
+          items:
+            type: integer
+        feedbacks:
+          type: array
+          items:
+            type: integer
+        feedbacksAuthor:
+          type: array
+          items:
+            type: integer
         createdAt:
           type: string
           format: date-time
@@ -1078,28 +1054,114 @@ components:
     Room:
       type: object
       properties:
-        id:
-          type: integer
         adminId:
+          type: array
+          items:
+            type: integer
+        id:
           type: integer
         description:
           type: string
         category:
           type: string
-        maxCollaborators:
-          type: integer
-        createdAt:
-          type: string
-          format: date-time
-        status:
-          type: string
-          enum:
-            - active
-            - inactive
-          description: Статус комнаты
-        members:
+        collaborators:
           type: array
           items:
             type: integer
-          description: Список участников комнаты
+        interestType:
+          type: integer
+        geolocation:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: integer
+        maxCollaborators:
+          type: integer
+
+    Post:
+      type: object
+      properties:
+        authorId:
+          type: array
+          items:
+            type: integer
+        id:
+          type: integer
+        text:
+          type: string
+        likedUsers:
+          type: array
+          items:
+            type: integer
+        dislikedUsers:
+          type: array
+          items:
+            type: integer
+        comments:
+          type: array
+          items:
+            type: integer
+        room:
+          type: integer
+        image:
+          type: string
+
+    Interest:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        id:
+          type: integer
+
+    Comment:
+      type: object
+      properties:
+        authorId:
+          type: array
+          items:
+            type: integer
+        id:
+          type: integer
+        text:
+          type: string
+        likedUsers:
+          type: array
+          items:
+            type: integer
+        dislikedUsers:
+          type: array
+          items:
+            type: integer
+        post:
+          type: integer
+
+    Image:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+          format: byte
+
+    Feedback:
+      type: object
+      properties:
+        authorId:
+          type: array
+          items:
+            type: integer
+        id:
+          type: integer
+        text:
+          type: string
+        userId:
+          type: integer
 
