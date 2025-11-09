@@ -1,45 +1,9 @@
-## Use postgres/example user/password credentials
-# БЫЛО
-#services:
-#  #  backend:
-#  #     TODO
-#  #  frontend:
-#  #     TODO
-#  db:
-#    image: postgres:17
-#    restart: always
-#    shm_size: 128mb
-#    # лучше делать через .env для безопасности
-#    environment:
-#      POSTGRES_PASSWORD: ${DB_PASSWORD}
-#      POSTGRES_USER: ${DB_USER}
-#      POSTGRES_DB: ${DB_NAME}
-#    # нужен для корректной работы, при подымании нескольких сервесов, по сути будет нужен только после того, как сделаем bd
-#    healthcheck:
-#      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 5
-#    volumes:
-#      - db-data:/var/lib/postgresql/data
-#    ports:
-#      - "5432:5432"
-#  # нужен для тестировки, потом уберу, если не убрать, то может произойти утечка
-#  adminer:
-#    image: adminer
-#    restart: always
-#    ports:
-#      - 8080:8080
-#
-#volumes:
-#  db-data:
-
 version: "3.8"
 
 services:
-  psql-db:
+  postgres:
     image: postgres:17
-    container_name: psql-db
+    container_name: postgres
     restart: always
     environment:
       POSTGRES_USER: Gr1zBear
@@ -47,19 +11,20 @@ services:
       POSTGRES_DB: CoPos
     ports:
       - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
 
-  recipe:
-    container_name: recipe_app
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8081:8080"
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://psql-db:5432/CoPos
-      - SPRING_DATASOURCE_USERNAME=Gr1zBear
-      - SPRING_DATASOURCE_PASSWORD=qwerty
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+  app:
+    build: .
+    container_name: coactivity_app
     depends_on:
-      - psql-db
+      - postgres
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/CoPos
+      SPRING_DATASOURCE_USERNAME: Gr1zBear
+      SPRING_DATASOURCE_PASSWORD: qwerty
+    ports:
+      - "8080:8080"
 
+volumes:
+  pg_data:
