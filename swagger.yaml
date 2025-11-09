@@ -1,0 +1,1105 @@
+openapi: 3.0.0
+info:
+  title: CoActivity API
+  description: API test
+  version: 1.0.0
+
+#servers:
+#  - url: 'http://coactivity_app:8080/api/v1'
+
+paths:
+  /users/{id}/profile:
+    get:
+      summary: Войти в свой профиль
+      operationId: getUserProfile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID текущего пользователя
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Данные пользователя успешно получены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Пользователь не найден
+  /users/{id}/profile/personal-info:
+    get:
+      summary: Просмотр персональной информации пользователя
+      operationId: getPersonalInfo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Персональная информация успешно получена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  email:
+                    type: string
+                  phone:
+                    type: string
+                  address:
+                    type: string
+        '404':
+          description: Пользователь не найден
+  /users/{id}/profile/personal-info/name:
+    put:
+      summary: Изменить имя пользователя
+      operationId: updateUserName
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Имя пользователя успешно обновлено
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+
+  /users/{id}/profile/personal-info/email:
+    put:
+      summary: Изменить email пользователя
+      operationId: updateUserEmail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Email пользователя успешно обновлен
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+
+  /users/{id}/profile/personal-info/phone:
+    put:
+      summary: Изменить телефон пользователя
+      operationId: updateUserPhone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+      responses:
+        '200':
+          description: Телефон пользователя успешно обновлен
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+
+  /users/{id}/profile/personal-info/address:
+    put:
+      summary: Изменить адрес пользователя
+      operationId: updateUserAddress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                address:
+                  type: string
+      responses:
+        '200':
+          description: Адрес пользователя успешно обновлен
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+
+  /rooms:
+    post:
+      summary: Создать новую комнату
+      operationId: createRoom
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  description: Описание комнаты
+                category:
+                  type: string
+                  description: Категория комнаты
+                maxCollaborators:
+                  type: integer
+                  description: Максимальное количество участников
+                meetingTime:
+                  type: string
+                  format: date-time
+                  description: Время начала встречи
+                meetingType:
+                  type: string
+                  enum:
+                    - online
+                    - offline
+                  description: Тип встречи
+                location:
+                  type: string
+                  description: Локация встречи, если тип оффлайн
+                  nullable: true
+      responses:
+        '201':
+          description: Комната успешно создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '400':
+          description: Некорректные данные (например, если количество участников превышает лимит)
+  /rooms/{roomId}/join:
+    post:
+      summary: Присоединиться к созданной комнате
+      operationId: joinRoom
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты, к которой пользователь хочет присоединиться
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: integer
+                  description: ID пользователя, который хочет присоединиться
+      responses:
+        '200':
+          description: Пользователь успешно присоединился к комнате
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Комната не найдена
+        '409':
+          description: Ошибка если количество участников достигло лимита
+  /rooms/{roomId}/chat:
+    get:
+      summary: Открыть чат комнаты
+      operationId: openRoomChat
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты, в которой пользователь хочет открыть чат
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Чат комнаты успешно открыт
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roomId:
+                    type: integer
+                    description: ID комнаты
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        senderId:
+                          type: integer
+                          description: ID отправителя сообщения
+                        content:
+                          type: string
+                          description: Содержание сообщения
+                        timestamp:
+                          type: string
+                          format: date-time
+                          description: Время отправки сообщения
+        '404':
+          description: Комната не найдена
+        '403':
+          description: Пользователь не присоединился к комнате
+  /users/{userId}/profile/view:
+    get:
+      summary: Посмотреть профиль другого пользователя
+      operationId: viewUserProfile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чей профиль нужно просмотреть
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Профиль пользователя успешно получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Пользователь не найден
+        '403':
+          description: У пользователя нет прав для просмотра этого профиля (например, если профиль скрыт)
+
+    post:
+      summary: Выполнить действия с профилем (заблокировать, добавить в друзья, общие комнаты)
+      operationId: userProfileActions
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID текущего пользователя
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum:
+                    - block
+                    - addFriend
+                    - getCommonRooms
+                  description: Действие, которое пользователь хочет выполнить
+                targetUserId:
+                  type: integer
+                  description: ID другого пользователя (для блокировки или добавления в друзья)
+      responses:
+        '200':
+          description: Действие успешно выполнено
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+        '409':
+          description: Ошибка , если пользователь уже заблокирован или добавлен в дрзья
+  /users/{userId}/profile/view/friend-request:
+    post:
+      summary: Принять запрос в друзья
+      operationId: acceptFriendRequest
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID текущего пользователя
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetUserId:
+                  type: integer
+                  description: ID пользователя, который отправил запрос в друзья
+      responses:
+        '200':
+          description: Запрос в друзья успешно принят
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+        '409':
+          description: Запрос уже принят или отклонен
+
+  /users/{userId}/profile/view/friend-request/decline:
+    post:
+      summary: Отклонить запрос в друзья
+      operationId: declineFriendRequest
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID текущего пользователя
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetUserId:
+                  type: integer
+                  description: ID пользователя, который отправил запрос в друзья
+      responses:
+        '200':
+          description: Запрос в друзья успешно отклонен
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+        '409':
+          description: Запрос уже принят или отклонен
+  /users/{userId}/rooms:
+    get:
+      summary: Получить список своих комнат
+      operationId: getUserRooms
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи комнаты нужно просмотреть
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Список комнат пользователя
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Room'
+        '404':
+          description: Пользователь не найден или у пользователя нет комнат
+  /users/{userId}/rooms/folder:
+    post:
+      summary: Создать папку для комнат
+      operationId: createRoomFolder
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, который создаёт папку
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                folderName:
+                  type: string
+                  description: Название папки для комнат
+      responses:
+        '201':
+          description: Папка успешно создана
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+  /users/{userId}/rooms/folder/{folderId}/delete:
+    delete:
+      summary: Удалить папку для комнат
+      operationId: deleteRoomFolder
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, который удаляет папку
+          schema:
+            type: integer
+        - name: folderId
+          in: path
+          required: true
+          description: ID папки, которую нужно удалить
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Папка успешно удалена
+        '400':
+          description: Некорректные данные (например, папка не пуста)
+        '404':
+          description: Папка или пользователь не найдены
+
+  /users/{userId}/rooms/folder/{folderId}/update:
+    put:
+      summary: Изменить название папки для комнат
+      operationId: updateRoomFolder
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, который изменяет папку
+          schema:
+            type: integer
+        - name: folderId
+          in: path
+          required: true
+          description: ID папки, которую нужно изменить
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                folderName:
+                  type: string
+                  description: Новое название папки
+      responses:
+        '200':
+          description: Папка успешно изменена
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Папка или пользователь не найдены
+  /users/{userId}/rooms/{roomId}:
+    get:
+      summary: Просмотреть информацию о конкретной комнате
+      operationId: getRoomDetails
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи комнаты нужно просмотреть
+          schema:
+            type: integer
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты, которую пользователь хочет просмотреть
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Информация о комнате успешно получена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '404':
+          description: Комната или пользователь не найдены
+        '403':
+          description: Пользователь не имеет доступа к этой комнате
+  /rooms/{roomId}/brief:
+    get:
+      summary: Получить краткое описание комнаты
+      operationId: getRoomBrief
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты, которую нужно просмотреть
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Краткое описание комнаты
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roomId:
+                    type: integer
+                    description: ID комнаты
+                  briefDescription:
+                    type: string
+                    description: Краткое описание комнаты
+        '404':
+          description: Комната не найдена
+  /users/{userId}/rooms/filter:
+    get:
+      summary: Фильтровать комнаты по времени или важности
+      operationId: filterRooms
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи комнаты нужно фильтровать
+          schema:
+            type: integer
+        - name: filterBy
+          in: query
+          required: true
+          description: Критерий фильтрации (по времени или важности)
+          schema:
+            type: string
+            enum:
+              - time
+              - importance
+        - name: order
+          in: query
+          required: false
+          description: Порядок сортировки (по возрастанию или убыванию)
+          schema:
+            type: string
+            enum:
+              - ascending
+              - descending
+      responses:
+        '200':
+          description: Список отфильтрованных комнат
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Room'
+        '404':
+          description: Комнаты не найдены
+  /users/{userId}/settings:
+    get:
+      summary: Получить текущие настройки пользователя
+      operationId: getUserSettings
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи настройки нужно просмотреть
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Текущие настройки пользователя
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notificationsEnabled:
+                    type: boolean
+                    description: Включены ли уведомления
+                  privacy:
+                    type: object
+                    properties:
+                      profileVisibility:
+                        type: string
+                        enum:
+                          - public
+                          - private
+                          - friends
+                        description: Кто может видеть профиль
+                  language:
+                    type: string
+                    description: Язык интерфейса
+        '404':
+          description: Пользователь не найден
+  /users/{userId}/settings/notifications:
+    get:
+      summary: Получить текущие настройки уведомлений
+      operationId: getUserNotificationSettings
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи настройки уведомлений нужно просмотреть
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Текущие настройки уведомлений
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  emailNotifications:
+                    type: boolean
+                    description: Включены ли уведомления по email
+                  pushNotifications:
+                    type: boolean
+                    description: Включены ли push-уведомления
+                  messageNotifications:
+                    type: boolean
+                    description: Получать ли уведомления о новых сообщениях
+                  friendRequestNotifications:
+                    type: boolean
+                    description: Получать ли уведомления о запросах в друзья
+                  eventNotifications:
+                    type: boolean
+                    description: Получать ли уведомления о событиях и активностях
+        '404':
+          description: Пользователь не найден
+  /rooms/{roomId}/settings/notifications:
+    get:
+      summary: Просмотр настроек уведомлений для конкретной комнаты
+      operationId: getRoomNotificationSettings
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты, для которой нужно получить настройки уведомлений
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Уведомления для комнаты успешно получены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invitationNotifications:
+                    type: boolean
+                    description: Уведомления о приглашениях в комнату
+                  messageNotifications:
+                    type: boolean
+                    description: Уведомления о новых сообщениях в комнате
+                  removalNotifications:
+                    type: boolean
+                    description: Уведомления об удалении из комнаты
+        '404':
+          description: Комната не найдена
+
+    put:
+      summary: Изменить настройки уведомлений для комнаты
+      operationId: updateRoomNotificationSettings
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты, для которой нужно обновить настройки уведомлений
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invitationNotifications:
+                  type: boolean
+                  description: Включить или отключить уведомления о приглашениях в комнату
+                messageNotifications:
+                  type: boolean
+                  description: Включить или отключить уведомления о новых сообщениях
+                removalNotifications:
+                  type: boolean
+                  description: Включить или отключить уведомления об удалении из комнаты
+      responses:
+        '200':
+          description: Настройки уведомлений успешно обновлены
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Комната не найдена
+  /users/{userId}/settings/general-notifications:
+    get:
+      summary: Просмотр общих настроек уведомлений пользователя
+      operationId: getGeneralNotificationSettings
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи общие настройки уведомлений нужно просмотреть
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Общие настройки уведомлений успешно получены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  emailNotifications:
+                    type: boolean
+                    description: Включены ли email уведомления
+                  pushNotifications:
+                    type: boolean
+                    description: Включены ли push уведомления
+        '404':
+          description: Пользователь не найден
+
+    put:
+      summary: Обновить общие настройки уведомлений пользователя
+      operationId: updateGeneralNotificationSettings
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи общие настройки уведомлений нужно обновить
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                emailNotifications:
+                  type: boolean
+                  description: Включить или отключить email уведомления
+                pushNotifications:
+                  type: boolean
+                  description: Включить или отключить push уведомления
+      responses:
+        '200':
+          description: Общие настройки уведомлений успешно обновлены
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+
+  /posts:
+    post:
+      summary: Создать новый пост
+      operationId: createPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Post'
+      responses:
+        '201':
+          description: Пост успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+
+  /posts/{postId}/comments:
+    post:
+      summary: Создать комментарий для поста
+      operationId: createComment
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          description: ID поста
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Comment'
+      responses:
+        '201':
+          description: Комментарий успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+  /users/{userId}/settings/privacy-and-recommendations:
+    get:
+      summary: Просмотр политики конфиденциальности и настроек рекомендаций
+      operationId: getPrivacyAndRecommendations
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи настройки конфиденциальности и рекомендации нужно просмотреть
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Политика конфиденциальности и настройки рекомендаций успешно получены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  privacyPolicy:
+                    type: string
+                    description: Политика конфиденциальности
+                  recommendationSettings:
+                    type: object
+                    properties:
+                      roomRecommendations:
+                        type: boolean
+                        description: Включены ли рекомендации комнат
+        '404':
+          description: Пользователь не найден
+  /users/{userId}/settings/room-recommendations:
+    put:
+      summary: Изменить настройки рекомендаций комнат
+      operationId: updateRoomRecommendations
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи настройки рекомендаций нужно обновить
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roomRecommendations:
+                  type: boolean
+                  description: Включить или выключить рекомендации комнат
+      responses:
+        '200':
+          description: Настройки рекомендаций комнат успешно обновлены
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+  /users/{userId}/settings/friends-data-access:
+    put:
+      summary: Изменить информацию о друзьях и их доступе к данным
+      operationId: updateFriendsDataAccess
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, чьи данные нужно обновить
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                friendsAccess:
+                  type: string
+                  enum:
+                    - all
+                    - specific
+                    - none
+                  description: Тип доступа друзей к данным (все, конкретные друзья, нет доступа)
+      responses:
+        '200':
+          description: Информация о друзьях и их доступе к данным успешно обновлена
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+  /users/{userId}/settings/data-links-access:
+    put:
+      summary: Изменить доступность ссылок и данных для других пользователей
+      operationId: updateDataLinksAccess
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя, для которого нужно обновить доступность данных
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dataLinksAccess:
+                  type: string
+                  enum:
+                    - public
+                    - friends
+                    - private
+                  description: Доступность ссылок и данных для других пользователей
+      responses:
+        '200':
+          description: Доступность ссылок и данных успешно обновлена
+        '400':
+          description: Некорректные данные
+        '404':
+          description: Пользователь не найден
+
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        profilePicture:
+          type: string
+          format: uri
+        rooms:
+          type: array
+          items:
+            type: integer
+          description: Список ID комнат, в которых состоит пользователь
+        friends:
+          type: array
+          items:
+            type: integer
+          description: Список друзей пользователя
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: integer
+        authorId:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        roomId:
+          type: integer
+          description: ID комнаты, к которой относится пост
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        authorId:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        postId:
+          type: integer
+          description: ID поста, к которому относится комментарий
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        senderId:
+          type: integer
+        receiverId:
+          type: integer
+        content:
+          type: string
+        roomId:
+          type: integer
+          description: ID комнаты, в которой было отправлено сообщение
+        imageId:
+          type: integer
+          description: ID изображения, прикрепленного к сообщению (если есть)
+        createdAt:
+          type: string
+          format: date-time
+
+    FriendRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+        friendId:
+          type: integer
+
+    Feedback:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        postId:
+          type: integer
+        rating:
+          type: integer
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Room:
+      type: object
+      properties:
+        id:
+          type: integer
+        adminId:
+          type: integer
+        description:
+          type: string
+        category:
+          type: string
+        maxCollaborators:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+          description: Статус комнаты
+        members:
+          type: array
+          items:
+            type: integer
+          description: Список участников комнаты
+
