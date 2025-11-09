@@ -8,11 +8,11 @@ CREATE TABLE users (
 CREATE TABLE rooms (
     id SERIAL PRIMARY KEY,
     destription TEXT,
-    interestType INTEGER,
+    interestType TEXT,
     geoposition TEXT,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     createdBy INTEGER,
-    maxColaborators INTEGER
+    maxCollaborators INTEGER
 
 );
 CREATE TABLE roomsAdmins (
@@ -21,7 +21,7 @@ CREATE TABLE roomsAdmins (
     FOREIGN KEY (roomId) REFERENCES rooms (id),
     FOREIGN KEY (adminId) REFERENCES users (id)
 );
-CREATE TABLE roomsColaborators (
+CREATE TABLE roomsCollaborators (
     roomId INTEGER,
     colaboratorId INTEGER,
     FOREIGN KEY (roomId) REFERENCES rooms (id),
@@ -38,7 +38,7 @@ CREATE TABLE posts (
     id SERIAL PRIMARY KEY,
     createdBy INTEGER REFERENCES users (id) ON DELETE CASCADE,
     content TEXT,
-    room INTEGER REFERENCES rooms (id) ON DELETE CASCADE,
+    room INTEGER REFERENCES rooms (id) ON DELETE CASCADE, --зачем нужна комната?
     image VARCHAR(255)
 );
 CREATE TABLE comments (
@@ -48,15 +48,19 @@ CREATE TABLE comments (
     content TEXT
 );
 
-CREATE TABLE likesAndDislikes (
+CREATE TABLE likesOnPosts (
     id SERIAL PRIMARY KEY,
     type BIT,
     post INTEGER REFERENCES posts (id) ON DELETE CASCADE,
-    comment INTEGER REFERENCES comments (id) ON DELETE CASCADE,
     createdBy INTEGER REFERENCES users (id) ON DELETE CASCADE
 
 );
-
+CREATE TABLE dislikesOnPosts (
+    id SERIAL PRIMARY KEY,
+    post INTEGER REFERENCES posts (id) ON DELETE CASCADE,
+    createdBy INTEGER REFERENCES users (id) ON DELETE CASCADE
+);
+--создать таблицы для лайков и дизлайков на комментарии
 CREATE TABLE interestCategory (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255),
