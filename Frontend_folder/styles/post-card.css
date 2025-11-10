@@ -1,0 +1,135 @@
+/* Стили для карточки поста/комнаты */
+.post-card {
+  background: linear-gradient(135deg, #ffd700 0%, #f0c420 100%);
+  border-radius: 16px;
+  padding: 30px;
+  margin-bottom: 30px;
+  color: #000;
+  box-shadow: 0 8px 24px rgba(212, 175, 55, 0.3);
+}
+
+/* Шапка поста */
+.post-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.post-author-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.post-author-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.post-author-name {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.post-subscribe-btn {
+  background-color: transparent;
+  border: 2px solid #000;
+  color: #000;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  text-transform: lowercase;
+}
+
+.post-subscribe-btn:hover {
+  background-color: #000;
+  color: #ffd700;
+}
+
+/* Контент поста */
+.post-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 15px;
+  line-height: 1.4;
+}
+
+.post-description {
+  font-size: 16px;
+  line-height: 1.7;
+  margin-bottom: 20px;
+}
+
+.post-image {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  border-radius: 12px;
+  margin: 20px 0;
+  display: block;
+}
+
+/* Действия с постом */
+.post-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.post-interactions {
+  display: flex;
+  gap: 25px;
+  align-items: center;
+}
+
+.interaction-btn {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  color: #000;
+  font-weight: 600;
+  transition: transform 0.2s ease;
+}
+
+.interaction-btn:hover {
+  transform: scale(1.1);
+}
+
+.interaction-icon {
+  font-size: 24px;
+}
+
+.join-button {
+  background-color: var(--accent-pink);
+  color: #fff;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 12px 35px;
+  border-radius: 25px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(255, 90, 126, 0.4);
+}
+
+.join-button:hover {
+  background-color: #ff3d64;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 90, 126, 0.6);
+}
