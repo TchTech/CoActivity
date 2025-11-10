@@ -1,0 +1,292 @@
+/* Стили для постов и комментариев */
+
+.post-card {
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.post-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.post-user-info {
+  flex: 1;
+}
+
+.post-username {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.post-time {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.post-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.post-content {
+  font-size: var(--font-size-base);
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-md);
+}
+
+.post-image {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-md);
+  max-height: 400px;
+  object-fit: cover;
+}
+
+.post-actions {
+  display: flex;
+  gap: var(--spacing-lg);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.post-action-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.post-action-btn:hover {
+  color: var(--accent-gold);
+}
+
+.post-action-btn.active {
+  color: var(--accent-gold);
+}
+
+/* Добавил стили для SVG иконок в цветах палитры */
+.post-action-icon {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+.post-action-btn.liked {
+  color: var(--accent-gold);
+}
+
+.comment-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.comment-action.liked {
+  color: var(--accent-gold);
+}
+
+.post-action-icon {
+  font-size: 20px;
+}
+
+.comments-section {
+  margin-top: var(--spacing-lg);
+}
+
+.comments-header {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--accent-gold);
+  text-align: center;
+  padding: var(--spacing-md) 0;
+  margin-bottom: var(--spacing-lg);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.comment {
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.comment-content {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.6;
+}
+
+.comment-actions {
+  display: flex;
+  gap: var(--spacing-lg);
+  align-items: center;
+}
+
+.comment-action {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.comment-action:hover {
+  color: var(--accent-gold);
+}
+
+.comment-replies {
+  margin-left: var(--spacing-xl);
+  margin-top: var(--spacing-md);
+}
+
+.reply-label {
+  font-size: var(--font-size-sm);
+  color: var(--accent-gold);
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Добавил стили для формы настроек */
+.settings-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.settings-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--accent-gold);
+  margin-bottom: var(--spacing-lg);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.settings-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-sm);
+}
+
+.settings-item-info {
+  flex: 1;
+  padding-right: var(--spacing-md);
+}
+
+.settings-item-label {
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.settings-item-description {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-tertiary);
+  transition: 0.3s;
+  border-radius: 34px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--text-muted);
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle input:checked + .toggle-slider {
+  background-color: var(--accent-gold);
+}
+
+.toggle input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+  background-color: var(--bg-primary);
+}
+
+.toggle input:disabled + .toggle-slider {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.settings-time-range {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-sm);
+  margin-left: var(--spacing-md);
+}
+
+.settings-time-input {
+  flex: 1;
+}
+
+.settings-time-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--spacing-xs);
+}

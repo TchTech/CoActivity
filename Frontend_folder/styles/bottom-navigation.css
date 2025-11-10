@@ -1,0 +1,78 @@
+/* Нижняя навигация */
+.bottom-navigation {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--background-card);
+  border-top: 2px solid var(--border-color);
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 40px;
+  z-index: 1000;
+}
+
+.nav-button {
+  background-color: var(--accent-gold);
+  border: none;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #000;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.nav-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(212, 175, 55, 0.5);
+}
+
+.nav-button.bookmark {
+  width: 50px;
+  height: 65px;
+  border-radius: 8px 8px 0 0;
+  clip-path: polygon(0 0, 100% 0, 100% 85%, 50% 100%, 0 85%);
+}
+
+.nav-button.join {
+  width: auto;
+  padding: 0 30px;
+  border-radius: 30px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  background-color: #2a2a2a;
+  color: var(--accent-gold);
+  border: 2px solid var(--accent-gold);
+}
+
+.nav-button.join:hover {
+  background-color: var(--accent-gold);
+  color: #000;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .bottom-navigation {
+    gap: 20px;
+    padding: 15px;
+  }
+
+  .nav-button {
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+  }
+
+  .nav-button.join {
+    font-size: 16px;
+    padding: 0 20px;
+  }
+}
