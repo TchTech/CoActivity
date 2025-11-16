@@ -7,5 +7,5 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 @Repository
 public interface PostRepository extends JpaRepository<Post, Long> {
-  List<Post> findByAuthorName(String authorName);
+  List<Post> findByAuthorUsername(String username);
 }

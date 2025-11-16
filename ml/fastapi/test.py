@@ -1,6 +1,12 @@
 # ml/fastapi/test.py
 import sys
 import os
+import io
+
+# Установка кодировки UTF-8 для вывода
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import pytest
@@ -65,17 +71,17 @@ if __name__ == "__main__":
     for test_func in test_functions:
         try:
             test_func()
-            print(f"✅ {test_func.__name__} - ПРОЙДЕН")
+            print(f"[OK] {test_func.__name__} - PROYDEN")
             passed_tests += 1
         except Exception as e:
-            print(f"❌ {test_func.__name__} - ПРОВАЛ: {str(e)}")
+            print(f"[FAIL] {test_func.__name__} - PROVAL: {str(e)}")
             failed_tests += 1
 
-    print(f"\n📊 ИТОГ: Пройдено: {passed_tests}, Провалено: {failed_tests}, Всего: {len(test_functions)}")
+    print(f"\n[RESULT] ITOG: Proydeno: {passed_tests}, Provalen: {failed_tests}, Vsego: {len(test_functions)}")
 
     if failed_tests == 0:
-        print("🎉 Все тесты пройдены успешно!")
+        print("[SUCCESS] Vse testy proydeny uspeshno!")
         exit(0)
     else:
-        print("⚠️  Некоторые тесты провалились!")
+        print("[WARNING] Nekotorye testy provalilis!")
         exit(1)

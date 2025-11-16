@@ -1,11 +1,14 @@
 package com.mipt.CoActivity.model;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 @Data
+@NoArgsConstructor
+@Entity
+@Table(name = "posts")
 public class Post {
   @ManyToOne
   @JoinColumn(name = "userId")
@@ -31,7 +34,11 @@ public class Post {
   private List<User> dislikedUsers;
   @OneToMany(mappedBy = "post")
   private List<Comment> comments;
+  @ManyToOne
+  @JoinColumn(name = "roomId")
   private Room room;
+  @ManyToOne
+  @JoinColumn(name = "imageId")
   private Image image;
   public Post(String name, User author, String text, Image image) {
     this.name = name;

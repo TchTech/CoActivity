@@ -2,12 +2,14 @@ package com.mipt.CoActivity.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Data
+@NoArgsConstructor
 @Table(name = "users")
 public class User {
   @Column(name = "userName")
@@ -29,8 +31,17 @@ public class User {
   @OneToMany(mappedBy = "author")
   private List<Post> posts;
 
+  @ManyToMany
+  @JoinTable(
+      name = "user_interests",
+      joinColumns = @JoinColumn(name = "userId"),
+      inverseJoinColumns = @JoinColumn(name = "interestId"))
   private List<Interest> interests;
+  
+  @OneToMany(mappedBy = "reviewedUser")
   private List<Feedback> feedbacks;
+  
+  @OneToMany(mappedBy = "author")
   private List<Feedback> feedbacksAuthor;
 
   @ManyToMany
