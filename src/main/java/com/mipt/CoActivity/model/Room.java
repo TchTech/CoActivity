@@ -2,14 +2,22 @@ package com.mipt.CoActivity.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 @Data
+@NoArgsConstructor
 @Entity
 @Table(name = "rooms")
 public class Room {
+  @ManyToMany
+  @JoinTable(
+          name = "room_admins",
+          joinColumns = @JoinColumn(name = "roomId"),
+          inverseJoinColumns = @JoinColumn(name = "userId")
+  )
   private List<User> admins;
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,11 +32,13 @@ public class Room {
           inverseJoinColumns = @JoinColumn(name = "userId")
   )
   private List<User> collaborators;
-  @Column(name = "interestType")
+  @ManyToOne
+  @JoinColumn(name = "interestTypeId")
   private InterestCategory interestType;
   @Column(name = "geoposition")
   private String geoposition;
-  @Column(name = "createdBy")
+  @ManyToOne
+  @JoinColumn(name = "createdById")
   private User createdBy;
   @Column(name = "createdAt")
   private Instant createdAt;

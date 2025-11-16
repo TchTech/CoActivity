@@ -7,21 +7,14 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
 import uvicorn
 
-# Русские стоп-слова
-russian_stop_words = [
-    'и', 'в', 'во', 'не', 'что', 'он', 'на', 'я', 'с', 'со', 'как', 'а', 'то', 'все', 'она', 'так', 'его',
-    'но', 'да', 'ты', 'к', 'у', 'же', 'вы', 'за', 'бы', 'по', 'только', 'ее', 'мне', 'было', 'вот', 'от',
-    'меня', 'еще', 'нет', 'о', 'из', 'ему', 'теперь', 'когда', 'даже', 'ну', 'вдруг', 'ли', 'если', 'уже',
-    'или', 'ни', 'быть', 'был', 'него', 'до', 'вас', 'нибудь', 'опять', 'уж', 'вам', 'ведь', 'там', 'потом',
-    'себя', 'ничего', 'ей', 'может', 'они', 'тут', 'где', 'есть', 'надо', 'ней', 'для', 'мы', 'тебя', 'их',
-    'чем', 'была', 'сам', 'чтоб', 'без', 'будто', 'чего', 'раз', 'тоже', 'себе', 'под', 'будет', 'ж', 'тогда',
-    'кто', 'этот', 'того', 'потому', 'этого', 'какой', 'совсем', 'ним', 'здесь', 'этом', 'один', 'почти',
-    'мой', 'тем', 'чтобы', 'нее', 'сейчас', 'были', 'куда', 'зачем', 'всех', 'никогда', 'можно', 'при',
-    'наконец', 'два', 'об', 'другой', 'хоть', 'после', 'над', 'больше', 'тот', 'через', 'эти', 'нас', 'про',
-    'всего', 'них', 'какая', 'много', 'разве', 'три', 'эту', 'моя', 'впрочем', 'хорошо', 'свою', 'этой',
-    'перед', 'иногда', 'лучше', 'чуть', 'том', 'нельзя', 'такой', 'им', 'более', 'всегда', 'конечно', 'всю',
-    'между'
-]
+# Загрузка стоп-слов с правильной кодировкой
+try:
+    with open("russian.txt", "r", encoding="utf-8") as f:
+        russian_stop_words = f.read().split()
+except UnicodeDecodeError:
+    # Если UTF-8 не работает, пробуем другие кодировки
+    with open("russian.txt", "r", encoding="cp1251") as f:
+        russian_stop_words = f.read().split()
 
 
 # Модели Pydantic
@@ -145,8 +138,10 @@ sample_rooms = [
 
 class RecommendationService:
     def __init__(self):
+        # Фильтруем стоп-слова, оставляя только валидные
+        valid_stop_words = [word for word in russian_stop_words if word and len(word.strip()) > 0]
         self.tfidf_vectorizer = TfidfVectorizer(
-            stop_words=russian_stop_words,
+            stop_words=valid_stop_words if valid_stop_words else None,
             ngram_range=(1, 2),
             min_df=1,
             max_features=100
@@ -156,7 +151,6 @@ class RecommendationService:
         """Подготавливает текстовые данные из комнат для TF-IDF"""
         texts = []
         for room in rooms:
-            # Комбинируем название, описание и категорию для лучшего представления
             text = f"{room.title} {room.description} {room.category} {room.subcategory}"
             texts.append(text)
         return texts
@@ -165,25 +159,13 @@ class RecommendationService:
         """Получает рекомендации на основе интересов пользователя"""
         if not rooms:
             return []
-
-        # Подготавливаем текстовые данные
         room_texts = self.prepare_text_data(rooms)
-
-        # Обучаем TF-IDF на данных комнат
         room_vectors = self.tfidf_vectorizer.fit_transform(room_texts)
-
-        # Создаем текстовое представление интересов пользователя
         user_text = " ".join(user_interests)
         user_vector = self.tfidf_vectorizer.transform([user_text])
-
-        # Вычисляем косинусное сходство
         similarities = cosine_similarity(user_vector, room_vectors)[0]
-
-        # Сортируем комнаты по сходству
         room_scores = list(zip(rooms, similarities))
         room_scores.sort(key=lambda x: x[1], reverse=True)
-
-        # Возвращаем топ-N рекомендаций
         return room_scores[:top_n]
 
     def filter_recommendations(self, recommendations: List[tuple],
@@ -191,28 +173,16 @@ class RecommendationService:
                                location: Optional[str] = None) -> List[tuple]:
         """Фильтрует рекомендации по категориям и местоположению"""
         filtered = []
-
         for room, score in recommendations:
             include = True
-
-            # Фильтр по категориям
             if preferred_categories and room.category not in preferred_categories:
                 include = False
-
-            # Фильтр по местоположению
             if location and room.location != location:
                 include = False
-
             if include:
                 filtered.append((room, score))
-
         return filtered
-
-
-# Инициализация сервиса рекомендаций
 recommendation_service = RecommendationService()
-
-
 @app.get("/")
 async def root():
     return {
