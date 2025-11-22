@@ -12,11 +12,20 @@ import java.util.List;
 @NoArgsConstructor
 @Table(name = "users")
 public class User {
+  @Column(name = "name")
+  private String name;
+
   @Column(name = "userName")
   private String username;
 
   @Column(name = "eMail")
   private String email;
+
+  @Column(name = "phone")
+  private String phone;
+
+  @Column(name = "address")
+  private String address;
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -59,6 +68,7 @@ public class User {
 
   public User(String username, String email, String passwordHash) {
     this.username = username;
+    this.name = username;
     this.email = email;
     this.passwordHash = passwordHash;
     this.rooms = new ArrayList<>();

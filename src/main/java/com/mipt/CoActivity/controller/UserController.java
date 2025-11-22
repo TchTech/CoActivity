@@ -1,14 +1,17 @@
 package com.mipt.CoActivity.controller;
 
+import com.mipt.CoActivity.dto.*;
+import com.mipt.CoActivity.model.Room;
 import com.mipt.CoActivity.model.User;
+import com.mipt.CoActivity.model.UserSettings;
 import com.mipt.CoActivity.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/users")
@@ -18,6 +21,163 @@ public class UserController {
   @Autowired
   public UserController(UserService userService) {
     this.userService = userService;
+  }
+
+  @GetMapping("/{id}/profile")
+  public ResponseEntity<User> getUserProfile(@PathVariable Long id) {
+    return ResponseEntity.ok(userService.getUserProfile(id));
+  }
+
+  @GetMapping("/{id}/profile/personal-info")
+  public ResponseEntity<PersonalInfoResponse> getPersonalInfo(@PathVariable Long id) {
+    return ResponseEntity.ok(userService.getPersonalInfo(id));
+  }
+
+  @PutMapping("/{id}/profile/personal-info/name")
+  public ResponseEntity<Void> updateUserName(
+      @PathVariable Long id, @RequestBody UpdateNameRequest request) {
+    userService.updateUserName(id, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PutMapping("/{id}/profile/personal-info/email")
+  public ResponseEntity<Void> updateUserEmail(
+      @PathVariable Long id, @RequestBody UpdateEmailRequest request) {
+    userService.updateUserEmail(id, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PutMapping("/{id}/profile/personal-info/phone")
+  public ResponseEntity<Void> updateUserPhone(
+      @PathVariable Long id, @RequestBody UpdatePhoneRequest request) {
+    userService.updateUserPhone(id, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PutMapping("/{id}/profile/personal-info/address")
+  public ResponseEntity<Void> updateUserAddress(
+      @PathVariable Long id, @RequestBody UpdateAddressRequest request) {
+    userService.updateUserAddress(id, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @GetMapping("/{userId}/profile/view")
+  public ResponseEntity<User> viewUserProfile(
+      @PathVariable Long userId, @RequestParam Long currentUserId) {
+    return ResponseEntity.ok(userService.viewUserProfile(userId, currentUserId));
+  }
+
+  @PostMapping("/{userId}/profile/view")
+  public ResponseEntity<?> userProfileActions(
+      @PathVariable Long userId, @RequestBody UserProfileActionRequest request) {
+    if ("getCommonRooms".equals(request.getAction())) {
+      List<Room> commonRooms = userService.getCommonRooms(userId, request.getTargetUserId());
+      return ResponseEntity.ok(Map.of("commonRooms", commonRooms));
+    }
+    userService.performUserProfileAction(userId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/{userId}/profile/view/friend-request")
+  public ResponseEntity<Void> acceptFriendRequest(
+      @PathVariable Long userId, @RequestBody FriendRequestRequest request) {
+    userService.acceptFriendRequest(userId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/{userId}/profile/view/friend-request/decline")
+  public ResponseEntity<Void> declineFriendRequest(
+      @PathVariable Long userId, @RequestBody FriendRequestRequest request) {
+    userService.declineFriendRequest(userId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @GetMapping("/{userId}/rooms")
+  public ResponseEntity<List<Room>> getUserRooms(@PathVariable Long userId) {
+    return ResponseEntity.ok(userService.getUserRooms(userId));
+  }
+
+  @PostMapping("/{userId}/rooms/folder")
+  @ResponseStatus(HttpStatus.CREATED)
+  public ResponseEntity<com.mipt.CoActivity.model.RoomFolder> createRoomFolder(
+      @PathVariable Long userId, @RequestBody CreateRoomFolderRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(userService.createRoomFolder(userId, request));
+  }
+
+  @DeleteMapping("/{userId}/rooms/folder/{folderId}/delete")
+  public ResponseEntity<Void> deleteRoomFolder(
+      @PathVariable Long userId, @PathVariable Long folderId) {
+    userService.deleteRoomFolder(userId, folderId);
+    return ResponseEntity.ok().build();
+  }
+
+  @PutMapping("/{userId}/rooms/folder/{folderId}/update")
+  public ResponseEntity<Void> updateRoomFolder(
+      @PathVariable Long userId,
+      @PathVariable Long folderId,
+      @RequestBody UpdateRoomFolderRequest request) {
+    userService.updateRoomFolder(userId, folderId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @GetMapping("/{userId}/rooms/{roomId}")
+  public ResponseEntity<Room> getRoomDetails(
+      @PathVariable Long userId, @PathVariable Long roomId) {
+    return ResponseEntity.ok(userService.getRoomDetails(userId, roomId));
+  }
+
+  @GetMapping("/{userId}/rooms/filter")
+  public ResponseEntity<List<Room>> filterRooms(
+      @PathVariable Long userId,
+      @RequestParam String filterBy,
+      @RequestParam(required = false, defaultValue = "ascending") String order) {
+    return ResponseEntity.ok(userService.filterRooms(userId, filterBy, order));
+  }
+
+  @GetMapping("/{userId}/settings")
+  public ResponseEntity<UserSettings> getUserSettings(@PathVariable Long userId) {
+    return ResponseEntity.ok(userService.getUserSettings(userId));
+  }
+
+  @GetMapping("/{userId}/settings/notifications")
+  public ResponseEntity<UserSettings> getUserNotificationSettings(@PathVariable Long userId) {
+    return ResponseEntity.ok(userService.getUserNotificationSettings(userId));
+  }
+
+  @GetMapping("/{userId}/settings/general-notifications")
+  public ResponseEntity<UserSettings> getGeneralNotificationSettings(@PathVariable Long userId) {
+    UserSettings settings = userService.getUserSettings(userId);
+    return ResponseEntity.ok(settings);
+  }
+
+  @PutMapping("/{userId}/settings/general-notifications")
+  public ResponseEntity<UserSettings> updateGeneralNotificationSettings(
+      @PathVariable Long userId, @RequestBody GeneralNotificationSettingsRequest request) {
+    return ResponseEntity.ok(userService.updateGeneralNotificationSettings(userId, request));
+  }
+
+  @GetMapping("/{userId}/settings/privacy-and-recommendations")
+  public ResponseEntity<UserSettings> getPrivacyAndRecommendations(@PathVariable Long userId) {
+    return ResponseEntity.ok(userService.getPrivacyAndRecommendations(userId));
+  }
+
+  @PutMapping("/{userId}/settings/room-recommendations")
+  public ResponseEntity<UserSettings> updateRoomRecommendations(
+      @PathVariable Long userId, @RequestBody RoomRecommendationsRequest request) {
+    return ResponseEntity.ok(userService.updateRoomRecommendations(userId, request));
+  }
+
+  @PutMapping("/{userId}/settings/friends-data-access")
+  public ResponseEntity<UserSettings> updateFriendsDataAccess(
+      @PathVariable Long userId, @RequestBody FriendsDataAccessRequest request) {
+    return ResponseEntity.ok(userService.updateFriendsDataAccess(userId, request));
+  }
+
+  @PutMapping("/{userId}/settings/data-links-access")
+  public ResponseEntity<UserSettings> updateDataLinksAccess(
+      @PathVariable Long userId, @RequestBody DataLinksAccessRequest request) {
+    return ResponseEntity.ok(userService.updateDataLinksAccess(userId, request));
   }
 
   @PostMapping("/register")
@@ -30,9 +190,5 @@ public class UserController {
   @PostMapping("/subscribe")
   public void subscribe(@RequestParam Long userId, @RequestParam Long userToSubscribeId) {
     userService.subscribe(userId, userToSubscribeId);
-  }
-
-  public void unsubscribe(@RequestParam Long userId, @RequestParam Long userToUnsubscribeId) {
-    userService.unsubscribe(userId, userToUnsubscribeId);
   }
 }
