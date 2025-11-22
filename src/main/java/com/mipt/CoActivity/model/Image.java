@@ -1,5 +1,6 @@
 package com.mipt.CoActivity.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -10,7 +11,8 @@ public class Image {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Integer id;
-  @Lob
-  @Column(columnDefinition = "BYTEA")
+  
+  @JsonIgnore
+  @Column(name = "content", columnDefinition = "BYTEA")
   private byte[] content;
 }

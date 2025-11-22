@@ -1,5 +1,6 @@
 package com.mipt.CoActivity.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,6 +19,7 @@ public class Room {
           joinColumns = @JoinColumn(name = "roomId"),
           inverseJoinColumns = @JoinColumn(name = "userId")
   )
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})
   private List<User> admins;
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,20 +27,30 @@ public class Room {
   private String name;
   @Column(name = "description")
   private String description;
+  @Column(name = "category")
+  private String category;
   @ManyToMany
   @JoinTable(
           name = "roomsCollaborators",
           joinColumns = @JoinColumn(name = "roomId"),
           inverseJoinColumns = @JoinColumn(name = "userId")
   )
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})
   private List<User> collaborators;
   @ManyToOne
   @JoinColumn(name = "interestTypeId")
   private InterestCategory interestType;
   @Column(name = "geoposition")
   private String geoposition;
+  @Column(name = "location")
+  private String location;
+  @Column(name = "meetingTime")
+  private Instant meetingTime;
+  @Column(name = "meetingType")
+  private String meetingType; // "online" or "offline"
   @ManyToOne
   @JoinColumn(name = "createdById")
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})
   private User createdBy;
   @Column(name = "createdAt")
   private Instant createdAt;

@@ -1,4 +1,5 @@
 package com.mipt.CoActivity.model;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,6 +13,7 @@ import java.util.List;
 public class Post {
   @ManyToOne
   @JoinColumn(name = "userId")
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})
   private User author;
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,6 +26,7 @@ public class Post {
           joinColumns = @JoinColumn(name = "postId"),
           inverseJoinColumns = @JoinColumn(name = "userId")
   )
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})
   private List<User> likedUsers;
   @ManyToMany
   @JoinTable(
@@ -31,11 +34,14 @@ public class Post {
           joinColumns = @JoinColumn(name = "postId"),
           inverseJoinColumns = @JoinColumn(name = "userId")
   )
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})
   private List<User> dislikedUsers;
   @OneToMany(mappedBy = "post")
+  @JsonIgnoreProperties({"post", "author", "likedUsers", "dislikedUsers"})
   private List<Comment> comments;
   @ManyToOne
   @JoinColumn(name = "roomId")
+  @JsonIgnoreProperties({"collaborators", "admins", "createdBy"})
   private Room room;
   @ManyToOne
   @JoinColumn(name = "imageId")
