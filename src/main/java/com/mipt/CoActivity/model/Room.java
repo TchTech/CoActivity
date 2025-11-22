@@ -47,7 +47,7 @@ public class Room {
   @Column(name = "meetingTime")
   private Instant meetingTime;
   @Column(name = "meetingType")
-  private String meetingType; // "online" or "offline"
+  private String meetingType;
   @ManyToOne
   @JoinColumn(name = "createdById")
   @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})

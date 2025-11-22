@@ -68,7 +68,7 @@ public class User {
 
   public User(String username, String email, String passwordHash) {
     this.username = username;
-    this.name = username; // Default name to username
+    this.name = username;
     this.email = email;
     this.passwordHash = passwordHash;
     this.rooms = new ArrayList<>();

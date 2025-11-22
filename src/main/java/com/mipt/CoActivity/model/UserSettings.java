@@ -21,7 +21,7 @@ public class UserSettings {
     private Boolean notificationsEnabled = true;
 
     @Column(name = "profileVisibility")
-    private String profileVisibility = "public"; // "public", "private", "friends"
+    private String profileVisibility = "public";
 
     @Column(name = "language")
     private String language = "ru";
@@ -45,10 +45,10 @@ public class UserSettings {
     private Boolean roomRecommendations = true;
 
     @Column(name = "friendsAccess")
-    private String friendsAccess = "all"; // "all", "specific", "none"
+    private String friendsAccess = "all";
 
     @Column(name = "dataLinksAccess")
-    private String dataLinksAccess = "public"; // "public", "friends", "private"
+    private String dataLinksAccess = "public";
 
     public UserSettings(User user) {
         this.user = user;
