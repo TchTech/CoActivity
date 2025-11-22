@@ -119,6 +119,7 @@ paths:
           description: Только администратор может разрешать вход
         '404':
           description: Комната или пользователь не найдены
+
   /users/{id}/profile/external-links:
     get:
       summary: Получить список внешних ссылок
@@ -951,7 +952,7 @@ paths:
         - name: userId
           in: path
           required: true
-          description: ID пользователя, чьи настройки уведомлений нужно просмотреть
+          description: ID пользователя
           schema:
             type: integer
       responses:
@@ -962,21 +963,56 @@ paths:
               schema:
                 type: object
                 properties:
-                  emailNotifications:
+                  roomInvitationNotifications:
                     type: boolean
-                    description: Включены ли уведомления по email
-                  pushNotifications:
-                    type: boolean
-                    description: Включены ли push-уведомления
+                    description: Уведомления о приглашениях в комнаты
                   messageNotifications:
                     type: boolean
-                    description: Получать ли уведомления о новых сообщениях
-                  friendRequestNotifications:
+                    description: Уведомления о новых сообщениях
+                  roomRemovalNotifications:
                     type: boolean
-                    description: Получать ли уведомления о запросах в друзья
-                  eventNotifications:
+                    description: Уведомления об удалении из комнаты
+                  # Оставляем старые поля, если они нужны для совместимости, или заменяем новыми правилами
+                  emailNotifications:
                     type: boolean
-                    description: Получать ли уведомления о событиях и активностях
+                  pushNotifications:
+                    type: boolean
+        '404':
+          description: Пользователь не найден
+
+    put:
+      summary: Изменить общие правила отправки уведомлений
+      description:
+        Настройка глобальных правил: приглашения, сообщения, удаление из комнат
+      operationId: updateUserNotificationSettings
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roomInvitationNotifications:
+                  type: boolean
+                  description: Включить/отключить уведомления о приглашениях в комнаты
+                messageNotifications:
+                  type: boolean
+                  description: Включить/отключить уведомления о сообщениях
+                roomRemovalNotifications:
+                  type: boolean
+                  description: Включить/отключить уведомления об удалении из комнат
+      responses:
+        '200':
+          description: Общие настройки уведомлений успешно обновлены
+        '400':
+          description: Некорректные данные
         '404':
           description: Пользователь не найден
   /rooms/{roomId}/settings/notifications:
@@ -987,7 +1023,7 @@ paths:
         - name: roomId
           in: path
           required: true
-          description: ID комнаты, для которой нужно получить настройки уведомлений
+          description: ID комнаты
           schema:
             type: integer
       responses:
@@ -1011,13 +1047,13 @@ paths:
           description: Комната не найдена
 
     put:
-      summary: Изменить настройки уведомлений для комнаты
+      summary: Добавить/изменить правила уведомлений для конкретной комнаты
       operationId: updateRoomNotificationSettings
       parameters:
         - name: roomId
           in: path
           required: true
-          description: ID комнаты, для которой нужно обновить настройки уведомлений
+          description: ID комнаты
           schema:
             type: integer
       requestBody:
@@ -1029,16 +1065,16 @@ paths:
               properties:
                 invitationNotifications:
                   type: boolean
-                  description: Включить или отключить уведомления о приглашениях в комнату
+                  description: Включить/отключить уведомления о приглашениях
                 messageNotifications:
                   type: boolean
-                  description: Включить или отключить уведомления о новых сообщениях
+                  description: Включить/отключить уведомления о сообщениях
                 removalNotifications:
                   type: boolean
-                  description: Включить или отключить уведомления об удалении из комнаты
+                  description: Включить/отключить уведомления об удалении
       responses:
         '200':
-          description: Настройки уведомлений успешно обновлены
+          description: Настройки уведомлений комнаты успешно обновлены
         '400':
           description: Некорректные данные
         '404':
