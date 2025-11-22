@@ -96,8 +96,8 @@ const generatePosts = () => {
       image: eventImages[Math.floor(Math.random() * eventImages.length)],
       time: `${Math.floor(Math.random() * 24)} ч`,
       likes: Math.floor(Math.random() * 100) + 5,
+      dislikes: Math.floor(Math.random() * 20) + 1,
       comments: Math.floor(Math.random() * 30) + 1,
-      views: Math.floor(Math.random() * 500) + 50,
     }
 
     posts.push(post)

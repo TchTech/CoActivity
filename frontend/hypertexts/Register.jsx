@@ -1,12 +1,15 @@
 "use client"
 
 import { useState } from "react"
+import { userAPI } from "../lib/api"
+import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/auth.css"
 
 function Register({ onNavigate }) {
+  const { login } = useUser()
   const [formData, setFormData] = useState({
     email: "",
     nickname: "",
@@ -20,6 +23,7 @@ function Register({ onNavigate }) {
   })
   const [error, setError] = useState("")
   const [step, setStep] = useState(1)
+  const [loading, setLoading] = useState(false)
 
   const handleChange = (e) => {
     setFormData({
@@ -50,7 +54,7 @@ function Register({ onNavigate }) {
     setStep(2)
   }
 
-  const handleSubmitStep2 = (e) => {
+  const handleSubmitStep2 = async (e) => {
     e.preventDefault()
 
     if (!formData.firstName || !formData.lastName || !formData.city || !formData.nickname) {
@@ -63,8 +67,31 @@ function Register({ onNavigate }) {
       return
     }
 
-    console.log("Регистрация завершена:", formData)
-    onNavigate("home")
+    setLoading(true)
+    setError("")
+
+    try {
+      // Регистрация пользователя (шаг 1 - создание аккаунта)
+      const user = await userAPI.register(formData.nickname, formData.email, formData.password)
+      
+      console.log("Пользователь зарегистрирован:", user)
+      
+      // Сохраняем пользователя в контекст
+      if (user) {
+        login(user)
+      }
+      
+      // TODO: После регистрации нужно заполнить профиль (имя, фамилия, город, о себе)
+      // Это можно сделать через обновление профиля, если есть такой эндпоинт
+      
+      // Переход на главную страницу
+      onNavigate("home")
+    } catch (err) {
+      console.error("Ошибка регистрации:", err)
+      setError(err.message || "Ошибка при регистрации. Попробуйте еще раз.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -183,11 +210,11 @@ function Register({ onNavigate }) {
             </div>
 
             <div style={{ display: "flex", gap: "var(--spacing-md)" }}>
-              <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)}>
+              <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)} disabled={loading}>
                 Назад
               </button>
-              <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                Зарегистрироваться
+              <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>
+                {loading ? "Регистрация..." : "Зарегистрироваться"}
               </button>
             </div>
           </form>

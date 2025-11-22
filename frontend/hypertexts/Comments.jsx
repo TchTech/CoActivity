@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { getPostById } from "../scripts/postsData"
 import { getCommentsForPost } from "../scripts/commentsData"
+import { postAPI, commentAPI } from "../lib/api"
+import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -11,22 +13,56 @@ import "../styles/post.css"
 import "../styles/navigation.css"
 
 function Comments({ onNavigate, postId }) {
+  const { currentUser } = useUser()
   const [postData, setPostData] = useState(null)
   const [comments, setComments] = useState([])
   const [postLikes, setPostLikes] = useState(0)
+  const [postDislikes, setPostDislikes] = useState(0)
   const [postComments, setPostComments] = useState(0)
   const [isPostLiked, setIsPostLiked] = useState(false)
+  const [isPostDisliked, setIsPostDisliked] = useState(false)
   const [commentText, setCommentText] = useState("")
   const [replyingTo, setReplyingTo] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const fetchPostData = () => {
-    const data = getPostById(postId)
-    setPostData(data)
-    if (data) {
-      const initialComments = getCommentsForPost(postId, data.userId, data.time)
-      setComments(initialComments)
-      setPostLikes(data.likes)
-      setPostComments(data.comments)
+  const fetchPostData = async () => {
+    setLoading(true)
+    try {
+      // TODO: Когда будет добавлен GET /posts/{postId} эндпоинт
+      // const post = await postAPI.getById(postId)
+      // setPostData(post)
+      // setPostLikes(post.likedUsers?.length || 0)
+      // setPostDislikes(post.dislikedUsers?.length || 0)
+      // setPostComments(post.comments?.length || 0)
+      
+      // Загрузка комментариев
+      // const postComments = await commentAPI.getByPost(postId)
+      // setComments(postComments || [])
+      
+      // Временно используем моковые данные
+      const data = getPostById(postId)
+      setPostData(data)
+      if (data) {
+        const initialComments = getCommentsForPost(postId, data.userId, data.time)
+        setComments(initialComments)
+        setPostLikes(data.likes)
+        setPostDislikes(data.dislikes || 0)
+        setPostComments(data.comments)
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки поста:", error)
+      // Fallback на моковые данные
+      const data = getPostById(postId)
+      setPostData(data)
+      if (data) {
+        const initialComments = getCommentsForPost(postId, data.userId, data.time)
+        setComments(initialComments)
+        setPostLikes(data.likes)
+        setPostDislikes(data.dislikes || 0)
+        setPostComments(data.comments)
+      }
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -34,6 +70,21 @@ function Comments({ onNavigate, postId }) {
     console.log("[v0] Loading post with ID:", postId)
     fetchPostData()
   }, [postId])
+
+  if (loading) {
+    return (
+      <div>
+        <div className="top-nav">
+          <button className="btn-icon" onClick={() => onNavigate("home")}>
+            ←
+          </button>
+          <div className="top-nav-title">Загрузка...</div>
+          <div style={{ width: "40px" }}></div>
+        </div>
+        <div style={{ padding: "var(--spacing-lg)", textAlign: "center" }}>Загрузка поста...</div>
+      </div>
+    )
+  }
 
   if (!postData) {
     return (
@@ -50,13 +101,56 @@ function Comments({ onNavigate, postId }) {
     )
   }
 
-  const handlePostLike = () => {
-    if (isPostLiked) {
-      setPostLikes(postLikes - 1)
-    } else {
-      setPostLikes(postLikes + 1)
+  const handlePostLike = async () => {
+    if (!currentUser) return
+
+    const wasLiked = isPostLiked
+    const wasDisliked = isPostDisliked
+
+    try {
+      await postAPI.like(currentUser.id, postId)
+
+      if (wasLiked) {
+        setPostLikes(postLikes - 1)
+        setIsPostLiked(false)
+      } else {
+        setPostLikes(postLikes + 1)
+        setIsPostLiked(true)
+        
+        if (wasDisliked) {
+          setPostDislikes(postDislikes - 1)
+          setIsPostDisliked(false)
+        }
+      }
+    } catch (error) {
+      console.error("Ошибка при лайке поста:", error)
     }
-    setIsPostLiked(!isPostLiked)
+  }
+
+  const handlePostDislike = async () => {
+    if (!currentUser) return
+
+    const wasDisliked = isPostDisliked
+    const wasLiked = isPostLiked
+
+    try {
+      await postAPI.dislike(currentUser.id, postId)
+
+      if (wasDisliked) {
+        setPostDislikes(postDislikes - 1)
+        setIsPostDisliked(false)
+      } else {
+        setPostDislikes(postDislikes + 1)
+        setIsPostDisliked(true)
+        
+        if (wasLiked) {
+          setPostLikes(postLikes - 1)
+          setIsPostLiked(false)
+        }
+      }
+    } catch (error) {
+      console.error("Ошибка при дизлайке поста:", error)
+    }
   }
 
   const handleCommentLike = (commentId, isReply = false, parentId = null) => {
@@ -88,12 +182,27 @@ function Comments({ onNavigate, postId }) {
     })
   }
 
-  const handleCommentSubmit = () => {
-    if (commentText.trim()) {
-      const newComment = {
-        id: Date.now(),
-        userId: 1,
-        author: { name: "Вы", avatar: "/male-avatar.png", rating: 8.5 },
+  const handleCommentSubmit = async () => {
+    if (!commentText.trim() || !currentUser) return
+
+    try {
+      const commentData = {
+        text: commentText,
+        author: { id: currentUser.id },
+      }
+
+      // Создание комментария через API
+      const newComment = await commentAPI.create(postId, commentData)
+
+      // Оптимистичное обновление UI
+      const uiComment = {
+        id: newComment?.id || Date.now(),
+        userId: currentUser.id,
+        author: {
+          name: currentUser.name || currentUser.username || "Вы",
+          avatar: currentUser.avatar || "/male-avatar.png",
+          rating: currentUser.rating || 0,
+        },
         text: commentText,
         time: "только что",
         likes: 0,
@@ -112,7 +221,7 @@ function Comments({ onNavigate, postId }) {
                 replies: [
                   ...comment.replies,
                   {
-                    ...newComment,
+                    ...uiComment,
                     id: Date.now() + Math.random(),
                   },
                 ],
@@ -123,11 +232,14 @@ function Comments({ onNavigate, postId }) {
         })
         setReplyingTo(null)
       } else {
-        setComments([...comments, newComment])
+        setComments([...comments, uiComment])
         setPostComments(postComments + 1)
       }
 
       setCommentText("")
+    } catch (error) {
+      console.error("Ошибка при создании комментария:", error)
+      // Можно показать уведомление об ошибке
     }
   }
 
@@ -170,13 +282,20 @@ function Comments({ onNavigate, postId }) {
 
           <div className="post-actions">
             <button className={`post-action-btn ${isPostLiked ? "liked" : ""}`} onClick={handlePostLike}>
-              <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path
-                  d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                  fill={isPostLiked ? "currentColor" : "none"}
-                />
+              <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={isPostLiked ? "currentColor" : "none"}/>
+                <path d="M12 2L7 7h10L12 2z" fill={isPostLiked ? "currentColor" : "none"}/>
+                <path d="M7 7v15h10V7" fill={isPostLiked ? "currentColor" : "none"}/>
               </svg>
               <span>{postLikes}</span>
+            </button>
+            <button className={`post-action-btn ${isPostDisliked ? "disliked" : ""}`} onClick={handlePostDislike}>
+              <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6" fill={isPostDisliked ? "currentColor" : "none"}/>
+                <path d="M12 22L7 17h10L12 22z" fill={isPostDisliked ? "currentColor" : "none"}/>
+                <path d="M7 17V2h10v15" fill={isPostDisliked ? "currentColor" : "none"}/>
+              </svg>
+              <span>{postDislikes}</span>
             </button>
             <button className="post-action-btn active">
               <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">

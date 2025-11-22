@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { UserProvider } from "./context/UserContext"
 import Login from "./hypertexts/Login"
 import Register from "./hypertexts/Register"
 import Profile from "./hypertexts/Profile"
@@ -63,7 +64,11 @@ function App() {
     }
   }
 
-  return <div>{renderPage()}</div>
+  return (
+    <UserProvider>
+      <div>{renderPage()}</div>
+    </UserProvider>
+  )
 }
 
 export default App
