@@ -119,6 +119,79 @@ paths:
           description: Только администратор может разрешать вход
         '404':
           description: Комната или пользователь не найдены
+  /users/{id}/profile/external-links:
+    get:
+      summary: Получить список внешних ссылок
+      operationId: getUserExternalLinks
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Список внешних ссылок успешно получен
+        '404':
+          description: Пользователь не найден
+
+    post:
+      summary: Добавить внешнюю ссылку
+      description: Добавляет информацию о стороннем ресурсе в профиль
+      operationId: addExternalLink
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                platformName:
+                  type: string
+                  description: Название платформы (например, Telegram, GitHub, LinkedIn)
+                  example: Telegram
+                url:
+                  type: string
+                  description: Ссылка на профиль
+                  example: https://t.me/username
+      responses:
+        '201':
+          description: Ссылка успешно добавлена
+        '400':
+          description: Некорректные данные (например, невалидный URL)
+        '404':
+          description: Пользователь не найден
+
+    /users/{id}/profile/external-links/{linkId}:
+      delete:
+        summary: Удалить внешнюю ссылку
+        operationId: deleteExternalLink
+        parameters:
+          - name: id
+            in: path
+            required: true
+            description: ID пользователя
+            schema:
+              type: integer
+          - name: linkId
+            in: path
+            required: true
+            description: ID ссылки, которую нужно удалить
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: Ссылка успешно удалена
+          '404':
+            description: Ссылка или пользователь не найдены
   /rooms/{roomId}/join-requests/{targetUserId}/reject:
     post:
       summary: Не разрешить пользователю вход
