@@ -84,7 +84,233 @@ paths:
           description: Некорректные данные
         '404':
           description: Пользователь не найден
+  /rooms/{roomId}/join-requests/{targetUserId}/approve:
+    post:
+      summary: Разрешить пользователю вход в комнату
+      description: Администратор одобряет заявку на вход, пользователь добавляется в комнату
+      operationId: approveJoinRequest
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты
+          schema:
+            type: integer
+        - name: targetUserId
+          in: path
+          required: true
+          description: ID пользователя, которого нужно пустить в комнату
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adminId:
+                  type: integer
+                  description: ID администратора, который разрешает вход
+      responses:
+        '200':
+          description: Вход разрешен, пользователь добавлен в комнату
+        '403':
+          description: Только администратор может разрешать вход
+        '404':
+          description: Комната или пользователь не найдены
+  /rooms/{roomId}/join-requests/{targetUserId}/reject:
+    post:
+      summary: Не разрешить пользователю вход
+      description: Администратор отклоняет заявку пользователя на вход
+      operationId: rejectJoinRequest
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты
+          schema:
+            type: integer
+        - name: targetUserId
+          in: path
+          required: true
+          description: ID пользователя, которому запрещают вход
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adminId:
+                  type: integer
+                  description: ID администратора, который запрещает вход
+      responses:
+        '200':
+          description: Вход запрещен, заявка отклонена
+        '403':
+          description: Только администратор может запрещать вход
+        '404':
+          description: Комната или пользователь не найдены
 
+  /rooms/{roomId}/chat/messages:
+    post:
+      summary: Написать сообщение в чате
+      description: Пользователь отправляет сообщение в чат комнаты
+      operationId: sendRoomMessage
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                senderId:
+                  type: integer
+                  description: ID пользователя, который пишет сообщение
+                content:
+                  type: string
+                  description: Текст сообщения
+      responses:
+        '201':
+          description: Сообщение успешно отправлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '403':
+          description: Пользователь не является участником комнаты
+        '404':
+          description: Комната не найдена
+  /rooms/{roomId}/chat/messages/{messageId}/report:
+    post:
+      summary: Пожаловаться на сообщение
+      description: Пользователь отправляет жалобу на сообщение (нарушение правил площадки или комнаты)
+      operationId: reportMessage
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты
+          schema:
+            type: integer
+        - name: messageId
+          in: path
+          required: true
+          description: ID сообщения, на которое поступает жалоба
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reporterId:
+                  type: integer
+                  description: ID пользователя, который отправляет жалобу
+                violationType:
+                  type: string
+                  enum:
+                    - platformRules
+                    - roomRules
+                  description: Тип нарушения (правила площадки или правила комнаты)
+                comment:
+                  type: string
+                  description: Комментарий к жалобе (опционально)
+      responses:
+        '200':
+          description: Жалоба успешно отправлена на проверку администрации
+        '404':
+          description: Сообщение или комната не найдены
+  /rooms/{roomId}/chat/messages/{messageId}/moderation/confirm:
+    post:
+      summary: Подтвердить нарушение правила
+      description: Администратор подтверждает нарушение. Сообщение удаляется, пользователь получает предупреждение или блокировку.
+      operationId: confirmMessageViolation
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты
+          schema:
+            type: integer
+        - name: messageId
+          in: path
+          required: true
+          description: ID сообщения
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adminId:
+                  type: integer
+                  description: ID администратора, проводящего проверку
+                sanction:
+                  type: string
+                  enum:
+                    - warning
+                    - kick
+                    - ban
+                  description: Вид санкции (предупреждение, исключение из комнаты, блокировка)
+      responses:
+        '200':
+          description: Нарушение подтверждено, сообщение удалено, меры приняты
+        '403':
+          description: Недостаточно прав (только для администратора)
+        '404':
+          description: Сообщение не найдено
+
+  /rooms/{roomId}/chat/messages/{messageId}/moderation/reject:
+    post:
+      summary: Отклонить жалобу на нарушение
+      description: Администратор не находит нарушений, сообщение остается в чате
+      operationId: rejectMessageViolation
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: ID комнаты
+          schema:
+            type: integer
+        - name: messageId
+          in: path
+          required: true
+          description: ID сообщения
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adminId:
+                  type: integer
+                  description: ID администратора, проводящего проверку
+      responses:
+        '200':
+          description: Нарушений не замечено, жалоба отклонена
+        '403':
+          description: Недостаточно прав (только для администратора)
+        '404':
+          description: Сообщение не найдено
   /users/{id}/profile/personal-info/email:
     put:
       summary: Изменить email пользователя
