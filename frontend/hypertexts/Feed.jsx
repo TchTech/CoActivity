@@ -5,6 +5,7 @@ import BottomNavigation from "./BottomNavigation"
 import { getAllPosts, getPostsByUserIds } from "../scripts/postsData"
 import { postAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { usePostInteractions } from "../hooks/usePostInteractions"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -20,10 +21,6 @@ function Feed({ onNavigate }) {
   const [activeTab, setActiveTab] = useState("main") // 'main' или 'subscriptions'
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [postLikes, setPostLikes] = useState({})
-  const [postDislikes, setPostDislikes] = useState({})
-  const [isLiked, setIsLiked] = useState({})
-  const [isDisliked, setIsDisliked] = useState({})
 
   // Загрузка постов
   useEffect(() => {
@@ -57,81 +54,6 @@ function Feed({ onNavigate }) {
 
     loadPosts()
   }, [activeTab, subscribedUsers])
-
-  // Инициализация состояний для постов
-  useEffect(() => {
-    const initialLikes = {}
-    const initialDislikes = {}
-    posts.forEach((post) => {
-      initialLikes[post.id] = post.likes || 0
-      initialDislikes[post.id] = post.dislikes || 0
-    })
-    setPostLikes(initialLikes)
-    setPostDislikes(initialDislikes)
-  }, [posts])
-
-  const handlePostLike = async (postId) => {
-    if (!currentUser) {
-      console.warn("Пользователь не авторизован")
-      return
-    }
-
-    const wasLiked = isLiked[postId]
-    const wasDisliked = isDisliked[postId]
-
-    try {
-      // Вызов API для лайка
-      await postAPI.like(currentUser.id, postId)
-
-      // Оптимистичное обновление UI
-      if (wasLiked) {
-        setPostLikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-        setIsLiked((prev) => ({ ...prev, [postId]: false }))
-      } else {
-        setPostLikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }))
-        setIsLiked((prev) => ({ ...prev, [postId]: true }))
-        
-        if (wasDisliked) {
-          setPostDislikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-          setIsDisliked((prev) => ({ ...prev, [postId]: false }))
-        }
-      }
-    } catch (error) {
-      console.error("Ошибка при лайке поста:", error)
-      // Можно показать уведомление об ошибке
-    }
-  }
-
-  const handlePostDislike = async (postId) => {
-    if (!currentUser) {
-      console.warn("Пользователь не авторизован")
-      return
-    }
-
-    const wasDisliked = isDisliked[postId]
-    const wasLiked = isLiked[postId]
-
-    try {
-      // Вызов API для дизлайка
-      await postAPI.dislike(currentUser.id, postId)
-
-      // Оптимистичное обновление UI
-      if (wasDisliked) {
-        setPostDislikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-        setIsDisliked((prev) => ({ ...prev, [postId]: false }))
-      } else {
-        setPostDislikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }))
-        setIsDisliked((prev) => ({ ...prev, [postId]: true }))
-        
-        if (wasLiked) {
-          setPostLikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-          setIsLiked((prev) => ({ ...prev, [postId]: false }))
-        }
-      }
-    } catch (error) {
-      console.error("Ошибка при дизлайке поста:", error)
-    }
-  }
 
   const handleSubscribe = async (userId) => {
     if (!currentUser) {
@@ -187,42 +109,46 @@ function Feed({ onNavigate }) {
             {activeTab === "subscriptions" ? "Нет постов от ваших подписок" : "Нет постов"}
           </div>
         ) : (
-          posts.map((post) => (
+          posts.map((post) => {
+            const postInteractions = usePostInteractions(post)
+            return (
             <div key={post.id} className="post-card" style={{ marginBottom: "var(--spacing-md)" }}>
               <div className="post-header">
                 <img
-                  src={post.author.avatar || "/placeholder.svg"}
-                  alt={post.author.name}
+                  src={post.author?.avatar || "/placeholder.svg"}
+                  alt={post.author?.name || "Пользователь"}
                   className="avatar avatar-md avatar-clickable"
                   onClick={(e) => {
                     e.stopPropagation()
-                    onNavigate("profile", post.userId)
+                    onNavigate("profile", post.userId || post.author?.id)
                   }}
                 />
                 <div className="post-user-info">
                   <div className="post-username">
-                    {post.author.name}
-                    <span className="badge badge-rating">{post.author.rating}</span>
+                    {post.author?.name || post.author?.username || "Пользователь"}
+                    {post.author?.rating && (
+                      <span className="badge badge-rating">{post.author.rating.toFixed(1)}</span>
+                    )}
                   </div>
-                  <div className="post-time">{post.time}</div>
+                  <div className="post-time">{post.time || (post.createdAt ? new Date(post.createdAt).toLocaleDateString("ru-RU") : "")}</div>
                 </div>
                 <button
-                  className={`btn ${subscribedUsers.some((u) => (u.id || u) === post.userId) ? "btn-secondary" : "btn-primary"}`}
+                  className={`btn ${subscribedUsers.some((u) => (u.id || u) === (post.userId || post.author?.id)) ? "btn-secondary" : "btn-primary"}`}
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleSubscribe(post.userId)
+                    handleSubscribe(post.userId || post.author?.id)
                   }}
                 >
-                  {subscribedUsers.some((u) => (u.id || u) === post.userId) ? "отписаться" : "подписаться"}
+                  {subscribedUsers.some((u) => (u.id || u) === (post.userId || post.author?.id)) ? "отписаться" : "подписаться"}
                 </button>
               </div>
 
-              <h3 className="post-title">{post.title}</h3>
-              <p className="post-content">{post.content}</p>
+              <h3 className="post-title">{post.name || post.title}</h3>
+              <p className="post-content">{post.text || post.content}</p>
 
               <img
-                src={post.image || "/placeholder.svg"}
-                alt={post.title}
+                src={post.image?.url || post.image || "/placeholder.svg"}
+                alt={post.name || post.title}
                 className="post-image"
                 onClick={() => onNavigate("comments", post.id)}
                 style={{ cursor: "pointer" }}
@@ -230,32 +156,40 @@ function Feed({ onNavigate }) {
 
               <div className="post-actions">
                 <button 
-                  className={`post-action-btn ${isLiked[post.id] ? "liked" : ""}`} 
-                  onClick={() => handlePostLike(post.id)}
+                  className={`post-action-btn ${postInteractions.isLiked ? "liked" : ""}`} 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    postInteractions.handleLike()
+                  }}
+                  disabled={postInteractions.loading}
                 >
                   <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={isLiked[post.id] ? "currentColor" : "none"}/>
-                    <path d="M12 2L7 7h10L12 2z" fill={isLiked[post.id] ? "currentColor" : "none"}/>
-                    <path d="M7 7v15h10V7" fill={isLiked[post.id] ? "currentColor" : "none"}/>
+                    <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
+                    <path d="M12 2L7 7h10L12 2z" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
+                    <path d="M7 7v15h10V7" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
                   </svg>
-                  <span>{postLikes[post.id] !== undefined ? postLikes[post.id] : post.likes}</span>
+                  <span>{postInteractions.likes}</span>
                 </button>
                 <button 
-                  className={`post-action-btn ${isDisliked[post.id] ? "disliked" : ""}`} 
-                  onClick={() => handlePostDislike(post.id)}
+                  className={`post-action-btn ${postInteractions.isDisliked ? "disliked" : ""}`} 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    postInteractions.handleDislike()
+                  }}
+                  disabled={postInteractions.loading}
                 >
                   <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6" fill={isDisliked[post.id] ? "currentColor" : "none"}/>
-                    <path d="M12 22L7 17h10L12 22z" fill={isDisliked[post.id] ? "currentColor" : "none"}/>
-                    <path d="M7 17V2h10v15" fill={isDisliked[post.id] ? "currentColor" : "none"}/>
+                    <path d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
+                    <path d="M12 22L7 17h10L12 22z" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
+                    <path d="M7 17V2h10v15" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
                   </svg>
-                  <span>{postDislikes[post.id] !== undefined ? postDislikes[post.id] : post.dislikes || 0}</span>
+                  <span>{postInteractions.dislikes}</span>
                 </button>
                 <button className="post-action-btn" onClick={() => onNavigate("comments", post.id)}>
                   <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
-                  <span>{post.comments}</span>
+                  <span>{post.comments?.length || post.comments || 0}</span>
                 </button>
                 <button
                   className="post-action-btn"
@@ -272,7 +206,8 @@ function Feed({ onNavigate }) {
                 </button>
               </div>
             </div>
-          ))
+            )
+          })
         )}
       </div>
 

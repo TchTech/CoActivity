@@ -57,6 +57,22 @@ public class UserService {
   }
 
   public User registerUser(String username, String email, String password) {
+    logger.info("Registering user - username: {}, email: {}", username, email);
+    
+    // Валидация входных данных
+    if (username == null || username.trim().isEmpty()) {
+      throw new BadRequestException("Username cannot be empty");
+    }
+    if (email == null || email.trim().isEmpty()) {
+      throw new BadRequestException("Email cannot be empty");
+    }
+    if (password == null || password.isEmpty()) {
+      throw new BadRequestException("Password cannot be empty");
+    }
+    if (password.length() < 8) {
+      throw new BadRequestException("Password must be at least 8 characters long");
+    }
+    
     if (isUsernameExists(username)) {
       throw new ConflictException("Username already exists");
     }
@@ -65,11 +81,53 @@ public class UserService {
       throw new ConflictException("Email already exists");
     }
 
-    String hashedPassword = hashPassword(password);
+    try {
+      String hashedPassword = hashPassword(password);
+      User newUser = new User(username, email, hashedPassword);
+      User savedUser = userRepository.save(newUser);
+      logger.info("User registered successfully - id: {}, username: {}", savedUser.getId(), savedUser.getUsername());
+      return savedUser;
+    } catch (Exception e) {
+      logger.error("Error registering user: ", e);
+      throw new RuntimeException("Failed to register user: " + e.getMessage(), e);
+    }
+  }
 
-    User newUser = new User(username, email, hashedPassword);
+  /**
+   * Аутентификация пользователя по логину (username или email) и паролю
+   * @param login - username или email
+   * @param password - пароль в открытом виде
+   * @return User - объект пользователя при успешной аутентификации
+   * @throws ResourceNotFoundException - если пользователь не найден
+   * @throws BadRequestException - если пароль неверный
+   */
+  public User loginUser(String login, String password) {
+    if (login == null || login.trim().isEmpty()) {
+      throw new BadRequestException("Login cannot be empty");
+    }
+    if (password == null || password.isEmpty()) {
+      throw new BadRequestException("Password cannot be empty");
+    }
 
-    return userRepository.save(newUser);
+    // Определяем, является ли login email или username
+    User user = null;
+    if (login.contains("@")) {
+      user = getUserByEmail(login);
+    } else {
+      user = getUserByUsername(login);
+    }
+
+    if (user == null) {
+      throw new ResourceNotFoundException("User not found");
+    }
+
+    // Проверяем пароль
+    if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+      throw new BadRequestException("Invalid password");
+    }
+
+    logger.info("User {} successfully logged in", user.getUsername());
+    return user;
   }
 
   public void subscribe(Long userId, Long userToSubscribeId) {
@@ -378,5 +436,34 @@ public class UserService {
     return userRooms.stream()
             .filter(targetRooms::contains)
             .collect(Collectors.toList());
+  }
+
+  /**
+   * Рассчитывает средний рейтинг пользователя на основе отзывов
+   * @param userId - ID пользователя
+   * @return Double - средний рейтинг от 0 до 5, или null если нет отзывов
+   */
+  public Double calculateUserRating(Long userId) {
+    User user = getUserProfile(userId);
+    List<Feedback> feedbacks = user.getFeedbacks();
+    
+    if (feedbacks == null || feedbacks.isEmpty()) {
+      return null;
+    }
+    
+    double sum = feedbacks.stream()
+            .filter(f -> f.getRating() != null)
+            .mapToDouble(Feedback::getRating)
+            .sum();
+    
+    long count = feedbacks.stream()
+            .filter(f -> f.getRating() != null)
+            .count();
+    
+    if (count == 0) {
+      return null;
+    }
+    
+    return sum / count;
   }
 }

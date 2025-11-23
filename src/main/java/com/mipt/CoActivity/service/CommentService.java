@@ -75,4 +75,44 @@ public class CommentService {
   public void deleteComment(Long commentId) {
     commentRepository.deleteById(commentId);
   }
+
+  @Transactional
+  public void addOrRemoveLike(Long userId, Long commentId) {
+    User user =
+            userRepository
+                    .findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    Comment comment =
+            commentRepository
+                    .findById(commentId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Comment not found"));
+
+    if (comment.getLikedUsers().contains(user)) {
+      comment.getLikedUsers().remove(user);
+    } else {
+      comment.getDislikedUsers().remove(user);
+      comment.getLikedUsers().add(user);
+    }
+    commentRepository.save(comment);
+  }
+
+  @Transactional
+  public void addOrRemoveDislike(Long userId, Long commentId) {
+    User user =
+            userRepository
+                    .findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    Comment comment =
+            commentRepository
+                    .findById(commentId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Comment not found"));
+
+    if (comment.getDislikedUsers().contains(user)) {
+      comment.getDislikedUsers().remove(user);
+    } else {
+      comment.getLikedUsers().remove(user);
+      comment.getDislikedUsers().add(user);
+    }
+    commentRepository.save(comment);
+  }
 }

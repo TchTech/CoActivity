@@ -4,8 +4,10 @@ import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { getPostById } from "../scripts/postsData"
 import { getCommentsForPost } from "../scripts/commentsData"
-import { postAPI, commentAPI } from "../lib/api"
+import { commentAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { usePostInteractions } from "../hooks/usePostInteractions"
+import { useCommentInteractions } from "../hooks/useCommentInteractions"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -16,11 +18,7 @@ function Comments({ onNavigate, postId }) {
   const { currentUser } = useUser()
   const [postData, setPostData] = useState(null)
   const [comments, setComments] = useState([])
-  const [postLikes, setPostLikes] = useState(0)
-  const [postDislikes, setPostDislikes] = useState(0)
   const [postComments, setPostComments] = useState(0)
-  const [isPostLiked, setIsPostLiked] = useState(false)
-  const [isPostDisliked, setIsPostDisliked] = useState(false)
   const [commentText, setCommentText] = useState("")
   const [replyingTo, setReplyingTo] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -43,11 +41,18 @@ function Comments({ onNavigate, postId }) {
       const data = getPostById(postId)
       setPostData(data)
       if (data) {
-        const initialComments = getCommentsForPost(postId, data.userId, data.time)
-        setComments(initialComments)
-        setPostLikes(data.likes)
-        setPostDislikes(data.dislikes || 0)
-        setPostComments(data.comments)
+        // Загружаем комментарии из API
+        try {
+          const apiComments = await commentAPI.getByPost(postId)
+          setComments(apiComments || [])
+          setPostComments(apiComments?.length || 0)
+        } catch (error) {
+          console.error("Ошибка загрузки комментариев:", error)
+          // Fallback на моковые данные
+          const initialComments = getCommentsForPost(postId, data.userId, data.time)
+          setComments(initialComments)
+          setPostComments(data.comments)
+        }
       }
     } catch (error) {
       console.error("Ошибка загрузки поста:", error)
@@ -101,85 +106,45 @@ function Comments({ onNavigate, postId }) {
     )
   }
 
-  const handlePostLike = async () => {
+
+  const handleCommentLike = async (commentId, isReply = false, parentId = null) => {
     if (!currentUser) return
 
-    const wasLiked = isPostLiked
-    const wasDisliked = isPostDisliked
-
     try {
-      await postAPI.like(currentUser.id, postId)
-
-      if (wasLiked) {
-        setPostLikes(postLikes - 1)
-        setIsPostLiked(false)
-      } else {
-        setPostLikes(postLikes + 1)
-        setIsPostLiked(true)
-        
-        if (wasDisliked) {
-          setPostDislikes(postDislikes - 1)
-          setIsPostDisliked(false)
-        }
-      }
-    } catch (error) {
-      console.error("Ошибка при лайке поста:", error)
-    }
-  }
-
-  const handlePostDislike = async () => {
-    if (!currentUser) return
-
-    const wasDisliked = isPostDisliked
-    const wasLiked = isPostLiked
-
-    try {
-      await postAPI.dislike(currentUser.id, postId)
-
-      if (wasDisliked) {
-        setPostDislikes(postDislikes - 1)
-        setIsPostDisliked(false)
-      } else {
-        setPostDislikes(postDislikes + 1)
-        setIsPostDisliked(true)
-        
-        if (wasLiked) {
-          setPostLikes(postLikes - 1)
-          setIsPostLiked(false)
-        }
-      }
-    } catch (error) {
-      console.error("Ошибка при дизлайке поста:", error)
-    }
-  }
-
-  const handleCommentLike = (commentId, isReply = false, parentId = null) => {
-    setComments((prevComments) => {
-      return prevComments.map((comment) => {
-        if (isReply && comment.id === parentId) {
-          return {
-            ...comment,
-            replies: comment.replies.map((reply) => {
-              if (reply.id === commentId) {
-                return {
-                  ...reply,
-                  likes: reply.isLiked ? reply.likes - 1 : reply.likes + 1,
-                  isLiked: !reply.isLiked,
+      await commentAPI.like(postId, commentId, currentUser.id)
+      
+      // Оптимистичное обновление UI
+      setComments((prevComments) => {
+        return prevComments.map((comment) => {
+          if (isReply && comment.id === parentId) {
+            return {
+              ...comment,
+              replies: comment.replies.map((reply) => {
+                if (reply.id === commentId) {
+                  const wasLiked = reply.isLiked
+                  return {
+                    ...reply,
+                    likes: wasLiked ? reply.likes - 1 : reply.likes + 1,
+                    isLiked: !wasLiked,
+                  }
                 }
-              }
-              return reply
-            }),
+                return reply
+              }),
+            }
+          } else if (comment.id === commentId) {
+            const wasLiked = comment.isLiked
+            return {
+              ...comment,
+              likes: wasLiked ? comment.likes - 1 : comment.likes + 1,
+              isLiked: !wasLiked,
+            }
           }
-        } else if (comment.id === commentId) {
-          return {
-            ...comment,
-            likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
-            isLiked: !comment.isLiked,
-          }
-        }
-        return comment
+          return comment
+        })
       })
-    })
+    } catch (error) {
+      console.error("Ошибка при лайке комментария:", error)
+    }
   }
 
   const handleCommentSubmit = async () => {
@@ -253,56 +218,73 @@ function Comments({ onNavigate, postId }) {
         <div style={{ width: "40px" }}></div>
       </div>
 
+      {/* Начало блока содержимого поста и комментариев */}
       <div style={{ padding: "var(--spacing-lg)", paddingBottom: "80px" }}>
         <div className="post-card">
           <div className="post-header">
             <img
-              src={postData.author.avatar || "/placeholder.svg"}
-              alt={postData.author.name}
+              src={postData.author?.avatar || "/placeholder.svg"}
+              alt={postData.author?.name || "Пользователь"}
               className="avatar avatar-md avatar-clickable"
               onClick={(e) => {
                 e.stopPropagation()
-                onNavigate("profile", postData.userId)
+                onNavigate("profile", postData.userId || postData.author?.id)
               }}
             />
             <div className="post-user-info">
               <div className="post-username">
-                {postData.author.name}
-                <span className="badge badge-rating">{postData.author.rating}</span>
+                {postData.author?.name || postData.author?.username || "Пользователь"}
+                {postData.author?.rating && (
+                  <span className="badge badge-rating">{postData.author.rating.toFixed(1)}</span>
+                )}
               </div>
-              <div className="post-time">{postData.time}</div>
+              <div className="post-time">{postData.time || (postData.createdAt ? new Date(postData.createdAt).toLocaleDateString("ru-RU") : "")}</div>
             </div>
             <button className="btn btn-primary">подписаться</button>
           </div>
 
-          <h3 className="post-title">{postData.title}</h3>
-          <p className="post-content">{postData.content}</p>
+          <h3 className="post-title">{postData.name || postData.title}</h3>
+          <p className="post-content">{postData.text || postData.content}</p>
 
-          <img src={postData.image || "/placeholder.svg"} alt={postData.title} className="post-image" />
+          <img src={postData.image?.url || postData.image || "/placeholder.svg"} alt={postData.name || postData.title} className="post-image" />
 
           <div className="post-actions">
-            <button className={`post-action-btn ${isPostLiked ? "liked" : ""}`} onClick={handlePostLike}>
+            {/* Кнопка "Лайк" */}
+            <button 
+              className={`post-action-btn ${postInteractions.isLiked ? "liked" : ""}`} 
+              onClick={postInteractions.handleLike}
+              disabled={postInteractions.loading}
+            >
               <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={isPostLiked ? "currentColor" : "none"}/>
-                <path d="M12 2L7 7h10L12 2z" fill={isPostLiked ? "currentColor" : "none"}/>
-                <path d="M7 7v15h10V7" fill={isPostLiked ? "currentColor" : "none"}/>
+                {/* SVG-разметка для Лайка */}
+                <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
+                <path d="M12 2L7 7h10L12 2z" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
+                <path d="M7 7v15h10V7" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
               </svg>
-              <span>{postLikes}</span>
+              <span>{postInteractions.likes}</span>
             </button>
-            <button className={`post-action-btn ${isPostDisliked ? "disliked" : ""}`} onClick={handlePostDislike}>
+            {/* Кнопка "Дизлайк" */}
+            <button 
+              className={`post-action-btn ${postInteractions.isDisliked ? "disliked" : ""}`} 
+              onClick={postInteractions.handleDislike}
+              disabled={postInteractions.loading}
+            >
               <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6" fill={isPostDisliked ? "currentColor" : "none"}/>
-                <path d="M12 22L7 17h10L12 22z" fill={isPostDisliked ? "currentColor" : "none"}/>
-                <path d="M7 17V2h10v15" fill={isPostDisliked ? "currentColor" : "none"}/>
+                {/* SVG-разметка для Дизлайка */}
+                <path d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
+                <path d="M12 22L7 17h10L12 22z" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
+                <path d="M7 17V2h10v15" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
               </svg>
-              <span>{postDislikes}</span>
+              <span>{postInteractions.dislikes}</span>
             </button>
+            {/* Кнопка "Комментарии" */}
             <button className="post-action-btn active">
               <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
               <span>{postComments}</span>
             </button>
+            {/* Кнопка "ОТКЛИКНУТЬСЯ" */}
             <button
               className="post-action-btn"
               style={{
@@ -316,9 +298,9 @@ function Comments({ onNavigate, postId }) {
               ОТКЛИКНУТЬСЯ
             </button>
           </div>
-        </div>
+        </div> {/* <-- ЗАКРЫВАЕТ post-card */}
 
-        <div className="comments-section">
+        <div className="comments-section"> {/* <-- СТРОКА, ГДЕ БЫЛА ОШИБКА */}
           <h2 className="comments-header">КОММЕНТАРИИ</h2>
 
           {comments.map((comment) => (
@@ -326,17 +308,19 @@ function Comments({ onNavigate, postId }) {
               <div className="comment">
                 <div className="comment-header">
                   <img
-                    src={comment.author.avatar || "/placeholder.svg"}
-                    alt={comment.author.name}
+                    src={comment.author?.avatar || "/placeholder.svg"}
+                    alt={comment.author?.name || "Пользователь"}
                     className="avatar avatar-md avatar-clickable"
-                    onClick={() => onNavigate("profile", comment.userId)}
+                    onClick={() => onNavigate("profile", comment.userId || comment.author?.id)}
                   />
                   <div style={{ flex: 1 }}>
                     <div className="post-username">
-                      {comment.author.name}
-                      <span className="badge badge-rating">{comment.author.rating}</span>
+                      {comment.author?.name || comment.author?.username || "Пользователь"}
+                      {comment.author?.rating && (
+                        <span className="badge badge-rating">{comment.author.rating.toFixed(1)}</span>
+                      )}
                     </div>
-                    <div className="post-time">{comment.time}</div>
+                    <div className="post-time">{comment.time || (comment.createdAt ? new Date(comment.createdAt).toLocaleDateString("ru-RU") : "")}</div>
                   </div>
                 </div>
 
@@ -353,13 +337,12 @@ function Comments({ onNavigate, postId }) {
                     className={`comment-action ${comment.isLiked ? "liked" : ""}`}
                     onClick={() => handleCommentLike(comment.id)}
                   >
-                    <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path
-                        d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                        fill={comment.isLiked ? "currentColor" : "none"}
-                      />
+                    <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={comment.isLiked ? "currentColor" : "none"}/>
+                      <path d="M12 2L7 7h10L12 2z" fill={comment.isLiked ? "currentColor" : "none"}/>
+                      <path d="M7 7v15h10V7" fill={comment.isLiked ? "currentColor" : "none"}/>
                     </svg>
-                    {comment.likes}
+                    {comment.likedUsers?.length || comment.likes || 0}
                   </button>
                   {comment.commentCount > 0 && (
                     <button className="comment-action">
@@ -379,19 +362,21 @@ function Comments({ onNavigate, postId }) {
                     <div key={reply.id} className="comment">
                       <div className="comment-header">
                         <img
-                          src={reply.author.avatar || "/placeholder.svg"}
-                          alt={reply.author.name}
+                          src={reply.author?.avatar || "/placeholder.svg"}
+                          alt={reply.author?.name || "Пользователь"}
                           className="avatar avatar-sm avatar-clickable"
-                          onClick={() => onNavigate("profile", reply.userId)}
+                          onClick={() => onNavigate("profile", reply.userId || reply.author?.id)}
                         />
                         <div style={{ flex: 1 }}>
                           <div className="post-username" style={{ fontSize: "var(--font-size-sm)" }}>
-                            {reply.author.name}
-                            <span className="badge badge-rating" style={{ fontSize: "10px", padding: "2px 8px" }}>
-                              {reply.author.rating}
-                            </span>
+                            {reply.author?.name || reply.author?.username || "Пользователь"}
+                            {reply.author?.rating && (
+                              <span className="badge badge-rating" style={{ fontSize: "10px", padding: "2px 8px" }}>
+                                {reply.author.rating.toFixed(1)}
+                              </span>
+                            )}
                           </div>
-                          <div className="post-time">{reply.time}</div>
+                          <div className="post-time">{reply.time || (reply.createdAt ? new Date(reply.createdAt).toLocaleDateString("ru-RU") : "")}</div>
                         </div>
                       </div>
 
@@ -410,13 +395,12 @@ function Comments({ onNavigate, postId }) {
                           className={`comment-action ${reply.isLiked ? "liked" : ""}`}
                           onClick={() => handleCommentLike(reply.id, true, comment.id)}
                         >
-                          <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path
-                              d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                              fill={reply.isLiked ? "currentColor" : "none"}
-                            />
+                          <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={reply.isLiked ? "currentColor" : "none"}/>
+                            <path d="M12 2L7 7h10L12 2z" fill={reply.isLiked ? "currentColor" : "none"}/>
+                            <path d="M7 7v15h10V7" fill={reply.isLiked ? "currentColor" : "none"}/>
                           </svg>
-                          {reply.likes}
+                          {reply.likedUsers?.length || reply.likes || 0}
                         </button>
                         {reply.commentCount > 0 && (
                           <button className="comment-action">

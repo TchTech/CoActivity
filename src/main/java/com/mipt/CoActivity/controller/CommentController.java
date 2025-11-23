@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/posts/{postId}/comments")
 public class CommentController {
@@ -19,5 +21,27 @@ public class CommentController {
       @PathVariable Long postId, @RequestBody Comment comment) {
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(commentService.createComment(postId, comment));
+  }
+
+  @GetMapping
+  public ResponseEntity<List<Comment>> getComments(@PathVariable Long postId) {
+    return ResponseEntity.ok(commentService.getComments(postId));
+  }
+
+  @PostMapping("/{commentId}/like")
+  public void likeComment(
+      @PathVariable Long postId, @PathVariable Long commentId, @RequestParam Long userId) {
+    commentService.addOrRemoveLike(userId, commentId);
+  }
+
+  @PostMapping("/{commentId}/dislike")
+  public void dislikeComment(
+      @PathVariable Long postId, @PathVariable Long commentId, @RequestParam Long userId) {
+    commentService.addOrRemoveDislike(userId, commentId);
+  }
+
+  @DeleteMapping("/{commentId}")
+  public void deleteComment(@PathVariable Long postId, @PathVariable Long commentId) {
+    commentService.deleteComment(commentId);
   }
 }

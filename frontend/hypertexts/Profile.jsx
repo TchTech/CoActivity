@@ -5,6 +5,7 @@ import { getUserById } from "../scripts/usersData"
 import { getPostsByUserId } from "../scripts/postsData"
 import { userAPI, postAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { usePostInteractions } from "../hooks/usePostInteractions"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -15,10 +16,7 @@ function Profile({ onNavigate, userId }) {
   const [userData, setUserData] = useState(null)
   const [userPosts, setUserPosts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [postLikes, setPostLikes] = useState({})
-  const [postDislikes, setPostDislikes] = useState({})
-  const [isLiked, setIsLiked] = useState({})
-  const [isDisliked, setIsDisliked] = useState({})
+  const [userRating, setUserRating] = useState(null)
 
   const defaultUser = {
     id: 1,
@@ -48,6 +46,14 @@ function Profile({ onNavigate, userId }) {
         const profile = await userAPI.getProfile(profileUserId)
         setUserData(profile || defaultUser)
 
+        // Загрузка рейтинга пользователя
+        try {
+          const ratingData = await userAPI.getRating(profileUserId)
+          setUserRating(ratingData.rating || null)
+        } catch (error) {
+          console.error("Ошибка загрузки рейтинга:", error)
+        }
+
         // Загрузка постов пользователя
         // TODO: Когда будет добавлен эндпоинт для получения постов пользователя
         // const posts = await postAPI.getByUser(profileUserId)
@@ -72,53 +78,6 @@ function Profile({ onNavigate, userId }) {
 
   const isSubscribed = subscribedUsers.some((u) => (u.id || u) === (userData?.id || profileUserId))
 
-  // Инициализация состояний для постов
-  useEffect(() => {
-    const initialLikes = {}
-    const initialDislikes = {}
-    userPosts.forEach((post) => {
-      initialLikes[post.id] = post.likes || 0
-      initialDislikes[post.id] = post.dislikes || 0
-    })
-    setPostLikes(initialLikes)
-    setPostDislikes(initialDislikes)
-  }, [userPosts])
-
-  const handlePostLike = (postId) => {
-    const wasLiked = isLiked[postId]
-    const wasDisliked = isDisliked[postId]
-
-    if (wasLiked) {
-      setPostLikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-      setIsLiked((prev) => ({ ...prev, [postId]: false }))
-    } else {
-      setPostLikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }))
-      setIsLiked((prev) => ({ ...prev, [postId]: true }))
-      
-      if (wasDisliked) {
-        setPostDislikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-        setIsDisliked((prev) => ({ ...prev, [postId]: false }))
-      }
-    }
-  }
-
-  const handlePostDislike = (postId) => {
-    const wasDisliked = isDisliked[postId]
-    const wasLiked = isLiked[postId]
-
-    if (wasDisliked) {
-      setPostDislikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-      setIsDisliked((prev) => ({ ...prev, [postId]: false }))
-    } else {
-      setPostDislikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }))
-      setIsDisliked((prev) => ({ ...prev, [postId]: true }))
-      
-      if (wasLiked) {
-        setPostLikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-        setIsLiked((prev) => ({ ...prev, [postId]: false }))
-      }
-    }
-  }
 
   const handleSubscription = async () => {
     if (!currentUser || !userData) return
@@ -134,57 +93,6 @@ function Profile({ onNavigate, userId }) {
     }
   }
 
-  const handlePostLike = async (postId) => {
-    if (!currentUser) return
-
-    const wasLiked = isLiked[postId]
-    const wasDisliked = isDisliked[postId]
-
-    try {
-      await postAPI.like(currentUser.id, postId)
-
-      if (wasLiked) {
-        setPostLikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-        setIsLiked((prev) => ({ ...prev, [postId]: false }))
-      } else {
-        setPostLikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }))
-        setIsLiked((prev) => ({ ...prev, [postId]: true }))
-        
-        if (wasDisliked) {
-          setPostDislikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-          setIsDisliked((prev) => ({ ...prev, [postId]: false }))
-        }
-      }
-    } catch (error) {
-      console.error("Ошибка при лайке поста:", error)
-    }
-  }
-
-  const handlePostDislike = async (postId) => {
-    if (!currentUser) return
-
-    const wasDisliked = isDisliked[postId]
-    const wasLiked = isLiked[postId]
-
-    try {
-      await postAPI.dislike(currentUser.id, postId)
-
-      if (wasDisliked) {
-        setPostDislikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-        setIsDisliked((prev) => ({ ...prev, [postId]: false }))
-      } else {
-        setPostDislikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }))
-        setIsDisliked((prev) => ({ ...prev, [postId]: true }))
-        
-        if (wasLiked) {
-          setPostLikes((prev) => ({ ...prev, [postId]: (prev[postId] || 0) - 1 }))
-          setIsLiked((prev) => ({ ...prev, [postId]: false }))
-        }
-      }
-    } catch (error) {
-      console.error("Ошибка при дизлайке поста:", error)
-    }
-  }
 
   if (loading || !userData) {
     return (
@@ -212,7 +120,9 @@ function Profile({ onNavigate, userId }) {
         <div className="profile-header">
           <div className="profile-avatar-section">
             <img src={userData.avatar || "/placeholder.svg"} alt={userData.name} className="avatar avatar-xl" />
-            <div className="profile-rating">{userData.rating}</div>
+            {userRating !== null && (
+              <div className="profile-rating">{userRating.toFixed(1)}</div>
+            )}
           </div>
 
           <h1 className="profile-name">{userData.name}</h1>
@@ -264,14 +174,18 @@ function Profile({ onNavigate, userId }) {
               Нет постов
             </div>
           ) : (
-            userPosts.map((post) => (
+            userPosts.map((post) => {
+              const postInteractions = usePostInteractions(post)
+              return (
               <div key={post.id} className="post-card" onClick={() => onNavigate("comments", post.id)}>
                 <div className="post-header">
                   <img src={userData.avatar || "/placeholder.svg"} alt={userData.name} className="avatar avatar-md" />
                   <div className="post-user-info">
                     <div className="post-username">
                       {userData.name}
-                      <span className="badge badge-rating">{userData.rating}</span>
+                      {userRating !== null && (
+                        <span className="badge badge-rating">{userRating.toFixed(1)}</span>
+                      )}
                     </div>
                     <div className="post-time">{post.createdAt ? new Date(post.createdAt).toLocaleDateString("ru-RU") : post.time}</div>
                   </div>
@@ -290,32 +204,34 @@ function Profile({ onNavigate, userId }) {
 
                 <div className="post-actions">
                   <button 
-                    className={`post-action-btn ${isLiked[post.id] ? "liked" : ""}`} 
+                    className={`post-action-btn ${postInteractions.isLiked ? "liked" : ""}`} 
                     onClick={(e) => {
                       e.stopPropagation()
-                      handlePostLike(post.id)
+                      postInteractions.handleLike()
                     }}
+                    disabled={postInteractions.loading}
                   >
                     <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={isLiked[post.id] ? "currentColor" : "none"}/>
-                      <path d="M12 2L7 7h10L12 2z" fill={isLiked[post.id] ? "currentColor" : "none"}/>
-                      <path d="M7 7v15h10V7" fill={isLiked[post.id] ? "currentColor" : "none"}/>
+                      <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
+                      <path d="M12 2L7 7h10L12 2z" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
+                      <path d="M7 7v15h10V7" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
                     </svg>
-                    <span>{postLikes[post.id] !== undefined ? postLikes[post.id] : (post.likedUsers?.length || post.likes || 0)}</span>
+                    <span>{postInteractions.likes}</span>
                   </button>
                   <button 
-                    className={`post-action-btn ${isDisliked[post.id] ? "disliked" : ""}`} 
+                    className={`post-action-btn ${postInteractions.isDisliked ? "disliked" : ""}`} 
                     onClick={(e) => {
                       e.stopPropagation()
-                      handlePostDislike(post.id)
+                      postInteractions.handleDislike()
                     }}
+                    disabled={postInteractions.loading}
                   >
                     <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6" fill={isDisliked[post.id] ? "currentColor" : "none"}/>
-                      <path d="M12 22L7 17h10L12 22z" fill={isDisliked[post.id] ? "currentColor" : "none"}/>
-                      <path d="M7 17V2h10v15" fill={isDisliked[post.id] ? "currentColor" : "none"}/>
+                      <path d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
+                      <path d="M12 22L7 17h10L12 22z" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
+                      <path d="M7 17V2h10v15" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
                     </svg>
-                    <span>{postDislikes[post.id] !== undefined ? postDislikes[post.id] : (post.dislikedUsers?.length || post.dislikes || 0)}</span>
+                    <span>{postInteractions.dislikes}</span>
                   </button>
                   <button 
                     className="post-action-btn"
@@ -331,7 +247,8 @@ function Profile({ onNavigate, userId }) {
                   </button>
                 </div>
               </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>

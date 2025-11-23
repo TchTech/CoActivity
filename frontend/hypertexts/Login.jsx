@@ -2,12 +2,14 @@
 
 import { useState } from "react"
 import { userAPI } from "../lib/api"
+import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/auth.css"
 
 function Login({ onNavigate }) {
+  const { login: loginUser } = useUser()
   const [formData, setFormData] = useState({
     login: "",
     password: "",
@@ -40,24 +42,17 @@ function Login({ onNavigate }) {
     setError("")
 
     try {
-      // Проверяем, является ли login email или username
-      const isEmail = formData.login.includes("@")
+      // Вызов API для аутентификации
+      const user = await userAPI.login(formData.login, formData.password)
       
-      // TODO: В backend нет явного эндпоинта для логина
-      // Пока что делаем простую проверку через получение профиля
-      // В реальном приложении здесь должен быть эндпоинт /users/login
-      // который проверяет credentials и устанавливает session cookie
+      console.log("Успешный вход:", user)
       
-      // Временное решение: пробуем найти пользователя по username или email
-      // и проверяем пароль (в реальном приложении это должно быть на backend)
+      // Сохраняем пользователя в контекст
+      if (user) {
+        loginUser(user)
+      }
       
-      // Для демонстрации просто переходим на главную
-      // В production здесь должен быть вызов API для аутентификации
-      console.log("Попытка входа:", { login: formData.login, isEmail })
-      
-      // TODO: Добавить реальный эндпоинт для логина в backend
-      // const response = await userAPI.login(formData.login, formData.password)
-      
+      // Переход на главную страницу
       onNavigate("home")
     } catch (err) {
       console.error("Ошибка входа:", err)
