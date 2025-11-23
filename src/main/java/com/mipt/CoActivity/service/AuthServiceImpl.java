@@ -1,0 +1,68 @@
+package com.mipt.CoActivity.service;
+
+import com.mipt.CoActivity.dto.LoginRequest;
+import com.mipt.CoActivity.dto.LoginResponse;
+import com.mipt.CoActivity.dto.RegisterRequest;
+import com.mipt.CoActivity.exception.BadRequestException;
+import com.mipt.CoActivity.exception.ResourceNotFoundException;
+import com.mipt.CoActivity.exception.UnauthorizedException;
+import com.mipt.CoActivity.model.User;
+import com.mipt.CoActivity.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class AuthServiceImpl implements AuthService {
+    private final UserRepository userRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
+
+    @Autowired
+    public AuthServiceImpl(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    @Override
+    @Transactional
+    public User registerNewUser(RegisterRequest request) {
+        if (userRepository.findByEmail(request.getEmail()) != null) {
+            throw new BadRequestException("Email already exists");
+        }
+
+        String hashedPassword = passwordEncoder.encode(request.getPassword());
+        User newUser = new User(request.getName(), request.getEmail(), hashedPassword);
+        newUser.setName(request.getName());
+        
+        return userRepository.save(newUser);
+    }
+
+    @Override
+    public LoginResponse loginUser(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail());
+        
+        if (user == null) {
+            throw new UnauthorizedException("Invalid email or password");
+        }
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new UnauthorizedException("Invalid email or password");
+        }
+
+        // TODO: Generate JWT token - for now using a placeholder
+        String token = generateToken(user);
+        
+        return LoginResponse.builder()
+            .token(token)
+            .userId(user.getId())
+            .build();
+    }
+
+    private String generateToken(User user) {
+        // TODO: Implement JWT token generation
+        // For now, return a placeholder token
+        return "placeholder-jwt-token-" + user.getId();
+    }
+}
+

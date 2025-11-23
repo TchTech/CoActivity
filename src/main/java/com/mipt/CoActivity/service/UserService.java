@@ -4,6 +4,7 @@ import com.mipt.CoActivity.dto.*;
 import com.mipt.CoActivity.exception.*;
 import com.mipt.CoActivity.model.*;
 import com.mipt.CoActivity.repository.*;
+import com.mipt.CoActivity.repository.ExternalLinkRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,18 +23,21 @@ public class UserService {
   private final RoomRepository roomRepository;
   private final RoomFolderRepository roomFolderRepository;
   private final BCryptPasswordEncoder passwordEncoder;
+  private final ExternalLinkRepository externalLinkRepository;
 
   @Autowired
   UserService(UserRepository userRepository,
               UserSettingsRepository userSettingsRepository,
               RoomRepository roomRepository,
               RoomFolderRepository roomFolderRepository,
-              BCryptPasswordEncoder passwordEncoder) {
+              BCryptPasswordEncoder passwordEncoder,
+              ExternalLinkRepository externalLinkRepository) {
     this.userRepository = userRepository;
     this.userSettingsRepository = userSettingsRepository;
     this.roomRepository = roomRepository;
     this.roomFolderRepository = roomFolderRepository;
     this.passwordEncoder = passwordEncoder;
+    this.externalLinkRepository = externalLinkRepository;
   }
 
   public User getUserByUsername(String username) {
@@ -315,8 +319,83 @@ public class UserService {
             });
   }
 
-  public UserSettings getUserNotificationSettings(Long userId) {
-    return getUserSettings(userId);
+  public NotificationSettingsResponse getUserNotificationSettings(Long userId) {
+    UserSettings settings = getUserSettings(userId);
+    return NotificationSettingsResponse.builder()
+        .roomInvitationNotifications(settings.getFriendRequestNotifications())
+        .messageNotifications(settings.getMessageNotifications())
+        .roomRemovalNotifications(settings.getEventNotifications())
+        .emailNotifications(settings.getEmailNotifications())
+        .pushNotifications(settings.getPushNotifications())
+        .build();
+  }
+
+  @Transactional
+  public void updateUserNotificationSettings(Long userId, UpdateNotificationSettingsRequest request) {
+    UserSettings settings = getUserSettings(userId);
+    if (request.getRoomInvitationNotifications() != null) {
+      settings.setFriendRequestNotifications(request.getRoomInvitationNotifications());
+    }
+    if (request.getMessageNotifications() != null) {
+      settings.setMessageNotifications(request.getMessageNotifications());
+    }
+    if (request.getRoomRemovalNotifications() != null) {
+      settings.setEventNotifications(request.getRoomRemovalNotifications());
+    }
+    userSettingsRepository.save(settings);
+  }
+
+  @Transactional
+  public void logoutUser(Long id) {
+    getUserProfile(id);
+    logger.info("User {} logged out", id);
+  }
+
+  public List<ExternalLinkResponse> getUserExternalLinks(Long id) {
+    getUserProfile(id);
+    List<ExternalLink> links = externalLinkRepository.findByUserId(id);
+    return links.stream()
+        .map(link -> ExternalLinkResponse.builder()
+            .id(link.getId())
+            .platformName(link.getPlatformName())
+            .url(link.getUrl())
+            .build())
+        .collect(Collectors.toList());
+  }
+
+  @Transactional
+  public ExternalLinkResponse addExternalLink(Long id, ExternalLinkRequest request) {
+    User user = getUserProfile(id);
+    
+    if (request.getUrl() == null || request.getUrl().trim().isEmpty()) {
+      throw new BadRequestException("URL cannot be empty");
+    }
+    
+    if (!request.getUrl().startsWith("http://") && !request.getUrl().startsWith("https://")) {
+      throw new BadRequestException("URL must be valid (start with http:// or https://)");
+    }
+
+    ExternalLink link = new ExternalLink(user, request.getPlatformName(), request.getUrl());
+    ExternalLink savedLink = externalLinkRepository.save(link);
+    
+    return ExternalLinkResponse.builder()
+        .id(savedLink.getId())
+        .platformName(savedLink.getPlatformName())
+        .url(savedLink.getUrl())
+        .build();
+  }
+
+  @Transactional
+  public void deleteExternalLink(Long id, Long linkId) {
+    getUserProfile(id);
+    ExternalLink link = externalLinkRepository.findById(linkId)
+        .orElseThrow(() -> new ResourceNotFoundException("External link not found"));
+    
+    if (!link.getUser().getId().equals(id)) {
+      throw new ForbiddenException("You don't have permission to delete this link");
+    }
+    
+    externalLinkRepository.delete(link);
   }
 
   @Transactional

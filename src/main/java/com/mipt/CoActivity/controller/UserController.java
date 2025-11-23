@@ -141,8 +141,41 @@ public class UserController {
   }
 
   @GetMapping("/{userId}/settings/notifications")
-  public ResponseEntity<UserSettings> getUserNotificationSettings(@PathVariable Long userId) {
+  public ResponseEntity<NotificationSettingsResponse> getUserNotificationSettings(@PathVariable Long userId) {
     return ResponseEntity.ok(userService.getUserNotificationSettings(userId));
+  }
+
+  @PutMapping("/{userId}/settings/notifications")
+  public ResponseEntity<Void> updateUserNotificationSettings(
+      @PathVariable Long userId, @RequestBody UpdateNotificationSettingsRequest request) {
+    userService.updateUserNotificationSettings(userId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/{id}/profile/logout")
+  public ResponseEntity<Void> changeUserProfile(@PathVariable Long id) {
+    userService.logoutUser(id);
+    return ResponseEntity.ok().build();
+  }
+
+  @GetMapping("/{id}/profile/external-links")
+  public ResponseEntity<List<ExternalLinkResponse>> getUserExternalLinks(@PathVariable Long id) {
+    return ResponseEntity.ok(userService.getUserExternalLinks(id));
+  }
+
+  @PostMapping("/{id}/profile/external-links")
+  @ResponseStatus(HttpStatus.CREATED)
+  public ResponseEntity<ExternalLinkResponse> addExternalLink(
+      @PathVariable Long id, @RequestBody ExternalLinkRequest request) {
+    ExternalLinkResponse response = userService.addExternalLink(id, request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  @DeleteMapping("/{id}/profile/external-links/{linkId}")
+  public ResponseEntity<Void> deleteExternalLink(
+      @PathVariable Long id, @PathVariable Long linkId) {
+    userService.deleteExternalLink(id, linkId);
+    return ResponseEntity.ok().build();
   }
 
   @GetMapping("/{userId}/settings/general-notifications")
