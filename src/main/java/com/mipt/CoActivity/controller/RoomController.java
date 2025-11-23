@@ -80,4 +80,57 @@ public class RoomController {
       @PathVariable Long roomId, @RequestParam Long creatorId, @RequestParam String text) {
     return roomService.addMessage(roomId, creatorId, text);
   }
+
+  @PostMapping("/{roomId}/join-requests/{targetUserId}/approve")
+  public ResponseEntity<Void> approveJoinRequest(
+      @PathVariable Long roomId,
+      @PathVariable Long targetUserId,
+      @RequestBody ApproveJoinRequestRequest request) {
+    roomService.approveJoinRequest(roomId, targetUserId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/{roomId}/join-requests/{targetUserId}/reject")
+  public ResponseEntity<Void> rejectJoinRequest(
+      @PathVariable Long roomId,
+      @PathVariable Long targetUserId,
+      @RequestBody RejectJoinRequestRequest request) {
+    roomService.rejectJoinRequest(roomId, targetUserId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/{roomId}/chat/messages")
+  @ResponseStatus(HttpStatus.CREATED)
+  public ResponseEntity<Message> sendRoomMessage(
+      @PathVariable Long roomId, @RequestBody SendMessageRequest request) {
+    Message message = roomService.sendRoomMessage(roomId, request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(message);
+  }
+
+  @PostMapping("/{roomId}/chat/messages/{messageId}/report")
+  public ResponseEntity<Void> reportMessage(
+      @PathVariable Long roomId,
+      @PathVariable Long messageId,
+      @RequestBody ReportMessageRequest request) {
+    roomService.reportMessage(roomId, messageId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/{roomId}/chat/messages/{messageId}/moderation/confirm")
+  public ResponseEntity<Void> confirmMessageViolation(
+      @PathVariable Long roomId,
+      @PathVariable Long messageId,
+      @RequestBody ConfirmViolationRequest request) {
+    roomService.confirmMessageViolation(roomId, messageId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/{roomId}/chat/messages/{messageId}/moderation/reject")
+  public ResponseEntity<Void> rejectMessageViolation(
+      @PathVariable Long roomId,
+      @PathVariable Long messageId,
+      @RequestBody RejectViolationRequest request) {
+    roomService.rejectMessageViolation(roomId, messageId, request);
+    return ResponseEntity.ok().build();
+  }
 }

@@ -257,4 +257,144 @@ public class RoomService {
     room.getCollaborators().add(creator);
     return roomRepository.save(room);
   }
+
+  @Transactional
+  public void approveJoinRequest(Long roomId, Long targetUserId, ApproveJoinRequestRequest request) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    User admin = userRepository.findById(request.getAdminId())
+        .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
+    
+    User targetUser = userRepository.findById(targetUserId)
+        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    
+    if (!room.getAdmins().contains(admin)) {
+      throw new ForbiddenException("Only administrators can approve join requests");
+    }
+    
+    if (room.getCollaborators().contains(targetUser)) {
+      throw new ConflictException("User is already a member of this room");
+    }
+    
+    if (room.getMaxCollaborators() != null
+        && room.getCollaborators().size() >= room.getMaxCollaborators()) {
+      throw new ConflictException("Room has reached maximum capacity");
+    }
+    
+    room.getCollaborators().add(targetUser);
+    roomRepository.save(room);
+    logger.info("Admin {} approved join request for user {} to room {}", request.getAdminId(), targetUserId, roomId);
+  }
+
+  @Transactional
+  public void rejectJoinRequest(Long roomId, Long targetUserId, RejectJoinRequestRequest request) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    User admin = userRepository.findById(request.getAdminId())
+        .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
+    
+    userRepository.findById(targetUserId)
+        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    
+    if (!room.getAdmins().contains(admin)) {
+      throw new ForbiddenException("Only administrators can reject join requests");
+    }
+    
+    logger.info("Admin {} rejected join request for user {} to room {}", request.getAdminId(), targetUserId, roomId);
+  }
+
+  @Transactional
+  public Message sendRoomMessage(Long roomId, SendMessageRequest request) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    User sender = userRepository.findById(request.getSenderId())
+        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    
+    if (!room.getCollaborators().contains(sender)) {
+      throw new ForbiddenException("User is not a member of this room");
+    }
+    
+    Message message = new Message(room, sender, request.getContent());
+    message.setDate(Instant.now());
+    return messageRepository.save(message);
+  }
+
+  @Transactional
+  public void reportMessage(Long roomId, Long messageId, ReportMessageRequest request) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    Message message = messageRepository.findById(messageId)
+        .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+    
+    if (!message.getRoom().getId().equals(roomId)) {
+      throw new BadRequestException("Message does not belong to this room");
+    }
+    
+    userRepository.findById(request.getReporterId())
+        .orElseThrow(() -> new ResourceNotFoundException("Reporter not found"));
+    
+    if (!List.of("platformRules", "roomRules").contains(request.getViolationType())) {
+      throw new BadRequestException("Invalid violation type");
+    }
+    
+    logger.info("User {} reported message {} in room {} for violation: {}", 
+        request.getReporterId(), messageId, roomId, request.getViolationType());
+  }
+
+  @Transactional
+  public void confirmMessageViolation(Long roomId, Long messageId, ConfirmViolationRequest request) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    Message message = messageRepository.findById(messageId)
+        .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+    
+    if (!message.getRoom().getId().equals(roomId)) {
+      throw new BadRequestException("Message does not belong to this room");
+    }
+    
+    User admin = userRepository.findById(request.getAdminId())
+        .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
+    
+    if (!room.getAdmins().contains(admin)) {
+      throw new ForbiddenException("Only administrators can confirm violations");
+    }
+    
+    if (!List.of("warning", "kick", "ban").contains(request.getSanction())) {
+      throw new BadRequestException("Invalid sanction type");
+    }
+    
+    message.setIsDeleted(true);
+    messageRepository.save(message);
+    
+    logger.info("Admin {} confirmed violation for message {} in room {} with sanction: {}", 
+        request.getAdminId(), messageId, roomId, request.getSanction());
+  }
+
+  @Transactional
+  public void rejectMessageViolation(Long roomId, Long messageId, RejectViolationRequest request) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    Message message = messageRepository.findById(messageId)
+        .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+    
+    if (!message.getRoom().getId().equals(roomId)) {
+      throw new BadRequestException("Message does not belong to this room");
+    }
+    
+    User admin = userRepository.findById(request.getAdminId())
+        .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
+    
+    if (!room.getAdmins().contains(admin)) {
+      throw new ForbiddenException("Only administrators can reject violation reports");
+    }
+    
+    logger.info("Admin {} rejected violation report for message {} in room {}", 
+        request.getAdminId(), messageId, roomId);
+  }
 }
