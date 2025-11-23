@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { userAPI } from "../lib/api"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -12,6 +13,7 @@ function Login({ onNavigate }) {
     password: "",
   })
   const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
   const handleChange = (e) => {
     setFormData({
@@ -20,7 +22,7 @@ function Login({ onNavigate }) {
     })
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
     // Валидация
@@ -34,8 +36,35 @@ function Login({ onNavigate }) {
       return
     }
 
-    console.log("Вход выполнен:", formData)
-    onNavigate("home")
+    setLoading(true)
+    setError("")
+
+    try {
+      // Проверяем, является ли login email или username
+      const isEmail = formData.login.includes("@")
+      
+      // TODO: В backend нет явного эндпоинта для логина
+      // Пока что делаем простую проверку через получение профиля
+      // В реальном приложении здесь должен быть эндпоинт /users/login
+      // который проверяет credentials и устанавливает session cookie
+      
+      // Временное решение: пробуем найти пользователя по username или email
+      // и проверяем пароль (в реальном приложении это должно быть на backend)
+      
+      // Для демонстрации просто переходим на главную
+      // В production здесь должен быть вызов API для аутентификации
+      console.log("Попытка входа:", { login: formData.login, isEmail })
+      
+      // TODO: Добавить реальный эндпоинт для логина в backend
+      // const response = await userAPI.login(formData.login, formData.password)
+      
+      onNavigate("home")
+    } catch (err) {
+      console.error("Ошибка входа:", err)
+      setError(err.message || "Неверный логин или пароль")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -73,8 +102,8 @@ function Login({ onNavigate }) {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>
-            Войти
+          <button type="submit" className="btn btn-primary" style={{ width: "100%" }} disabled={loading}>
+            {loading ? "Вход..." : "Войти"}
           </button>
         </form>
 

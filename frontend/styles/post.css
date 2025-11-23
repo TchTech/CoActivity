@@ -92,6 +92,10 @@
   color: var(--accent-gold);
 }
 
+.post-action-btn.disliked {
+  color: #ef4444;
+}
+
 .comment-icon {
   width: 16px;
   height: 16px;
@@ -100,6 +104,10 @@
 
 .comment-action.liked {
   color: var(--accent-gold);
+}
+
+.comment-action.disliked {
+  color: #ef4444;
 }
 
 .post-action-icon {

@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import BottomNavigation from "./BottomNavigation"
+import { postAPI } from "../lib/api"
+import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -9,12 +11,15 @@ import "../styles/create.css"
 import "../styles/navigation.css"
 
 function CreatePost({ onNavigate }) {
+  const { currentUser } = useUser()
   const [formData, setFormData] = useState({
     text: "",
     image: null,
     linkedRoom: "",
   })
   const [imagePreview, setImagePreview] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   const handleChange = (e) => {
     setFormData({
@@ -40,21 +45,58 @@ function CreatePost({ onNavigate }) {
     }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
+    if (!currentUser) {
+      setError("Необходимо войти в систему")
+      return
+    }
+
     if (!formData.text.trim()) {
-      alert("Пожалуйста, введите текст поста")
+      setError("Пожалуйста, введите текст поста")
       return
     }
 
     if (formData.text.length < 1 || formData.text.length > 1000) {
-      alert("Текст должен содержать от 1 до 1000 символов")
+      setError("Текст должен содержать от 1 до 1000 символов")
       return
     }
 
-    console.log("Создание поста:", formData)
-    onNavigate("profile")
+    setLoading(true)
+    setError("")
+
+    try {
+      // TODO: Загрузить изображение, если оно есть
+      // Сначала нужно загрузить изображение на сервер и получить его ID
+      let imageId = null
+      if (formData.image) {
+        // const imageResponse = await imageAPI.upload(formData.image)
+        // imageId = imageResponse.id
+        // Пока что пропускаем загрузку изображения
+      }
+
+      // Создание поста
+      const postData = {
+        name: formData.text.substring(0, 50), // Название поста (первые 50 символов)
+        text: formData.text,
+        author: { id: currentUser.id },
+        image: imageId ? { id: imageId } : null,
+        room: formData.linkedRoom ? { id: parseInt(formData.linkedRoom) } : null,
+      }
+
+      const createdPost = await postAPI.create(postData)
+      
+      console.log("Пост создан:", createdPost)
+      
+      // Переход на главную страницу или профиль
+      onNavigate("home")
+    } catch (error) {
+      console.error("Ошибка при создании поста:", error)
+      setError(error.message || "Ошибка при создании поста. Попробуйте еще раз.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const charCount = formData.text.length
@@ -71,6 +113,7 @@ function CreatePost({ onNavigate }) {
       </div>
 
       <div className="create-container">
+        {error && <div className="error-message" style={{ marginBottom: "var(--spacing-md)" }}>{error}</div>}
         <form className="create-form" onSubmit={handleSubmit}>
           <div className="form-section">
             <div className="form-section-title">Содержание поста</div>
@@ -147,8 +190,8 @@ function CreatePost({ onNavigate }) {
             <button type="button" className="btn btn-secondary" onClick={() => onNavigate("profile")}>
               Отмена
             </button>
-            <button type="submit" className="btn btn-primary">
-              Опубликовать
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? "Публикация..." : "Опубликовать"}
             </button>
           </div>
         </form>
