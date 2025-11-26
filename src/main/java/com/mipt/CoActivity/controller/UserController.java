@@ -5,6 +5,8 @@ import com.mipt.CoActivity.model.Room;
 import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.model.UserSettings;
 import com.mipt.CoActivity.service.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +17,9 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/users")
+@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"}, allowCredentials = "true")
 public class UserController {
+  private static final Logger logger = LoggerFactory.getLogger(UserController.class);
   private final UserService userService;
 
   @Autowired
@@ -26,6 +30,12 @@ public class UserController {
   @GetMapping("/{id}/profile")
   public ResponseEntity<User> getUserProfile(@PathVariable Long id) {
     return ResponseEntity.ok(userService.getUserProfile(id));
+  }
+
+  @GetMapping("/{id}/rating")
+  public ResponseEntity<Map<String, Object>> getUserRating(@PathVariable Long id) {
+    Double rating = userService.calculateUserRating(id);
+    return ResponseEntity.ok(Map.of("rating", rating != null ? rating : 0.0, "hasRating", rating != null));
   }
 
   @GetMapping("/{id}/profile/personal-info")
@@ -215,9 +225,23 @@ public class UserController {
 
   @PostMapping("/register")
   @ResponseStatus(HttpStatus.CREATED)
-  public User registerUser(
+  public ResponseEntity<User> registerUser(
       @RequestParam String username, @RequestParam String email, @RequestParam String password) {
-    return userService.registerUser(username, email, password);
+    try {
+      User user = userService.registerUser(username, email, password);
+      return ResponseEntity.status(HttpStatus.CREATED).body(user);
+    } catch (Exception e) {
+      // Логируем ошибку для отладки
+      logger.error("Error in registerUser endpoint: ", e);
+      throw e; // Пробрасываем дальше для обработки GlobalExceptionHandler
+    }
+  }
+
+  @PostMapping("/login")
+  public ResponseEntity<User> loginUser(
+      @RequestParam String login, @RequestParam String password) {
+    User user = userService.loginUser(login, password);
+    return ResponseEntity.ok(user);
   }
 
   @PostMapping("/subscribe")

@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/posts")
 public class PostController {
@@ -37,5 +39,15 @@ public class PostController {
   @PostMapping("/{postId}/dislike")
   public void dislike(@RequestParam Long userId, @PathVariable Long postId) {
     postService.addOrRemoveDislike(userId, postId);
+  }
+
+  @GetMapping
+  public ResponseEntity<List<Post>> getAllPosts() {
+    return ResponseEntity.ok(postService.getAllPosts());
+  }
+
+  @GetMapping("/{postId}")
+  public ResponseEntity<Post> getPostById(@PathVariable Long postId) {
+    return ResponseEntity.ok(postService.getPostById(postId));
   }
 }

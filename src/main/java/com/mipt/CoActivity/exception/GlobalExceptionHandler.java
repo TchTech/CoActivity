@@ -44,8 +44,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleGenericException(Exception ex) {
         logger.error("Unexpected error: ", ex);
+        // Возвращаем детальное сообщение об ошибке для отладки
+        String errorMessage = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("An unexpected error occurred");
+                .body(errorMessage);
     }
 }
 

@@ -17,4 +17,6 @@ public class Feedback {
   @ManyToOne
   @JoinColumn(name = "reviewedUserId")
   private User reviewedUser;
+  @Column(name = "rating")
+  private Double rating; // Оценка от 0 до 5
 }
