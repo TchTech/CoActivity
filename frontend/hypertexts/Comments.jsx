@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { getPostById } from "../scripts/postsData"
 import { getCommentsForPost } from "../scripts/commentsData"
-import { commentAPI } from "../lib/api"
+import { commentAPI, postAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
 import { useCommentInteractions } from "../hooks/useCommentInteractions"
@@ -22,49 +22,46 @@ function Comments({ onNavigate, postId }) {
   const [commentText, setCommentText] = useState("")
   const [replyingTo, setReplyingTo] = useState(null)
   const [loading, setLoading] = useState(true)
+  
+  // Hook for post interactions (likes/dislikes)
+  const postInteractions = usePostInteractions(postData)
 
   const fetchPostData = async () => {
     setLoading(true)
     try {
-      // TODO: Когда будет добавлен GET /posts/{postId} эндпоинт
-      // const post = await postAPI.getById(postId)
-      // setPostData(post)
-      // setPostLikes(post.likedUsers?.length || 0)
-      // setPostDislikes(post.dislikedUsers?.length || 0)
-      // setPostComments(post.comments?.length || 0)
+      // Load post from backend
+      const post = await postAPI.getById(postId)
+      setPostData(post)
       
-      // Загрузка комментариев
-      // const postComments = await commentAPI.getByPost(postId)
-      // setComments(postComments || [])
-      
-      // Временно используем моковые данные
-      const data = getPostById(postId)
-      setPostData(data)
-      if (data) {
-        // Загружаем комментарии из API
-        try {
-          const apiComments = await commentAPI.getByPost(postId)
-          setComments(apiComments || [])
-          setPostComments(apiComments?.length || 0)
-        } catch (error) {
-          console.error("Ошибка загрузки комментариев:", error)
-          // Fallback на моковые данные
-          const initialComments = getCommentsForPost(postId, data.userId, data.time)
-          setComments(initialComments)
-          setPostComments(data.comments)
-        }
+      // Load comments from backend
+      try {
+        const apiComments = await commentAPI.getByPost(postId)
+        // Sort comments by creation date (oldest first for chronological order)
+        const sortedComments = Array.isArray(apiComments)
+          ? apiComments.sort((a, b) => {
+              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+              return dateA - dateB
+            })
+          : []
+        setComments(sortedComments)
+        setPostComments(sortedComments.length)
+      } catch (error) {
+        console.error("Ошибка загрузки комментариев:", error)
+        // Fallback: use comments from post object if available
+        const postComments = post.comments || []
+        setComments(Array.isArray(postComments) ? postComments : [])
+        setPostComments(Array.isArray(postComments) ? postComments.length : 0)
       }
     } catch (error) {
       console.error("Ошибка загрузки поста:", error)
-      // Fallback на моковые данные
+      // Fallback на моковые данные при ошибке
       const data = getPostById(postId)
       setPostData(data)
       if (data) {
         const initialComments = getCommentsForPost(postId, data.userId, data.time)
         setComments(initialComments)
-        setPostLikes(data.likes)
-        setPostDislikes(data.dislikes || 0)
-        setPostComments(data.comments)
+        setPostComments(data.comments || initialComments.length)
       }
     } finally {
       setLoading(false)
@@ -159,35 +156,40 @@ function Comments({ onNavigate, postId }) {
       // Создание комментария через API
       const newComment = await commentAPI.create(postId, commentData)
 
-      // Оптимистичное обновление UI
+      // Optimistically update UI with the new comment
       const uiComment = {
         id: newComment?.id || Date.now(),
         userId: currentUser.id,
         author: {
+          id: currentUser.id,
           name: currentUser.name || currentUser.username || "Вы",
           avatar: currentUser.avatar || "/male-avatar.png",
           rating: currentUser.rating || 0,
         },
         text: commentText,
+        createdAt: new Date().toISOString(),
         time: "только что",
         likes: 0,
+        likedUsers: [],
         isLiked: false,
         commentCount: 0,
         replies: [],
       }
 
       if (replyingTo) {
+        // For replies, we'll add them to the parent comment's replies array
+        // Note: The backend may not support nested replies yet, so this is optimistic UI
         setComments((prevComments) => {
           return prevComments.map((comment) => {
             if (comment.id === replyingTo) {
               return {
                 ...comment,
-                commentCount: comment.commentCount + 1,
+                commentCount: (comment.commentCount || 0) + 1,
                 replies: [
-                  ...comment.replies,
+                  ...(comment.replies || []),
                   {
                     ...uiComment,
-                    id: Date.now() + Math.random(),
+                    id: newComment?.id || Date.now() + Math.random(),
                   },
                 ],
               }
@@ -197,11 +199,30 @@ function Comments({ onNavigate, postId }) {
         })
         setReplyingTo(null)
       } else {
+        // Add new comment to the list
         setComments([...comments, uiComment])
         setPostComments(postComments + 1)
       }
 
       setCommentText("")
+      
+      // Refresh comments from server to get the actual comment data
+      // This ensures we have the correct ID and any server-side formatting
+      try {
+        const refreshedComments = await commentAPI.getByPost(postId)
+        const sortedComments = Array.isArray(refreshedComments)
+          ? refreshedComments.sort((a, b) => {
+              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+              return dateA - dateB
+            })
+          : []
+        setComments(sortedComments)
+        setPostComments(sortedComments.length)
+      } catch (error) {
+        console.error("Ошибка обновления комментариев:", error)
+        // Keep the optimistic update if refresh fails
+      }
     } catch (error) {
       console.error("Ошибка при создании комментария:", error)
       // Можно показать уведомление об ошибке

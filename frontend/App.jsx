@@ -22,6 +22,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState("login")
   const [viewingUserId, setViewingUserId] = useState(null)
   const [viewingPostId, setViewingPostId] = useState(null)
+  const [viewingRoomId, setViewingRoomId] = useState(null)
 
   const handleNavigate = (page, param) => {
     console.log("[v0] Navigation:", page, "param:", param)
@@ -32,6 +33,8 @@ function App() {
     } else if (page === "comments") {
       setViewingPostId(param || null)
       console.log("[v0] Setting post ID:", param)
+    } else if (page === "chat" || page === "roomInfo") {
+      setViewingRoomId(param || null)
     }
   }
 
@@ -50,9 +53,9 @@ function App() {
       case "rooms":
         return <RoomsList onNavigate={handleNavigate} />
       case "chat":
-        return <Chat onNavigate={handleNavigate} />
+        return <Chat onNavigate={handleNavigate} roomId={viewingRoomId} />
       case "roomInfo":
-        return <RoomInfo onNavigate={handleNavigate} />
+        return <RoomInfo onNavigate={handleNavigate} roomId={viewingRoomId} />
       case "createPost":
         return <CreatePost onNavigate={handleNavigate} />
       case "createRoom":

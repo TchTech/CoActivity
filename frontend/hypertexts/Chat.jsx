@@ -1,60 +1,82 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/rooms.css"
+import { roomAPI } from "../lib/api"
+import { useUser } from "../context/UserContext"
 
-function Chat({ onNavigate }) {
+function Chat({ onNavigate, roomId }) {
+  const { currentUser } = useUser()
+  const [messages, setMessages] = useState([])
   const [messageText, setMessageText] = useState("")
+  const [roomInfo, setRoomInfo] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
-  // Демо данные чата
-  const chatData = {
-    roomName: "Физика-механика в Саратове",
-    members: 8,
-    category: "Наука",
-  }
+  // Polling for messages (fallback instead of websockets)
+  useEffect(() => {
+    let intervalId
 
-  const messages = [
-    {
-      id: 1,
-      sender: "Петр Сидоров",
-      text: "Всем привет! Напоминаю, что встреча завтра в 12:00",
-      time: "14:25",
-      avatar: "/male-avatar.png",
-      isOwn: false,
-    },
-    {
-      id: 2,
-      sender: "Вы",
-      text: "Отлично, буду обязательно!",
-      time: "14:27",
-      avatar: "/diverse-user-avatars.png",
-      isOwn: true,
-    },
-    {
-      id: 3,
-      sender: "Анна Иванова",
-      text: "А можно взять с собой друга?",
-      time: "14:30",
-      avatar: "/diverse-female-avatar.png",
-      isOwn: false,
-    },
-    {
-      id: 4,
-      sender: "Петр Сидоров",
-      text: "Конечно! Чем больше, тем лучше 😊",
-      time: "14:32",
-      avatar: "/male-avatar.png",
-      isOwn: false,
-    },
-  ]
+    const loadChat = async () => {
+      if (!roomId || !currentUser?.id) {
+        setLoading(false)
+        return
+      }
 
-  const handleSendMessage = () => {
-    if (messageText.trim()) {
-      console.log("Отправка сообщения:", messageText)
-      setMessageText("")
+      try {
+        const data = await roomAPI.openChat(roomId, currentUser.id)
+        setRoomInfo({ id: data.roomId })
+        setMessages(
+          Array.isArray(data.messages)
+            ? data.messages.map((m, index) => ({
+                id: m.id || index,
+                senderId: m.senderId,
+                content: m.content,
+                timestamp: m.timestamp,
+              }))
+            : []
+        )
+        setError("")
+      } catch (err) {
+        console.error("Ошибка загрузки чата:", err)
+        setError(err.message || "Не удалось загрузить чат")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadChat()
+    intervalId = setInterval(loadChat, 5000)
+
+    return () => {
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [roomId, currentUser])
+
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || !currentUser?.id || !roomId) return
+
+    const text = messageText
+    setMessageText("")
+
+    try {
+      await roomAPI.sendMessage(roomId, currentUser.id, text)
+      // Optimistically append message
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          senderId: currentUser.id,
+          content: text,
+          timestamp: new Date().toISOString(),
+        },
+      ])
+    } catch (err) {
+      console.error("Ошибка отправки сообщения:", err)
+      setError(err.message || "Не удалось отправить сообщение")
     }
   }
 
@@ -65,10 +87,12 @@ function Chat({ onNavigate }) {
     }
   }
 
+  const headerTitle = roomInfo?.description || `Комната #${roomId || ""}`
+
   return (
     <div className="chat-container">
       {/* Шапка чата - кликабельна */}
-      <div className="chat-header" onClick={() => onNavigate("roomInfo")}>
+      <div className="chat-header" onClick={() => onNavigate("roomInfo", roomId)}>
         <button
           className="btn-icon"
           onClick={(e) => {
@@ -78,10 +102,9 @@ function Chat({ onNavigate }) {
         >
           ←
         </button>
-        <img src="/physics-icon.jpg" alt={chatData.roomName} className="avatar avatar-md" />
+        <img src="/placeholder.svg" alt={headerTitle} className="avatar avatar-md" />
         <div className="chat-header-info">
-          <div className="chat-header-title">{chatData.roomName}</div>
-          <div className="chat-header-subtitle">{chatData.members} участников</div>
+          <div className="chat-header-title">{headerTitle}</div>
         </div>
         <button className="btn-icon" onClick={(e) => e.stopPropagation()}>
           ⋮
@@ -90,16 +113,40 @@ function Chat({ onNavigate }) {
 
       {/* Сообщения */}
       <div className="chat-messages">
-        {messages.map((message) => (
-          <div key={message.id} className={`message ${message.isOwn ? "own" : ""}`}>
-            <img src={message.avatar || "/placeholder.svg"} alt={message.sender} className="avatar avatar-md" />
-            <div className="message-content">
-              {!message.isOwn && <div className="message-sender">{message.sender}</div>}
-              <div className="message-text">{message.text}</div>
-              <div className="message-time">{message.time}</div>
-            </div>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--text-muted)" }}>
+            Загрузка сообщений...
           </div>
-        ))}
+        ) : error ? (
+          <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--error-color)" }}>
+            {error}
+          </div>
+        ) : messages.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--text-muted)" }}>
+            Пока нет сообщений
+          </div>
+        ) : (
+          messages.map((message) => {
+            const isOwn = currentUser && message.senderId === currentUser.id
+            return (
+              <div key={message.id} className={`message ${isOwn ? "own" : ""}`}>
+                <img src={"/placeholder.svg"} alt={isOwn ? "Вы" : "Участник"} className="avatar avatar-md" />
+                <div className="message-content">
+                  {!isOwn && <div className="message-sender">Участник #{message.senderId}</div>}
+                  <div className="message-text">{message.content}</div>
+                  <div className="message-time">
+                    {message.timestamp
+                      ? new Date(message.timestamp).toLocaleTimeString("ru-RU", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : ""}
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
 
       {/* Поле ввода */}
