@@ -11,6 +11,135 @@ import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/profile.css"
 
+function ProfilePostCard({ post, userData, userRating, onNavigate }) {
+  // Hook used at top of component, not inside a loop in another component.
+  const postInteractions = usePostInteractions(post)
+
+  return (
+    <div
+      key={post.id}
+      className="post-card"
+      onClick={() => onNavigate("comments", post.id)}
+    >
+      <div className="post-header">
+        <img src={userData.avatar || "/placeholder.svg"} alt={userData.name} className="avatar avatar-md" />
+        <div className="post-user-info">
+          <div className="post-username">
+            {userData.name}
+            {userRating !== null && (
+              <span className="badge badge-rating">{userRating.toFixed(1)}</span>
+            )}
+          </div>
+          <div className="post-time">
+            {post.createdAt
+              ? new Date(post.createdAt).toLocaleDateString("ru-RU")
+              : post.time}
+          </div>
+        </div>
+      </div>
+
+      <h3 className="post-title">{post.name || post.title}</h3>
+      <p className="post-content">{post.text || post.content}</p>
+
+      {post.image && (
+        <img
+          src={
+            typeof post.image === "object"
+              ? post.image.url || "/placeholder.svg"
+              : post.image || "/placeholder.svg"
+          }
+          alt={post.name || post.title}
+          className="post-image"
+        />
+      )}
+
+      <div className="post-actions">
+        <button
+          className={`post-action-btn ${postInteractions.isLiked ? "liked" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            postInteractions.handleLike()
+          }}
+          disabled={postInteractions.loading}
+        >
+          <svg
+            className="post-action-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path
+              d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6"
+              fill={postInteractions.isLiked ? "currentColor" : "none"}
+            />
+            <path
+              d="M12 2L7 7h10L12 2z"
+              fill={postInteractions.isLiked ? "currentColor" : "none"}
+            />
+            <path
+              d="M7 7v15h10V7"
+              fill={postInteractions.isLiked ? "currentColor" : "none"}
+            />
+          </svg>
+          <span>{postInteractions.likes}</span>
+        </button>
+        <button
+          className={`post-action-btn ${postInteractions.isDisliked ? "disliked" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            postInteractions.handleDislike()
+          }}
+          disabled={postInteractions.loading}
+        >
+          <svg
+            className="post-action-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path
+              d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6"
+              fill={postInteractions.isDisliked ? "currentColor" : "none"}
+            />
+            <path
+              d="M12 22L7 17h10L12 22z"
+              fill={postInteractions.isDisliked ? "currentColor" : "none"}
+            />
+            <path
+              d="M7 17V2h10v15"
+              fill={postInteractions.isDisliked ? "currentColor" : "none"}
+            />
+          </svg>
+          <span>{postInteractions.dislikes}</span>
+        </button>
+        <button
+          className="post-action-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            onNavigate("comments", post.id)
+          }}
+        >
+          <svg
+            className="post-action-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span>{post.comments?.length || post.comments || 0}</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function Profile({ onNavigate, userId }) {
   const { currentUser, subscribedUsers, subscribeToUser, unsubscribeFromUser } = useUser()
   const [userData, setUserData] = useState(null)
@@ -55,13 +184,23 @@ function Profile({ onNavigate, userId }) {
         }
 
         // Загрузка постов пользователя
-        // TODO: Когда будет добавлен эндпоинт для получения постов пользователя
-        // const posts = await postAPI.getByUser(profileUserId)
-        // setUserPosts(posts)
-        
-        // Временно используем моковые данные
-        const posts = getPostsByUserId(profileUserId)
-        setUserPosts(posts)
+        try {
+          const posts = await postAPI.getByUser(profileUserId)
+          // Sort by creation date (newest first)
+          const sortedPosts = Array.isArray(posts)
+            ? posts.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+                return dateB - dateA
+              })
+            : []
+          setUserPosts(sortedPosts)
+        } catch (error) {
+          console.error("Ошибка загрузки постов пользователя:", error)
+          // Fallback на моковые данные
+          const posts = getPostsByUserId(profileUserId)
+          setUserPosts(posts)
+        }
       } catch (error) {
         console.error("Ошибка загрузки профиля:", error)
         // Fallback на моковые данные
@@ -174,81 +313,15 @@ function Profile({ onNavigate, userId }) {
               Нет постов
             </div>
           ) : (
-            userPosts.map((post) => {
-              const postInteractions = usePostInteractions(post)
-              return (
-              <div key={post.id} className="post-card" onClick={() => onNavigate("comments", post.id)}>
-                <div className="post-header">
-                  <img src={userData.avatar || "/placeholder.svg"} alt={userData.name} className="avatar avatar-md" />
-                  <div className="post-user-info">
-                    <div className="post-username">
-                      {userData.name}
-                      {userRating !== null && (
-                        <span className="badge badge-rating">{userRating.toFixed(1)}</span>
-                      )}
-                    </div>
-                    <div className="post-time">{post.createdAt ? new Date(post.createdAt).toLocaleDateString("ru-RU") : post.time}</div>
-                  </div>
-                </div>
-
-                <h3 className="post-title">{post.name || post.title}</h3>
-                <p className="post-content">{post.text || post.content}</p>
-
-                {post.image && (
-                  <img 
-                    src={typeof post.image === "object" ? post.image.url || "/placeholder.svg" : post.image || "/placeholder.svg"} 
-                    alt={post.name || post.title} 
-                    className="post-image" 
-                  />
-                )}
-
-                <div className="post-actions">
-                  <button 
-                    className={`post-action-btn ${postInteractions.isLiked ? "liked" : ""}`} 
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      postInteractions.handleLike()
-                    }}
-                    disabled={postInteractions.loading}
-                  >
-                    <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
-                      <path d="M12 2L7 7h10L12 2z" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
-                      <path d="M7 7v15h10V7" fill={postInteractions.isLiked ? "currentColor" : "none"}/>
-                    </svg>
-                    <span>{postInteractions.likes}</span>
-                  </button>
-                  <button 
-                    className={`post-action-btn ${postInteractions.isDisliked ? "disliked" : ""}`} 
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      postInteractions.handleDislike()
-                    }}
-                    disabled={postInteractions.loading}
-                  >
-                    <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
-                      <path d="M12 22L7 17h10L12 22z" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
-                      <path d="M7 17V2h10v15" fill={postInteractions.isDisliked ? "currentColor" : "none"}/>
-                    </svg>
-                    <span>{postInteractions.dislikes}</span>
-                  </button>
-                  <button 
-                    className="post-action-btn"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onNavigate("comments", post.id)
-                    }}
-                  >
-                    <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                    <span>{post.comments?.length || post.comments || 0}</span>
-                  </button>
-                </div>
-              </div>
-              )
-            })
+            userPosts.map((post) => (
+              <ProfilePostCard
+                key={post.id}
+                post={post}
+                userData={userData}
+                userRating={userRating}
+                onNavigate={onNavigate}
+              />
+            ))
           )}
         </div>
       </div>
