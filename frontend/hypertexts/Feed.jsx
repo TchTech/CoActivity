@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { getAllPosts, getPostsByUserIds } from "../scripts/postsData"
-import { postAPI } from "../lib/api"
+import { postAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
 import "../styles/variables.css"
@@ -30,7 +30,10 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
           className="avatar avatar-md avatar-clickable"
           onClick={(e) => {
             e.stopPropagation()
-            onNavigate("profile", post.userId || post.author?.id)
+            const userId = post.userId || post.author?.id
+            if (userId) {
+              onNavigate("profile", userId)
+            }
           }}
         />
         <div className="post-user-info">
@@ -67,13 +70,86 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
       <h3 className="post-title">{post.name || post.title}</h3>
       <p className="post-content">{post.text || post.content}</p>
 
-      <img
-        src={post.image?.url || post.image || "/placeholder.svg"}
-        alt={post.name || post.title}
-        className="post-image"
-        onClick={() => onNavigate("comments", post.id)}
-        style={{ cursor: "pointer" }}
-      />
+      {post.image && (
+        <img
+          src={
+            typeof post.image === "object" && post.image.id
+              ? imageAPI.getImageUrl(post.image.id)
+              : post.image?.url || post.image || "/placeholder.svg"
+          }
+          alt={post.name || post.title}
+          className="post-image"
+          onClick={() => {
+            const postId = typeof post.id === "object" ? (post.id?.id || post.id?.postId || null) : post.id
+            if (postId) {
+              onNavigate("comments", postId)
+            } else {
+              console.error("[Feed] Invalid post.id:", post.id)
+            }
+          }}
+          style={{ cursor: "pointer" }}
+        />
+      )}
+
+      {post.externalLinks && (
+        <div className="post-external-links" style={{ marginTop: "var(--spacing-sm)", marginBottom: "var(--spacing-sm)" }}>
+          {(() => {
+            try {
+              const links = typeof post.externalLinks === "string" 
+                ? JSON.parse(post.externalLinks) 
+                : post.externalLinks
+              if (Array.isArray(links) && links.length > 0) {
+                return (
+                  <div>
+                    <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылки:</strong>
+                    {links.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "block",
+                          color: "var(--accent-blue)",
+                          textDecoration: "underline",
+                          marginTop: "var(--spacing-xs)",
+                          fontSize: "var(--font-size-sm)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {link}
+                      </a>
+                    ))}
+                  </div>
+                )
+              }
+            } catch (e) {
+              // If parsing fails, try to display as plain text
+              return (
+                <div>
+                  <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылка:</strong>
+                  <a
+                    href={post.externalLinks}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "block",
+                      color: "var(--accent-blue)",
+                      textDecoration: "underline",
+                      marginTop: "var(--spacing-xs)",
+                      fontSize: "var(--font-size-sm)",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {post.externalLinks}
+                  </a>
+                </div>
+              )
+            }
+            return null
+          })()}
+        </div>
+      )}
 
       <div className="post-actions">
         <button
@@ -142,7 +218,14 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
         </button>
         <button
           className="post-action-btn"
-          onClick={() => onNavigate("comments", post.id)}
+          onClick={() => {
+            const postId = typeof post.id === "object" ? (post.id?.id || post.id?.postId || null) : post.id
+            if (postId) {
+              onNavigate("comments", postId)
+            } else {
+              console.error("[Feed] Invalid post.id:", post.id)
+            }
+          }}
         >
           <svg
             className="post-action-icon"
@@ -185,16 +268,26 @@ function Feed({ onNavigate }) {
       try {
         // Fetch all posts from backend
         const allPosts = await postAPI.getAll()
+        console.log("[Feed] Loaded posts from API:", allPosts)
+        console.log("[Feed] Posts type:", typeof allPosts, "isArray:", Array.isArray(allPosts), "length:", Array.isArray(allPosts) ? allPosts.length : 'N/A')
+        
+        // Ensure we have an array
+        const postsArray = Array.isArray(allPosts) ? allPosts : (allPosts ? [allPosts] : [])
+        console.log("[Feed] Posts array after normalization:", postsArray.length)
         
         if (activeTab === "main") {
           // Show all posts, sorted by creation date (newest first)
-          const sortedPosts = Array.isArray(allPosts) 
-            ? allPosts.sort((a, b) => {
+          const sortedPosts = postsArray.length > 0
+            ? postsArray.sort((a, b) => {
                 const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
                 const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
                 return dateB - dateA
               })
             : []
+          console.log("[Feed] Sorted posts for main tab:", sortedPosts.length)
+          if (sortedPosts.length > 0) {
+            console.log("[Feed] First post sample:", sortedPosts[0])
+          }
           setPosts(sortedPosts)
         } else {
           // Show posts from subscribed users only
@@ -202,24 +295,32 @@ function Feed({ onNavigate }) {
           if (subscribedIds.length === 0) {
             setPosts([])
           } else {
-            const subscriptionPosts = Array.isArray(allPosts)
-              ? allPosts.filter(post => {
+            const subscriptionPosts = postsArray.length > 0
+              ? postsArray.filter(post => {
                   const authorId = post.author?.id || post.authorId
-                  return subscribedIds.includes(authorId)
+                  const matches = subscribedIds.includes(authorId)
+                  return matches
                 }).sort((a, b) => {
                   const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
                   const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
                   return dateB - dateA
                 })
               : []
+            console.log("[Feed] Filtered posts for subscriptions:", subscriptionPosts.length)
             setPosts(subscriptionPosts)
           }
         }
       } catch (error) {
         console.error("Ошибка загрузки постов:", error)
         // Fallback на моковые данные при ошибке
-        const allPosts = activeTab === "main" ? getAllPosts() : getPostsByUserIds(subscribedUsers.map(u => u.id || u))
-        setPosts(allPosts)
+        try {
+          const allPosts = activeTab === "main" ? getAllPosts() : getPostsByUserIds(subscribedUsers.map(u => u.id || u))
+          console.log("[Feed] Using fallback mock data:", allPosts.length)
+          setPosts(Array.isArray(allPosts) ? allPosts : [])
+        } catch (fallbackError) {
+          console.error("Ошибка загрузки моковых данных:", fallbackError)
+          setPosts([])
+        }
       } finally {
         setLoading(false)
       }

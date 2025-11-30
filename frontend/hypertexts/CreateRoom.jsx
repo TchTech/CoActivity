@@ -81,6 +81,7 @@ function CreateRoom({ onNavigate }) {
           formData.format === "offline"
             ? `${formData.city}${formData.address ? ", " + formData.address : ""}`
             : null,
+        joinType: formData.type === "open" ? "open" : "application",
       }
 
       const createdRoom = await roomAPI.create(currentUser.id, payload)

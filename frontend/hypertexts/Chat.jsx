@@ -42,7 +42,12 @@ function Chat({ onNavigate, roomId }) {
         setError("")
       } catch (err) {
         console.error("Ошибка загрузки чата:", err)
-        setError(err.message || "Не удалось загрузить чат")
+        // If 403, user is not a member - show helpful message
+        if (err.status === 403) {
+          setError("Вы не являетесь участником этой комнаты. Присоединитесь к комнате, чтобы видеть сообщения.")
+        } else {
+          setError(err.message || "Не удалось загрузить чат")
+        }
       } finally {
         setLoading(false)
       }

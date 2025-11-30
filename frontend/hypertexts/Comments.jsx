@@ -29,39 +29,110 @@ function Comments({ onNavigate, postId }) {
   const fetchPostData = async () => {
     setLoading(true)
     try {
+      // Ensure postId is a primitive value
+      const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+      if (!postIdValue) {
+        console.error("[Comments] Invalid postId:", postId)
+        setLoading(false)
+        return
+      }
+      
+      console.log("[Comments] Loading post with ID:", postIdValue)
       // Load post from backend
-      const post = await postAPI.getById(postId)
+      const post = await postAPI.getById(postIdValue)
+      console.log("[Comments] Loaded post:", post)
       setPostData(post)
       
       // Load comments from backend
       try {
-        const apiComments = await commentAPI.getByPost(postId)
-        // Sort comments by creation date (oldest first for chronological order)
-        const sortedComments = Array.isArray(apiComments)
-          ? apiComments.sort((a, b) => {
+        const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+        console.log("[Comments] Loading comments for post:", postIdValue)
+        const apiComments = await commentAPI.getByPost(postIdValue)
+        console.log("[Comments] Loaded comments from API:", apiComments)
+        // Map and sort comments by creation date (oldest first for chronological order)
+        const sortedComments = Array.isArray(apiComments) && apiComments.length > 0
+          ? apiComments.map(c => {
+              // Ensure we properly map the comment data structure
+              const authorId = c.author?.id || c.authorId
+              const authorName = c.author?.name || c.author?.username || "Пользователь"
+              
+              return {
+                id: c.id,
+                userId: authorId,
+                author: {
+                  id: authorId,
+                  name: authorName,
+                  username: c.author?.username,
+                  avatar: c.author?.avatar || "/placeholder.svg",
+                  rating: c.author?.rating,
+                },
+                text: c.text || c.content || "",
+                createdAt: c.createdAt || c.created_at,
+                time: c.createdAt ? new Date(c.createdAt).toLocaleDateString("ru-RU") : "",
+                likes: c.likedUsers?.length || 0,
+                likedUsers: c.likedUsers || [],
+                dislikedUsers: c.dislikedUsers || [],
+                isLiked: false,
+                commentCount: 0,
+                replies: [],
+              }
+            }).sort((a, b) => {
               const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
               const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
               return dateA - dateB
             })
           : []
+        console.log("[Comments] Mapped and sorted comments:", sortedComments.length)
         setComments(sortedComments)
         setPostComments(sortedComments.length)
       } catch (error) {
         console.error("Ошибка загрузки комментариев:", error)
         // Fallback: use comments from post object if available
         const postComments = post.comments || []
-        setComments(Array.isArray(postComments) ? postComments : [])
-        setPostComments(Array.isArray(postComments) ? postComments.length : 0)
+        if (Array.isArray(postComments) && postComments.length > 0) {
+          const mappedComments = postComments.map(c => ({
+            id: c.id,
+            userId: c.author?.id || c.authorId,
+            author: {
+              id: c.author?.id || c.authorId,
+              name: c.author?.name || c.author?.username || "Пользователь",
+              avatar: c.author?.avatar || "/placeholder.svg",
+            },
+            text: c.text || c.content || "",
+            createdAt: c.createdAt,
+            likes: c.likedUsers?.length || 0,
+            likedUsers: c.likedUsers || [],
+            isLiked: false,
+            commentCount: 0,
+            replies: [],
+          }))
+          setComments(mappedComments)
+          setPostComments(mappedComments.length)
+        } else {
+          setComments([])
+          setPostComments(0)
+        }
       }
     } catch (error) {
       console.error("Ошибка загрузки поста:", error)
       // Fallback на моковые данные при ошибке
-      const data = getPostById(postId)
-      setPostData(data)
-      if (data) {
-        const initialComments = getCommentsForPost(postId, data.userId, data.time)
-        setComments(initialComments)
-        setPostComments(data.comments || initialComments.length)
+      try {
+        const data = getPostById(postId)
+        if (data) {
+          setPostData(data)
+          const initialComments = getCommentsForPost(postId, data.userId, data.time)
+          setComments(initialComments)
+          setPostComments(data.comments || initialComments.length)
+        } else {
+          setPostData(null)
+          setComments([])
+          setPostComments(0)
+        }
+      } catch (fallbackError) {
+        console.error("Ошибка загрузки моковых данных:", fallbackError)
+        setPostData(null)
+        setComments([])
+        setPostComments(0)
       }
     } finally {
       setLoading(false)
@@ -69,8 +140,15 @@ function Comments({ onNavigate, postId }) {
   }
 
   useEffect(() => {
-    console.log("[v0] Loading post with ID:", postId)
-    fetchPostData()
+    // Ensure postId is a primitive value
+    const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+    console.log("[Comments] useEffect triggered, postId:", postId, "postIdValue:", postIdValue)
+    if (postIdValue) {
+      fetchPostData()
+    } else {
+      console.warn("[Comments] No valid postId provided")
+      setLoading(false)
+    }
   }, [postId])
 
   if (loading) {
@@ -105,10 +183,20 @@ function Comments({ onNavigate, postId }) {
 
 
   const handleCommentLike = async (commentId, isReply = false, parentId = null) => {
-    if (!currentUser) return
+    if (!currentUser || !postId) return
 
     try {
-      await commentAPI.like(postId, commentId, currentUser.id)
+      // Ensure all IDs are primitive values
+      const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+      const commentIdValue = typeof commentId === "object" ? (commentId?.id || commentId?.commentId || null) : commentId
+      const userIdValue = typeof currentUser.id === "object" ? (currentUser.id?.id || currentUser.id?.userId || null) : currentUser.id
+      
+      if (!postIdValue || !commentIdValue || !userIdValue) {
+        console.error("[Comments] Invalid IDs for like:", { postId, commentId, userId: currentUser.id })
+        return
+      }
+      
+      await commentAPI.like(postIdValue, commentIdValue, userIdValue)
       
       // Оптимистичное обновление UI
       setComments((prevComments) => {
@@ -148,13 +236,20 @@ function Comments({ onNavigate, postId }) {
     if (!commentText.trim() || !currentUser) return
 
     try {
+      // Ensure postId is a primitive value
+      const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+      if (!postIdValue) {
+        console.error("[Comments] Invalid postId for comment creation:", postId)
+        return
+      }
+      
       const commentData = {
         text: commentText,
         author: { id: currentUser.id },
       }
 
       // Создание комментария через API
-      const newComment = await commentAPI.create(postId, commentData)
+      const newComment = await commentAPI.create(postIdValue, commentData)
 
       // Optimistically update UI with the new comment
       const uiComment = {
@@ -208,21 +303,57 @@ function Comments({ onNavigate, postId }) {
       
       // Refresh comments from server to get the actual comment data
       // This ensures we have the correct ID and any server-side formatting
-      try {
-        const refreshedComments = await commentAPI.getByPost(postId)
-        const sortedComments = Array.isArray(refreshedComments)
-          ? refreshedComments.sort((a, b) => {
+      // Use a small delay to ensure the server has processed the comment
+      setTimeout(async () => {
+        try {
+          const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+          if (!postIdValue) {
+            console.error("[Comments] Invalid postId for refresh:", postId)
+            return
+          }
+          const refreshedComments = await commentAPI.getByPost(postIdValue)
+          if (Array.isArray(refreshedComments) && refreshedComments.length > 0) {
+            const sortedComments = refreshedComments.map(c => {
+              // Ensure we have all required fields
+              const authorId = c.author?.id || c.authorId
+              const authorName = c.author?.name || c.author?.username || "Пользователь"
+              
+              return {
+                id: c.id,
+                userId: authorId,
+                author: {
+                  id: authorId,
+                  name: authorName,
+                  username: c.author?.username,
+                  avatar: c.author?.avatar || "/placeholder.svg",
+                  rating: c.author?.rating,
+                },
+                text: c.text || c.content || "",
+                createdAt: c.createdAt || c.created_at,
+                time: c.createdAt ? new Date(c.createdAt).toLocaleDateString("ru-RU") : "",
+                likes: c.likedUsers?.length || 0,
+                likedUsers: c.likedUsers || [],
+                dislikedUsers: c.dislikedUsers || [],
+                isLiked: false,
+                commentCount: 0,
+                replies: [],
+              }
+            }).sort((a, b) => {
               const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
               const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
               return dateA - dateB
             })
-          : []
-        setComments(sortedComments)
-        setPostComments(sortedComments.length)
-      } catch (error) {
-        console.error("Ошибка обновления комментариев:", error)
-        // Keep the optimistic update if refresh fails
-      }
+            setComments(sortedComments)
+            setPostComments(sortedComments.length)
+          } else {
+            // If refresh returns empty, keep the optimistic update
+            console.warn("Comment refresh returned empty, keeping optimistic update")
+          }
+        } catch (error) {
+          console.error("Ошибка обновления комментариев:", error)
+          // Keep the optimistic update if refresh fails
+        }
+      }, 500)
     } catch (error) {
       console.error("Ошибка при создании комментария:", error)
       // Можно показать уведомление об ошибке
@@ -324,28 +455,44 @@ function Comments({ onNavigate, postId }) {
         <div className="comments-section"> {/* <-- СТРОКА, ГДЕ БЫЛА ОШИБКА */}
           <h2 className="comments-header">КОММЕНТАРИИ</h2>
 
-          {comments.map((comment) => (
-            <div key={comment.id}>
-              <div className="comment">
-                <div className="comment-header">
-                  <img
-                    src={comment.author?.avatar || "/placeholder.svg"}
-                    alt={comment.author?.name || "Пользователь"}
-                    className="avatar avatar-md avatar-clickable"
-                    onClick={() => onNavigate("profile", comment.userId || comment.author?.id)}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div className="post-username">
-                      {comment.author?.name || comment.author?.username || "Пользователь"}
-                      {comment.author?.rating && (
-                        <span className="badge badge-rating">{comment.author.rating.toFixed(1)}</span>
-                      )}
+          {comments.length > 0 ? comments.map((comment) => {
+            // Ensure comment has required fields
+            if (!comment || !comment.id) {
+              return null
+            }
+            
+            const authorId = comment.userId || comment.author?.id
+            const authorName = comment.author?.name || comment.author?.username || "Пользователь"
+            const authorAvatar = comment.author?.avatar || "/placeholder.svg"
+            const commentText = comment.text || comment.content || ""
+            const commentTime = comment.time || (comment.createdAt ? new Date(comment.createdAt).toLocaleDateString("ru-RU") : "")
+            
+            return (
+              <div key={comment.id}>
+                <div className="comment">
+                  <div className="comment-header">
+                    <img
+                      src={authorAvatar}
+                      alt={authorName}
+                      className="avatar avatar-md avatar-clickable"
+                      onClick={() => {
+                        if (authorId) {
+                          onNavigate("profile", authorId)
+                        }
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div className="post-username">
+                        {authorName}
+                        {comment.author?.rating && (
+                          <span className="badge badge-rating">{comment.author.rating.toFixed(1)}</span>
+                        )}
+                      </div>
+                      <div className="post-time">{commentTime}</div>
                     </div>
-                    <div className="post-time">{comment.time || (comment.createdAt ? new Date(comment.createdAt).toLocaleDateString("ru-RU") : "")}</div>
                   </div>
-                </div>
 
-                <p className="comment-content">{comment.text}</p>
+                  <p className="comment-content">{commentText}</p>
 
                 <div className="comment-actions">
                   <button className="comment-action" onClick={() => setReplyingTo(comment.id)}>
@@ -386,7 +533,12 @@ function Comments({ onNavigate, postId }) {
                           src={reply.author?.avatar || "/placeholder.svg"}
                           alt={reply.author?.name || "Пользователь"}
                           className="avatar avatar-sm avatar-clickable"
-                          onClick={() => onNavigate("profile", reply.userId || reply.author?.id)}
+                          onClick={() => {
+                            const userId = reply.userId || reply.author?.id
+                            if (userId) {
+                              onNavigate("profile", userId)
+                            }
+                          }}
                         />
                         <div style={{ flex: 1 }}>
                           <div className="post-username" style={{ fontSize: "var(--font-size-sm)" }}>
@@ -402,7 +554,7 @@ function Comments({ onNavigate, postId }) {
                       </div>
 
                       <p className="comment-content" style={{ fontSize: "var(--font-size-sm)" }}>
-                        {reply.text}
+                        {reply.text || reply.content || ""}
                       </p>
 
                       <div className="comment-actions">
@@ -437,7 +589,12 @@ function Comments({ onNavigate, postId }) {
                 </div>
               )}
             </div>
-          ))}
+            )
+          }).filter(Boolean) : (
+            <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--text-muted)" }}>
+              Пока нет комментариев
+            </div>
+          )}
 
           <div style={{ marginTop: "var(--spacing-lg)" }}>
             {replyingTo && (

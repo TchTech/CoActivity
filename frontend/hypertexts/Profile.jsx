@@ -3,7 +3,7 @@ import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { getUserById } from "../scripts/usersData"
 import { getPostsByUserId } from "../scripts/postsData"
-import { userAPI, postAPI } from "../lib/api"
+import { userAPI, postAPI, profileAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
 import "../styles/variables.css"
@@ -19,7 +19,14 @@ function ProfilePostCard({ post, userData, userRating, onNavigate }) {
     <div
       key={post.id}
       className="post-card"
-      onClick={() => onNavigate("comments", post.id)}
+      onClick={() => {
+        const postId = typeof post.id === "object" ? (post.id?.id || post.id?.postId || null) : post.id
+        if (postId) {
+          onNavigate("comments", postId)
+        } else {
+          console.error("[Profile] Invalid post.id:", post.id)
+        }
+      }}
     >
       <div className="post-header">
         <img src={userData.avatar || "/placeholder.svg"} alt={userData.name} className="avatar avatar-md" />
@@ -44,13 +51,75 @@ function ProfilePostCard({ post, userData, userRating, onNavigate }) {
       {post.image && (
         <img
           src={
-            typeof post.image === "object"
+            typeof post.image === "object" && post.image.id
+              ? `${imageAPI.getImageUrl ? imageAPI.getImageUrl(post.image.id) : `http://localhost:8080/images/${post.image.id}`}`
+              : typeof post.image === "object"
               ? post.image.url || "/placeholder.svg"
               : post.image || "/placeholder.svg"
           }
           alt={post.name || post.title}
           className="post-image"
         />
+      )}
+
+      {post.externalLinks && (
+        <div className="post-external-links" style={{ marginTop: "var(--spacing-sm)", marginBottom: "var(--spacing-sm)" }}>
+          {(() => {
+            try {
+              const links = typeof post.externalLinks === "string" 
+                ? JSON.parse(post.externalLinks) 
+                : post.externalLinks
+              if (Array.isArray(links) && links.length > 0) {
+                return (
+                  <div>
+                    <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылки:</strong>
+                    {links.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "block",
+                          color: "var(--accent-blue)",
+                          textDecoration: "underline",
+                          marginTop: "var(--spacing-xs)",
+                          fontSize: "var(--font-size-sm)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {link}
+                      </a>
+                    ))}
+                  </div>
+                )
+              }
+            } catch (e) {
+              // If parsing fails, try to display as plain text
+              return (
+                <div>
+                  <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылка:</strong>
+                  <a
+                    href={post.externalLinks}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "block",
+                      color: "var(--accent-blue)",
+                      textDecoration: "underline",
+                      marginTop: "var(--spacing-xs)",
+                      fontSize: "var(--font-size-sm)",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {post.externalLinks}
+                  </a>
+                </div>
+              )
+            }
+            return null
+          })()}
+        </div>
       )}
 
       <div className="post-actions">
@@ -122,7 +191,9 @@ function ProfilePostCard({ post, userData, userRating, onNavigate }) {
           className="post-action-btn"
           onClick={(e) => {
             e.stopPropagation()
-            onNavigate("comments", post.id)
+            if (post.id) {
+              onNavigate("comments", post.id)
+            }
           }}
         >
           <svg
@@ -146,6 +217,9 @@ function Profile({ onNavigate, userId }) {
   const [userPosts, setUserPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [userRating, setUserRating] = useState(null)
+  const [subscriptions, setSubscriptions] = useState([])
+  const [followers, setFollowers] = useState([])
+  const [avatarUploading, setAvatarUploading] = useState(false)
 
   const defaultUser = {
     id: 1,
@@ -163,17 +237,39 @@ function Profile({ onNavigate, userId }) {
   }
 
   // Определяем, какой профиль показывать
-  const profileUserId = userId || (currentUser?.id || 1)
-  const isOwnProfile = !userId || userId === currentUser?.id
+  // Wait for currentUser to load before defaulting
+  // Only use currentUser.id if it's actually available and we're viewing own profile
+  // Explicitly check for null/undefined to avoid falsy value issues (e.g., userId = 0)
+  const profileUserId = (userId !== null && userId !== undefined && userId !== "") 
+    ? userId 
+    : ((currentUser?.id !== null && currentUser?.id !== undefined) ? currentUser.id : null)
+  const isOwnProfile = (userId === null || userId === undefined || userId === "") 
+    ? true 
+    : (currentUser && userId === currentUser.id)
 
   // Загрузка данных профиля
   useEffect(() => {
     const loadProfile = async () => {
+      // Don't load if we don't have a user ID yet
+      if (!profileUserId) {
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       try {
         // Загрузка профиля пользователя
         const profile = await userAPI.getProfile(profileUserId)
-        setUserData(profile || defaultUser)
+        if (profile) {
+          setUserData(profile)
+        } else {
+          // Only use default if we're viewing own profile and it's not loaded yet
+          if (isOwnProfile) {
+            setUserData(defaultUser)
+          } else {
+            setUserData(null)
+          }
+        }
 
         // Загрузка рейтинга пользователя
         try {
@@ -201,19 +297,43 @@ function Profile({ onNavigate, userId }) {
           const posts = getPostsByUserId(profileUserId)
           setUserPosts(posts)
         }
+
+        // Загрузка подписок и подписчиков
+        if (profile) {
+          try {
+            const subs = profile.subscriptions || []
+            const fols = profile.followers || []
+            setSubscriptions(Array.isArray(subs) ? subs : [])
+            setFollowers(Array.isArray(fols) ? fols : [])
+          } catch (error) {
+            console.error("Ошибка загрузки подписок/подписчиков:", error)
+            setSubscriptions([])
+            setFollowers([])
+          }
+        } else {
+          setSubscriptions([])
+          setFollowers([])
+        }
       } catch (error) {
         console.error("Ошибка загрузки профиля:", error)
-        // Fallback на моковые данные
-        const mockUser = userId ? getUserById(userId) || defaultUser : defaultUser
-        setUserData(mockUser)
-        setUserPosts(getPostsByUserId(mockUser.id))
+        // Fallback на моковые данные только для собственного профиля
+        if (isOwnProfile) {
+          const mockUser = getUserById(profileUserId) || defaultUser
+          setUserData(mockUser)
+          setUserPosts(getPostsByUserId(mockUser.id))
+        } else {
+          setUserData(null)
+          setUserPosts([])
+        }
+        setSubscriptions([])
+        setFollowers([])
       } finally {
         setLoading(false)
       }
     }
 
     loadProfile()
-  }, [profileUserId, userId])
+  }, [profileUserId, userId, isOwnProfile, currentUser])
 
   const isSubscribed = subscribedUsers.some((u) => (u.id || u) === (userData?.id || profileUserId))
 
@@ -227,8 +347,42 @@ function Profile({ onNavigate, userId }) {
       } else {
         await subscribeToUser(currentUser.id, userData.id)
       }
+      // Reload profile to update subscriptions/followers
+      const updatedProfile = await userAPI.getProfile(profileUserId)
+      setUserData(updatedProfile || userData)
+      const subs = updatedProfile?.subscriptions || []
+      const fols = updatedProfile?.followers || []
+      setSubscriptions(Array.isArray(subs) ? subs : [])
+      setFollowers(Array.isArray(fols) ? fols : [])
     } catch (error) {
       console.error("Ошибка при подписке/отписке:", error)
+    }
+  }
+
+  const handleAvatarUpload = async (e) => {
+    if (!isOwnProfile || !currentUser) return
+    
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Размер файла не должен превышать 10 МБ")
+      return
+    }
+
+    setAvatarUploading(true)
+    try {
+      const updatedUser = await profileAPI.uploadAvatar(currentUser.id, file)
+      setUserData(updatedUser || userData)
+      // Update current user in context
+      if (updatedUser) {
+        currentUser.avatar = updatedUser.avatar
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки аватара:", error)
+      alert("Ошибка при загрузке аватара. Попробуйте еще раз.")
+    } finally {
+      setAvatarUploading(false)
     }
   }
 
@@ -258,7 +412,49 @@ function Profile({ onNavigate, userId }) {
 
         <div className="profile-header">
           <div className="profile-avatar-section">
-            <img src={userData.avatar || "/placeholder.svg"} alt={userData.name} className="avatar avatar-xl" />
+            {isOwnProfile ? (
+              <label style={{ position: "relative", cursor: "pointer" }}>
+                <img
+                  src={
+                    userData.avatar?.id
+                      ? `${imageAPI.getImageUrl ? imageAPI.getImageUrl(userData.avatar.id) : `http://localhost:8080/images/${userData.avatar.id}`}`
+                      : userData.avatar || "/placeholder.svg"
+                  }
+                  alt={userData.name}
+                  className="avatar avatar-xl"
+                  style={{ opacity: avatarUploading ? 0.5 : 1 }}
+                />
+                {avatarUploading && (
+                  <div style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    fontSize: "var(--font-size-sm)",
+                    color: "var(--text-primary)",
+                  }}>
+                    Загрузка...
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  style={{ display: "none" }}
+                  disabled={avatarUploading}
+                />
+              </label>
+            ) : (
+              <img
+                src={
+                  userData.avatar?.id
+                    ? `${imageAPI.getImageUrl ? imageAPI.getImageUrl(userData.avatar.id) : `http://localhost:8080/images/${userData.avatar.id}`}`
+                    : userData.avatar || "/placeholder.svg"
+                }
+                alt={userData.name}
+                className="avatar avatar-xl"
+              />
+            )}
             {userRating !== null && (
               <div className="profile-rating">{userRating.toFixed(1)}</div>
             )}
@@ -278,7 +474,7 @@ function Profile({ onNavigate, userId }) {
 
           <div className="profile-stats">
             <div className="stat-item">
-              <div className="stat-value">{userData.followers?.length || userData.followers || 0}</div>
+              <div className="stat-value">{followers.length || userData.followers?.length || userData.followers || 0}</div>
               <div className="stat-label">Подписчики</div>
             </div>
             <div className="stat-item">
@@ -286,7 +482,7 @@ function Profile({ onNavigate, userId }) {
               <div className="stat-label">Комнаты</div>
             </div>
             <div className="stat-item">
-              <div className="stat-value">{userData.subscriptions?.length || userData.subscriptions || 0}</div>
+              <div className="stat-value">{subscriptions.length || userData.subscriptions?.length || userData.subscriptions || 0}</div>
               <div className="stat-label">Подписки</div>
             </div>
           </div>
