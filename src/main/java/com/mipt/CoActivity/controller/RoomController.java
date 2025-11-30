@@ -10,8 +10,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/rooms")
+@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"}, allowCredentials = "true")
 public class RoomController {
 
   private final RoomService roomService;
@@ -132,5 +135,30 @@ public class RoomController {
       @RequestBody RejectViolationRequest request) {
     roomService.rejectMessageViolation(roomId, messageId, request);
     return ResponseEntity.ok().build();
+  }
+
+  @GetMapping("/search")
+  public ResponseEntity<List<Room>> searchRooms(@RequestParam String query) {
+    return ResponseEntity.ok(roomService.searchRooms(query));
+  }
+
+  @PostMapping("/{roomId}/apply")
+  @ResponseStatus(HttpStatus.CREATED)
+  public ResponseEntity<com.mipt.CoActivity.model.RoomJoinRequest> applyToRoom(
+      @PathVariable Long roomId, @RequestBody com.mipt.CoActivity.dto.JoinRoomRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(roomService.applyToRoom(roomId, request.getUserId()));
+  }
+
+  @GetMapping("/{roomId}/join-requests")
+  public ResponseEntity<List<com.mipt.CoActivity.model.RoomJoinRequest>> getPendingJoinRequests(
+      @PathVariable Long roomId) {
+    return ResponseEntity.ok(roomService.getPendingJoinRequests(roomId));
+  }
+
+  @GetMapping("/my-applications")
+  public ResponseEntity<List<com.mipt.CoActivity.model.RoomJoinRequest>> getMyPendingRequests(
+      @RequestParam Long userId) {
+    return ResponseEntity.ok(roomService.getMyPendingRequests(userId));
   }
 }
