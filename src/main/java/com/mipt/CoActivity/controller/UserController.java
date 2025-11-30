@@ -248,4 +248,16 @@ public class UserController {
   public void subscribe(@RequestParam Long userId, @RequestParam Long userToSubscribeId) {
     userService.subscribe(userId, userToSubscribeId);
   }
+
+  @PostMapping("/{id}/avatar")
+  public ResponseEntity<User> uploadAvatar(
+      @PathVariable Long id, @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+    try {
+      User user = userService.uploadAvatar(id, file);
+      return ResponseEntity.ok(user);
+    } catch (Exception e) {
+      logger.error("Error uploading avatar: ", e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+  }
 }

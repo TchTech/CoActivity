@@ -5,13 +5,16 @@ import com.mipt.CoActivity.exception.*;
 import com.mipt.CoActivity.model.*;
 import com.mipt.CoActivity.repository.*;
 import com.mipt.CoActivity.repository.ExternalLinkRepository;
+import com.mipt.CoActivity.service.ImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,6 +27,7 @@ public class UserService {
   private final RoomFolderRepository roomFolderRepository;
   private final BCryptPasswordEncoder passwordEncoder;
   private final ExternalLinkRepository externalLinkRepository;
+  private final ImageService imageService;
 
   @Autowired
   UserService(UserRepository userRepository,
@@ -31,13 +35,15 @@ public class UserService {
               RoomRepository roomRepository,
               RoomFolderRepository roomFolderRepository,
               BCryptPasswordEncoder passwordEncoder,
-              ExternalLinkRepository externalLinkRepository) {
+              ExternalLinkRepository externalLinkRepository,
+              ImageService imageService) {
     this.userRepository = userRepository;
     this.userSettingsRepository = userSettingsRepository;
     this.roomRepository = roomRepository;
     this.roomFolderRepository = roomFolderRepository;
     this.passwordEncoder = passwordEncoder;
     this.externalLinkRepository = externalLinkRepository;
+    this.imageService = imageService;
   }
 
   public User getUserByUsername(String username) {
@@ -544,5 +550,29 @@ public class UserService {
     }
     
     return sum / count;
+  }
+
+  @Transactional
+  public User uploadAvatar(Long userId, MultipartFile file) throws IOException {
+    User user = getUserProfile(userId);
+    
+    if (file == null || file.isEmpty()) {
+      throw new BadRequestException("File cannot be empty");
+    }
+
+    // Validate file size (max 10MB)
+    if (file.getSize() > 10 * 1024 * 1024) {
+      throw new BadRequestException("File size cannot exceed 10MB");
+    }
+
+    // Validate file type
+    String contentType = file.getContentType();
+    if (contentType == null || !contentType.startsWith("image/")) {
+      throw new BadRequestException("File must be an image");
+    }
+
+    com.mipt.CoActivity.model.Image avatarImage = imageService.uploadImage(file);
+    user.setAvatar(avatarImage);
+    return userRepository.save(user);
   }
 }
