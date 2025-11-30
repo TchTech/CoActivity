@@ -11,5 +11,6 @@ public class CreateRoomRequest {
     private Instant meetingTime;
     private String meetingType; // "online" or "offline"
     private String location;
+    private String joinType; // "open" or "application"
 }
 
