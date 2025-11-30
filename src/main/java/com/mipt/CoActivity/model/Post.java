@@ -13,7 +13,7 @@ import java.util.List;
 public class Post {
   @ManyToOne
   @JoinColumn(name = "userId")
-  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
   private User author;
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,19 +26,19 @@ public class Post {
           joinColumns = @JoinColumn(name = "postId"),
           inverseJoinColumns = @JoinColumn(name = "userId")
   )
-  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})
-  private List<User> likedUsers;
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
+  private List<User> likedUsers = new ArrayList<>();
   @ManyToMany
   @JoinTable(
           name = "dislikesOnPosts",
           joinColumns = @JoinColumn(name = "postId"),
           inverseJoinColumns = @JoinColumn(name = "userId")
   )
-  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers"})
-  private List<User> dislikedUsers;
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
+  private List<User> dislikedUsers = new ArrayList<>();
   @OneToMany(mappedBy = "post")
   @JsonIgnoreProperties({"post", "author", "likedUsers", "dislikedUsers"})
-  private List<Comment> comments;
+  private List<Comment> comments = new ArrayList<>();
   @ManyToOne
   @JoinColumn(name = "roomId")
   @JsonIgnoreProperties({"collaborators", "admins", "createdBy"})
@@ -46,6 +46,10 @@ public class Post {
   @ManyToOne
   @JoinColumn(name = "imageId")
   private Image image;
+  
+  @Column(name = "externalLinks", length = 1000)
+  private String externalLinks; // JSON array of URLs or comma-separated URLs
+  
   public Post(String name, User author, String text, Image image) {
     this.name = name;
     this.author = author;
