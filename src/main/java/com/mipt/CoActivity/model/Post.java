@@ -50,6 +50,10 @@ public class Post {
   @Column(name = "externalLinks", length = 1000)
   private String externalLinks; // JSON array of URLs or comma-separated URLs
   
+  @OneToMany(mappedBy = "post")
+  @JsonIgnoreProperties({"post", "room", "pinnedBy"})
+  private List<RoomPostPin> pinnedToRooms = new ArrayList<>();
+  
   public Post(String name, User author, String text, Image image) {
     this.name = name;
     this.author = author;
