@@ -18,6 +18,10 @@ public class Notification {
   private User user;
   private String title;
   private String content;
+  @Column(name = "type")
+  private String type; // "MEMBERSHIP_REQUEST", "MEMBERSHIP_APPROVED", "MEMBERSHIP_REJECTED", "POST_PINNED", etc.
+  @Column(name = "data", columnDefinition = "TEXT")
+  private String data; // JSON string for contextual payload
   @Column(name = "isRead")
   private boolean isRead;
   @Column(name = "createdAt")
