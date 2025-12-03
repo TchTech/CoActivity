@@ -181,11 +181,22 @@ public class UserController {
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 
+  @PutMapping("/{id}/profile/external-links/{linkId}")
+  public ResponseEntity<ExternalLinkResponse> updateExternalLink(
+      @PathVariable Long id, @PathVariable Long linkId, @RequestBody ExternalLinkRequest request) {
+    return ResponseEntity.ok(userService.updateExternalLink(id, linkId, request));
+  }
+
   @DeleteMapping("/{id}/profile/external-links/{linkId}")
   public ResponseEntity<Void> deleteExternalLink(
       @PathVariable Long id, @PathVariable Long linkId) {
     userService.deleteExternalLink(id, linkId);
     return ResponseEntity.ok().build();
+  }
+
+  @GetMapping("/{userId}/rooms/count")
+  public ResponseEntity<Map<String, Integer>> getRoomCount(@PathVariable Long userId) {
+    return ResponseEntity.ok(Map.of("count", userService.getRoomCount(userId)));
   }
 
   @GetMapping("/{userId}/settings/general-notifications")

@@ -95,6 +95,15 @@ public class UserService {
       String hashedPassword = hashPassword(password);
       User newUser = new User(username, email, hashedPassword);
       User savedUser = userRepository.save(newUser);
+      
+      // Auto-join default room
+      Room defaultRoom = roomRepository.findByIsDefaultTrue().orElse(null);
+      if (defaultRoom != null) {
+        defaultRoom.getCollaborators().add(savedUser);
+        roomRepository.save(defaultRoom);
+        logger.info("User {} auto-joined default room {}", savedUser.getId(), defaultRoom.getId());
+      }
+      
       logger.info("User registered successfully - id: {}, username: {}", savedUser.getId(), savedUser.getUsername());
       return savedUser;
     } catch (Exception e) {
@@ -422,6 +431,7 @@ public class UserService {
         .map(link -> ExternalLinkResponse.builder()
             .id(link.getId())
             .platformName(link.getPlatformName())
+            .label(link.getLabel())
             .url(link.getUrl())
             .build())
         .collect(Collectors.toList());
@@ -435,16 +445,80 @@ public class UserService {
       throw new BadRequestException("URL cannot be empty");
     }
     
-    if (!request.getUrl().startsWith("http://") && !request.getUrl().startsWith("https://")) {
-      throw new BadRequestException("URL must be valid (start with http:// or https://)");
+    // Check limit (max 10 links per user)
+    List<ExternalLink> existingLinks = externalLinkRepository.findByUserId(id);
+    if (existingLinks.size() >= 10) {
+      throw new BadRequestException("Maximum 10 external links allowed per user");
+    }
+    
+    // Validate and normalize URL
+    String url = request.getUrl().trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+    
+    // Validate URL format
+    try {
+      new java.net.URL(url);
+    } catch (java.net.MalformedURLException e) {
+      throw new BadRequestException("Invalid URL format");
     }
 
-    ExternalLink link = new ExternalLink(user, request.getPlatformName(), request.getUrl());
+    ExternalLink link = new ExternalLink(user, request.getPlatformName(), url);
+    if (request.getLabel() != null) {
+      link.setLabel(request.getLabel());
+    }
     ExternalLink savedLink = externalLinkRepository.save(link);
     
     return ExternalLinkResponse.builder()
         .id(savedLink.getId())
         .platformName(savedLink.getPlatformName())
+        .label(savedLink.getLabel())
+        .url(savedLink.getUrl())
+        .build();
+  }
+
+  @Transactional
+  public ExternalLinkResponse updateExternalLink(Long id, Long linkId, ExternalLinkRequest request) {
+    getUserProfile(id);
+    ExternalLink link = externalLinkRepository.findById(linkId)
+        .orElseThrow(() -> new ResourceNotFoundException("External link not found"));
+
+    if (!link.getUser().getId().equals(id)) {
+      throw new ForbiddenException("You can only update your own external links");
+    }
+
+    // Validate URL if provided
+    if (request.getUrl() != null && !request.getUrl().trim().isEmpty()) {
+      String url = request.getUrl().trim();
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        url = "https://" + url;
+      }
+      
+      try {
+        new java.net.URL(url);
+      } catch (java.net.MalformedURLException e) {
+        throw new BadRequestException("Invalid URL format");
+      }
+      
+      link.setUrl(url);
+    }
+
+    if (request.getPlatformName() != null) {
+      link.setPlatformName(request.getPlatformName());
+    }
+
+    if (request.getLabel() != null) {
+      link.setLabel(request.getLabel());
+    }
+
+    link.setUpdatedAt(java.time.Instant.now());
+    ExternalLink savedLink = externalLinkRepository.save(link);
+
+    return ExternalLinkResponse.builder()
+        .id(savedLink.getId())
+        .platformName(savedLink.getPlatformName())
+        .label(savedLink.getLabel())
         .url(savedLink.getUrl())
         .build();
   }
@@ -460,6 +534,13 @@ public class UserService {
     }
     
     externalLinkRepository.delete(link);
+  }
+
+  public Integer getRoomCount(Long userId) {
+    getUserProfile(userId);
+    // Count rooms where user is a member (collaborator)
+    List<Room> rooms = roomRepository.findByCollaboratorsId(userId);
+    return rooms != null ? rooms.size() : 0;
   }
 
   @Transactional
