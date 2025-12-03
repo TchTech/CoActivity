@@ -60,6 +60,13 @@ public class Room {
   @Column(name = "joinType")
   private String joinType = "open"; // "open" or "by_application"
   
+  @Column(name = "is_default")
+  private Boolean isDefault = false; // True for default room containing all users
+  
+  @OneToMany(mappedBy = "room")
+  @JsonIgnoreProperties({"room", "post"})
+  private List<RoomPostPin> pinnedPosts = new ArrayList<>();
+  
   public Room(User createdBy, String name) {
     this.createdBy = createdBy;
     this.name = name;
@@ -67,5 +74,6 @@ public class Room {
     this.admins = new ArrayList<>();
     this.createdAt = Instant.now();
     this.joinType = "open";
+    this.isDefault = false;
   }
 }

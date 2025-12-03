@@ -45,6 +45,11 @@ public class RoomController {
     return ResponseEntity.ok(roomService.openRoomChat(roomId, userId));
   }
 
+  @GetMapping("/{roomId}")
+  public ResponseEntity<RoomDetailsResponse> getRoomDetails(@PathVariable Long roomId) {
+    return ResponseEntity.ok(roomService.getRoomDetails(roomId));
+  }
+
   @GetMapping("/{roomId}/brief")
   public ResponseEntity<RoomBriefResponse> getRoomBrief(@PathVariable Long roomId) {
     return ResponseEntity.ok(roomService.getRoomBrief(roomId));
@@ -150,6 +155,27 @@ public class RoomController {
         .body(roomService.applyToRoom(roomId, request.getUserId()));
   }
 
+  @PostMapping("/{roomId}/requests")
+  @ResponseStatus(HttpStatus.CREATED)
+  public ResponseEntity<com.mipt.CoActivity.model.RoomJoinRequest> createMembershipRequest(
+      @PathVariable Long roomId, @RequestParam Long userId, @RequestBody(required = false) MembershipRequestRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(roomService.createMembershipRequest(roomId, userId, request));
+  }
+
+  @GetMapping("/{roomId}/requests")
+  public ResponseEntity<List<com.mipt.CoActivity.model.RoomJoinRequest>> getMembershipRequests(
+      @PathVariable Long roomId, @RequestParam Long userId) {
+    return ResponseEntity.ok(roomService.getMembershipRequests(roomId, userId));
+  }
+
+  @DeleteMapping("/{roomId}/requests/{requestId}")
+  public ResponseEntity<Void> cancelMembershipRequest(
+      @PathVariable Long roomId, @PathVariable Long requestId, @RequestParam Long userId) {
+    roomService.cancelMembershipRequest(roomId, requestId, userId);
+    return ResponseEntity.ok().build();
+  }
+
   @GetMapping("/{roomId}/join-requests")
   public ResponseEntity<List<com.mipt.CoActivity.model.RoomJoinRequest>> getPendingJoinRequests(
       @PathVariable Long roomId) {
@@ -160,5 +186,25 @@ public class RoomController {
   public ResponseEntity<List<com.mipt.CoActivity.model.RoomJoinRequest>> getMyPendingRequests(
       @RequestParam Long userId) {
     return ResponseEntity.ok(roomService.getMyPendingRequests(userId));
+  }
+
+  @PostMapping("/{roomId}/pinned-posts")
+  @ResponseStatus(HttpStatus.CREATED)
+  public ResponseEntity<com.mipt.CoActivity.model.RoomPostPin> pinPostToRoom(
+      @PathVariable Long roomId, @RequestParam Long userId, @RequestBody PinPostRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(roomService.pinPostToRoom(roomId, request.getPostId(), userId));
+  }
+
+  @DeleteMapping("/{roomId}/pinned-posts/{postId}")
+  public ResponseEntity<Void> unpinPostFromRoom(
+      @PathVariable Long roomId, @PathVariable Integer postId, @RequestParam Long userId) {
+    roomService.unpinPostFromRoom(roomId, postId, userId);
+    return ResponseEntity.ok().build();
+  }
+
+  @GetMapping("/{roomId}/pinned-posts")
+  public ResponseEntity<List<com.mipt.CoActivity.model.Post>> getPinnedPosts(@PathVariable Long roomId) {
+    return ResponseEntity.ok(roomService.getPinnedPosts(roomId));
   }
 }
