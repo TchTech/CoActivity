@@ -27,10 +27,21 @@ public class RoomJoinRequest {
   private User user;
 
   @Column(name = "status")
-  private String status; // "pending", "approved", "rejected"
+  private String status; // "pending", "approved", "rejected", "cancelled"
+
+  @Column(name = "message", columnDefinition = "TEXT")
+  private String message; // Optional message from requester
 
   @Column(name = "createdAt")
   private Instant createdAt;
+
+  @Column(name = "respondedAt")
+  private Instant respondedAt;
+
+  @ManyToOne
+  @JoinColumn(name = "responderId")
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
+  private User responder; // Who approved/rejected
 
   public RoomJoinRequest(Room room, User user) {
     this.room = room;

@@ -23,7 +23,9 @@ public class RoomService {
   private final MessageRepository messageRepository;
   private final RoomNotificationSettingsRepository roomNotificationSettingsRepository;
   private final com.mipt.CoActivity.repository.RoomJoinRequestRepository roomJoinRequestRepository;
-  private final com.mipt.CoActivity.repository.NotificationRepository notificationRepository;
+  private final com.mipt.CoActivity.repository.RoomPostPinRepository roomPostPinRepository;
+  private final com.mipt.CoActivity.repository.PostRepository postRepository;
+  private final NotificationService notificationService;
 
   @Autowired
   public RoomService(
@@ -32,13 +34,17 @@ public class RoomService {
           MessageRepository messageRepository,
           RoomNotificationSettingsRepository roomNotificationSettingsRepository,
           com.mipt.CoActivity.repository.RoomJoinRequestRepository roomJoinRequestRepository,
-          com.mipt.CoActivity.repository.NotificationRepository notificationRepository) {
+          com.mipt.CoActivity.repository.RoomPostPinRepository roomPostPinRepository,
+          com.mipt.CoActivity.repository.PostRepository postRepository,
+          NotificationService notificationService) {
     this.roomRepository = roomRepository;
     this.userRepository = userRepository;
     this.messageRepository = messageRepository;
     this.roomNotificationSettingsRepository = roomNotificationSettingsRepository;
     this.roomJoinRequestRepository = roomJoinRequestRepository;
-    this.notificationRepository = notificationRepository;
+    this.roomPostPinRepository = roomPostPinRepository;
+    this.postRepository = postRepository;
+    this.notificationService = notificationService;
   }
 
   @Transactional
@@ -396,17 +402,61 @@ public class RoomService {
     com.mipt.CoActivity.model.RoomJoinRequest savedRequest = roomJoinRequestRepository.save(request);
     
     // Create notification for room creator
-    com.mipt.CoActivity.model.Notification notification = new com.mipt.CoActivity.model.Notification();
-    notification.setUser(room.getCreatedBy());
-    notification.setTitle("Новая заявка на вступление в комнату");
-    notification.setContent(String.format("Пользователь %s подал заявку на вступление в комнату \"%s\"", 
-        user.getName() != null ? user.getName() : user.getUsername(), 
-        room.getDescription() != null ? room.getDescription() : room.getName()));
-    notification.setIsRead(false);
-    notification.setCreatedAt(java.time.Instant.now());
-    notificationRepository.save(notification);
+    String notificationData = String.format("{\"roomId\":%d,\"requestId\":%d,\"requesterId\":%d}", 
+        roomId, savedRequest.getId(), userId);
+    notificationService.createNotification(
+        room.getCreatedBy().getId(),
+        "MEMBERSHIP_REQUEST",
+        "Новая заявка на вступление в комнату",
+        String.format("Пользователь %s подал заявку на вступление в комнату \"%s\"", 
+            user.getName() != null ? user.getName() : user.getUsername(), 
+            room.getName() != null ? room.getName() : room.getDescription()),
+        notificationData
+    );
     
     logger.info("User {} applied to room {}", userId, roomId);
+    return savedRequest;
+  }
+
+  @Transactional
+  public com.mipt.CoActivity.model.RoomJoinRequest createMembershipRequest(Long roomId, Long userId, MembershipRequestRequest request) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    
+    if (room.getCollaborators().contains(user)) {
+      throw new ConflictException("User is already a member of this room");
+    }
+    
+    // Check if there's already a pending request
+    java.util.Optional<com.mipt.CoActivity.model.RoomJoinRequest> existingRequest = 
+        roomJoinRequestRepository.findByRoomIdAndUserIdAndStatus(roomId, userId, "pending");
+    if (existingRequest.isPresent()) {
+      throw new ConflictException("You have already applied to this room");
+    }
+    
+    com.mipt.CoActivity.model.RoomJoinRequest joinRequest = new com.mipt.CoActivity.model.RoomJoinRequest(room, user);
+    if (request != null && request.getMessage() != null) {
+      joinRequest.setMessage(request.getMessage());
+    }
+    com.mipt.CoActivity.model.RoomJoinRequest savedRequest = roomJoinRequestRepository.save(joinRequest);
+    
+    // Create notification for room creator
+    String notificationData = String.format("{\"roomId\":%d,\"requestId\":%d,\"requesterId\":%d}", 
+        roomId, savedRequest.getId(), userId);
+    notificationService.createNotification(
+        room.getCreatedBy().getId(),
+        "MEMBERSHIP_REQUEST",
+        "Новая заявка на вступление в комнату",
+        String.format("Пользователь %s подал заявку на вступление в комнату \"%s\"", 
+            user.getName() != null ? user.getName() : user.getUsername(), 
+            room.getName() != null ? room.getName() : room.getDescription()),
+        notificationData
+    );
+    
+    logger.info("User {} created membership request for room {}", userId, roomId);
     return savedRequest;
   }
 
@@ -447,23 +497,26 @@ public class RoomService {
         roomJoinRequestRepository.findByRoomIdAndUserIdAndStatus(roomId, targetUserId, "pending");
     if (joinRequest.isPresent()) {
       joinRequest.get().setStatus("approved");
+      joinRequest.get().setRespondedAt(Instant.now());
+      joinRequest.get().setResponder(admin);
       roomJoinRequestRepository.save(joinRequest.get());
+      
+      room.getCollaborators().add(targetUser);
+      roomRepository.save(room);
+      
+      // Create notification for applicant
+      String notificationData = String.format("{\"roomId\":%d,\"requestId\":%d}", roomId, joinRequest.get().getId());
+      notificationService.createNotification(
+          targetUserId,
+          "MEMBERSHIP_APPROVED",
+          "Заявка одобрена",
+          String.format("Ваша заявка на вступление в комнату \"%s\" была одобрена", 
+              room.getName() != null ? room.getName() : room.getDescription()),
+          notificationData
+      );
+      
+      logger.info("Admin {} approved join request for user {} to room {}", request.getAdminId(), targetUserId, roomId);
     }
-    
-    room.getCollaborators().add(targetUser);
-    roomRepository.save(room);
-    
-    // Create notification for applicant
-    com.mipt.CoActivity.model.Notification notification = new com.mipt.CoActivity.model.Notification();
-    notification.setUser(targetUser);
-    notification.setTitle("Заявка одобрена");
-    notification.setContent(String.format("Ваша заявка на вступление в комнату \"%s\" была одобрена", 
-        room.getDescription() != null ? room.getDescription() : room.getName()));
-    notification.setIsRead(false);
-    notification.setCreatedAt(java.time.Instant.now());
-    notificationRepository.save(notification);
-    
-    logger.info("Admin {} approved join request for user {} to room {}", request.getAdminId(), targetUserId, roomId);
   }
 
   @Transactional
@@ -486,9 +539,163 @@ public class RoomService {
         roomJoinRequestRepository.findByRoomIdAndUserIdAndStatus(roomId, targetUserId, "pending");
     if (joinRequest.isPresent()) {
       joinRequest.get().setStatus("rejected");
+      joinRequest.get().setRespondedAt(Instant.now());
+      joinRequest.get().setResponder(admin);
       roomJoinRequestRepository.save(joinRequest.get());
+      
+      // Create notification for applicant
+      String notificationData = String.format("{\"roomId\":%d,\"requestId\":%d}", roomId, joinRequest.get().getId());
+      notificationService.createNotification(
+          targetUserId,
+          "MEMBERSHIP_REJECTED",
+          "Заявка отклонена",
+          String.format("Ваша заявка на вступление в комнату \"%s\" была отклонена", 
+              room.getName() != null ? room.getName() : room.getDescription()),
+          notificationData
+      );
+      
+      logger.info("Admin {} rejected join request for user {} to room {}", request.getAdminId(), targetUserId, roomId);
+    }
+  }
+
+  public List<com.mipt.CoActivity.model.RoomJoinRequest> getMembershipRequests(Long roomId, Long userId) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    
+    // Only room creator or admins can see requests
+    if (!room.getCreatedBy().getId().equals(userId) && !room.getAdmins().contains(user)) {
+      throw new ForbiddenException("Only room creator or admins can view membership requests");
     }
     
-    logger.info("Admin {} rejected join request for user {} to room {}", request.getAdminId(), targetUserId, roomId);
+    return roomJoinRequestRepository.findByRoomId(roomId);
+  }
+
+  @Transactional
+  public void cancelMembershipRequest(Long roomId, Long requestId, Long userId) {
+    com.mipt.CoActivity.model.RoomJoinRequest joinRequest = roomJoinRequestRepository.findById(requestId)
+        .orElseThrow(() -> new ResourceNotFoundException("Membership request not found"));
+    
+    if (!joinRequest.getRoom().getId().equals(roomId)) {
+      throw new BadRequestException("Request does not belong to this room");
+    }
+    
+    if (!joinRequest.getUser().getId().equals(userId)) {
+      throw new ForbiddenException("You can only cancel your own requests");
+    }
+    
+    if (!"pending".equals(joinRequest.getStatus())) {
+      throw new BadRequestException("Only pending requests can be cancelled");
+    }
+    
+    joinRequest.setStatus("cancelled");
+    roomJoinRequestRepository.save(joinRequest);
+    
+    logger.info("User {} cancelled membership request {} for room {}", userId, requestId, roomId);
+  }
+
+  @Transactional
+  public RoomPostPin pinPostToRoom(Long roomId, Integer postId, Long userId) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    Post post = postRepository.findById(postId)
+        .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
+    
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    
+    // Only room creator or admins can pin posts
+    if (!room.getCreatedBy().getId().equals(userId) && !room.getAdmins().contains(user)) {
+      throw new ForbiddenException("Only room creator or admins can pin posts");
+    }
+    
+    // Check if already pinned
+    java.util.Optional<RoomPostPin> existingPin = roomPostPinRepository.findByRoomIdAndPostId(roomId, postId);
+    if (existingPin.isPresent()) {
+      throw new ConflictException("Post is already pinned to this room");
+    }
+    
+    RoomPostPin pin = new RoomPostPin(room, post, user);
+    RoomPostPin savedPin = roomPostPinRepository.save(pin);
+    
+    // Create notification for room members (optional - can be limited to post author)
+    String notificationData = String.format("{\"roomId\":%d,\"postId\":%d}", roomId, postId);
+    if (post.getAuthor() != null && !post.getAuthor().getId().equals(userId)) {
+      notificationService.createNotification(
+          post.getAuthor().getId(),
+          "POST_PINNED",
+          "Пост закреплен в комнате",
+          String.format("Ваш пост \"%s\" был закреплен в комнате \"%s\"", 
+              post.getName() != null ? post.getName() : "пост",
+              room.getName() != null ? room.getName() : room.getDescription()),
+          notificationData
+      );
+    }
+    
+    logger.info("User {} pinned post {} to room {}", userId, postId, roomId);
+    return savedPin;
+  }
+
+  @Transactional
+  public void unpinPostFromRoom(Long roomId, Integer postId, Long userId) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    
+    // Only room creator or admins can unpin posts
+    if (!room.getCreatedBy().getId().equals(userId) && !room.getAdmins().contains(user)) {
+      throw new ForbiddenException("Only room creator or admins can unpin posts");
+    }
+    
+    java.util.Optional<RoomPostPin> pin = roomPostPinRepository.findByRoomIdAndPostId(roomId, postId);
+    if (!pin.isPresent()) {
+      throw new ResourceNotFoundException("Post is not pinned to this room");
+    }
+    
+    roomPostPinRepository.delete(pin.get());
+    
+    logger.info("User {} unpinned post {} from room {}", userId, postId, roomId);
+  }
+
+  public List<Post> getPinnedPosts(Long roomId) {
+    // Verify room exists
+    roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    List<RoomPostPin> pins = roomPostPinRepository.findByRoomId(roomId);
+    return pins.stream()
+        .map(RoomPostPin::getPost)
+        .collect(Collectors.toList());
+  }
+
+  public RoomDetailsResponse getRoomDetails(Long roomId) {
+    Room room = roomRepository.findById(roomId)
+        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    RoomDetailsResponse response = new RoomDetailsResponse();
+    response.setId(room.getId());
+    response.setName(room.getName());
+    response.setDescription(room.getDescription());
+    response.setCategory(room.getCategory());
+    response.setCreatorId(room.getCreatedBy() != null ? room.getCreatedBy().getId() : null);
+    response.setCreatorName(room.getCreatedBy() != null ? 
+        (room.getCreatedBy().getName() != null ? room.getCreatedBy().getName() : room.getCreatedBy().getUsername()) : null);
+    response.setLocation(room.getLocation());
+    response.setMemberCount(room.getCollaborators() != null ? room.getCollaborators().size() : 0);
+    response.setPinnedPostCount(room.getPinnedPosts() != null ? room.getPinnedPosts().size() : 0);
+    response.setUpdatedAt(room.getCreatedAt()); // Use createdAt as updatedAt for now
+    response.setCreatedAt(room.getCreatedAt());
+    response.setMeetingType(room.getMeetingType());
+    response.setMeetingTime(room.getMeetingTime());
+    response.setMaxCollaborators(room.getMaxCollaborators());
+    response.setJoinType(room.getJoinType());
+    response.setIsDefault(room.getIsDefault() != null ? room.getIsDefault() : false);
+    
+    return response;
   }
 }

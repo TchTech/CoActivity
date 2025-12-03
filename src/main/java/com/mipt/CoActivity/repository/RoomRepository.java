@@ -13,4 +13,5 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
   List<Room> findByAdminsId(Long userId);
   List<Room> findByNameContainingIgnoreCase(String name);
   List<Room> findByDescriptionContainingIgnoreCase(String description);
+  java.util.Optional<Room> findByIsDefaultTrue();
 }
