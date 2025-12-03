@@ -48,11 +48,37 @@ export function UserProvider({ children }) {
 
   const subscribeToUser = async (userId, userToSubscribeId) => {
     try {
+      // Check if already subscribed to avoid 409
+      const isAlreadySubscribed = subscribedUsers.some(
+        (u) => (u.id || u) === userToSubscribeId || u === userToSubscribeId
+      )
+      
+      if (isAlreadySubscribed) {
+        console.log("User already subscribed, skipping API call")
+        return true
+      }
+
       await userAPI.subscribe(userId, userToSubscribeId)
-      setSubscribedUsers((prev) => [...prev, userToSubscribeId])
+      setSubscribedUsers((prev) => {
+        // Avoid duplicates
+        if (prev.some((u) => (u.id || u) === userToSubscribeId || u === userToSubscribeId)) {
+          return prev
+        }
+        return [...prev, userToSubscribeId]
+      })
       return true
     } catch (error) {
       console.error("Ошибка подписки:", error)
+      // If 409 conflict, user is already subscribed - update state and return success
+      if (error.message && (error.message.includes("409") || error.message.includes("already"))) {
+        setSubscribedUsers((prev) => {
+          if (prev.some((u) => (u.id || u) === userToSubscribeId || u === userToSubscribeId)) {
+            return prev
+          }
+          return [...prev, userToSubscribeId]
+        })
+        return true
+      }
       throw error
     }
   }

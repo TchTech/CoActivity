@@ -13,6 +13,7 @@ import CreatePost from "./hypertexts/CreatePost"
 import CreateRoom from "./hypertexts/CreateRoom"
 import Settings from "./hypertexts/Settings"
 import Feed from "./hypertexts/Feed"
+import Notifications from "./hypertexts/Notifications"
 
 /**
  * Главный компонент приложения
@@ -85,6 +86,8 @@ function App() {
         return <CreateRoom onNavigate={handleNavigate} />
       case "settings":
         return <Settings onNavigate={handleNavigate} />
+      case "notifications":
+        return <Notifications onNavigate={handleNavigate} />
       default:
         return <Login onNavigate={handleNavigate} />
     }

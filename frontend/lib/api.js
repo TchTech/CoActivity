@@ -296,6 +296,39 @@ export const userAPI = {
     // Backend: GET /users/{userId}/rooms/count
     return request(`/users/${userId}/rooms/count`, { method: "GET" })
   },
+
+  async createRating(userId, raterUserId, score) {
+    // Backend: POST /users/{userId}/ratings?raterUserId=
+    // Score should be a number (0-10)
+    const scoreValue = typeof score === 'number' ? score : parseFloat(score)
+    if (isNaN(scoreValue) || scoreValue < 0 || scoreValue > 10) {
+      throw new Error("Score must be between 0 and 10")
+    }
+    return request(`/users/${userId}/ratings`, {
+      method: "POST",
+      params: { raterUserId },
+      body: { score: scoreValue },
+    })
+  },
+
+  async getRatingSummary(userId) {
+    // Backend: GET /users/{userId}/ratings/summary
+    return request(`/users/${userId}/ratings/summary`, { method: "GET" })
+  },
+
+  async updateAbout(userId, currentUserId, about) {
+    // Backend: PUT /users/{userId}/about?currentUserId=
+    return request(`/users/${userId}/about`, {
+      method: "PUT",
+      params: { currentUserId },
+      body: { about },
+    })
+  },
+
+  async getAbout(userId) {
+    // Backend: GET /users/{userId}/about
+    return request(`/users/${userId}/about`, { method: "GET" })
+  },
 }
 
 // --- EXTERNAL LINKS API ---
@@ -501,6 +534,14 @@ export const roomAPI = {
     })
   },
 
+  async getAllRooms(offset = 0, limit = 50) {
+    // Backend: GET /rooms?offset=&limit=
+    return request("/rooms", {
+      method: "GET",
+      params: { offset, limit },
+    })
+  },
+
   async getUserRooms(userId) {
     return userAPI.getUserRooms(userId)
   },
@@ -605,6 +646,14 @@ export const roomAPI = {
   async getPinnedPosts(roomId) {
     // Backend: GET /rooms/{roomId}/pinned-posts
     return request(`/rooms/${roomId}/pinned-posts`, { method: "GET" })
+  },
+
+  async joinRoom(roomId, userId) {
+    // Backend: POST /rooms/{roomId}/join
+    return request(`/rooms/${roomId}/join`, {
+      method: "POST",
+      body: { userId },
+    })
   },
 }
 

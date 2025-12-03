@@ -16,10 +16,11 @@ function RoomsList({ onNavigate }) {
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
+  const [activeTab, setActiveTab] = useState("all") // "all" or "mine"
 
   useEffect(() => {
     const loadRooms = async () => {
-      if (!currentUser?.id) {
+      if (!currentUser?.id && activeTab === "mine") {
         console.log("[RoomsList] No currentUser.id, skipping load")
         setLoading(false)
         return
@@ -28,8 +29,14 @@ function RoomsList({ onNavigate }) {
       setLoading(true)
       setError("")
       try {
-        console.log("[RoomsList] Loading rooms for user:", currentUser.id)
-        const data = await roomAPI.getUserRooms(currentUser.id)
+        let data
+        if (activeTab === "all") {
+          console.log("[RoomsList] Loading all rooms")
+          data = await roomAPI.getAllRooms(0, 50)
+        } else {
+          console.log("[RoomsList] Loading rooms for user:", currentUser.id)
+          data = await roomAPI.getUserRooms(currentUser.id)
+        }
         console.log("[RoomsList] Loaded rooms from API:", data)
         console.log("[RoomsList] Rooms type:", typeof data, "isArray:", Array.isArray(data), "length:", Array.isArray(data) ? data.length : 'N/A')
         
@@ -60,7 +67,7 @@ function RoomsList({ onNavigate }) {
     }
 
     loadRooms()
-  }, [currentUser])
+  }, [currentUser, activeTab])
 
   // Search rooms when query changes
   useEffect(() => {
@@ -144,12 +151,28 @@ function RoomsList({ onNavigate }) {
     <div>
       {/* Верхняя навигация */}
       <div className="top-nav">
-        <div className="top-nav-title">Мои комнаты</div>
+        <div className="top-nav-title">Комнаты</div>
         <div className="top-nav-actions">
           <button className="btn-icon" onClick={() => onNavigate("createRoom")}>
             +
           </button>
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="tabs">
+        <button 
+          className={`tab ${activeTab === "all" ? "active" : ""}`} 
+          onClick={() => setActiveTab("all")}
+        >
+          Все комнаты
+        </button>
+        <button 
+          className={`tab ${activeTab === "mine" ? "active" : ""}`} 
+          onClick={() => setActiveTab("mine")}
+        >
+          Мои комнаты
+        </button>
       </div>
 
       {/* Поиск */}
@@ -192,7 +215,7 @@ function RoomsList({ onNavigate }) {
               onClick={() => {
                 const roomId = typeof room.id === "object" ? (room.id?.id || room.id?.roomId || null) : room.id
                 if (roomId) {
-                  onNavigate("chat", roomId)
+                  onNavigate("roomInfo", roomId)
                 } else {
                   console.error("[RoomsList] Invalid room.id:", room.id)
                 }
@@ -203,9 +226,20 @@ function RoomsList({ onNavigate }) {
               </div>
 
               <div className="room-info">
-                <div className="room-name">{room.description || room.name || "Комната"}</div>
+                <div className="room-name">{room.name || room.description || "Комната"}</div>
                 <div className="room-last-message">
-                  Участников: {room.collaborators?.length || 0}
+                  {room.description && room.description.length > 50 
+                    ? room.description.substring(0, 50) + "..." 
+                    : room.description || ""}
+                </div>
+                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}>
+                  Участников: {room.collaborators?.length || room.memberCount || 0}
+                  {room.joinType === "by_application" && (
+                    <span style={{ marginLeft: "var(--spacing-sm)" }}>• По заявкам</span>
+                  )}
+                  {room.joinType === "open" && (
+                    <span style={{ marginLeft: "var(--spacing-sm)" }}>• Открытая</span>
+                  )}
                 </div>
               </div>
 

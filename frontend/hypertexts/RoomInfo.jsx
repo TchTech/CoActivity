@@ -211,7 +211,7 @@ function RoomInfo({ onNavigate, roomId }) {
             <div className="room-info-section">
               <div className="room-info-label">Тип набора</div>
               <div className="room-info-value">
-                {roomData.joinType === "by_application" ? "По заявкам" : "Открытая"}
+                {roomData.joinType === "by_application" || roomData.joinType === "REQUEST_ONLY" ? "По заявкам" : "Открытая"}
               </div>
             </div>
 
@@ -270,18 +270,7 @@ function RoomInfo({ onNavigate, roomId }) {
             {/* Actions */}
             {currentUser && (
               <div style={{ display: "flex", gap: "var(--spacing-md)", marginTop: "var(--spacing-lg)" }}>
-                {!isMember && roomData.joinType === "by_application" && (
-                  hasPendingRequest ? (
-                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={handleCancelRequest}>
-                      Заявка отправлена (отменить)
-                    </button>
-                  ) : (
-                    <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleApply}>
-                      Подать заявку
-                    </button>
-                  )
-                )}
-                {isMember && (
+                {isMember ? (
                   <button 
                     className="btn btn-primary" 
                     style={{ flex: 1 }}
@@ -289,6 +278,39 @@ function RoomInfo({ onNavigate, roomId }) {
                   >
                     Открыть чат
                   </button>
+                ) : (
+                  <>
+                    {(roomData.joinType === "by_application" || roomData.joinType === "REQUEST_ONLY") ? (
+                      hasPendingRequest ? (
+                        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={handleCancelRequest}>
+                          Заявка отправлена (отменить)
+                        </button>
+                      ) : (
+                        <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleApply}>
+                          Подать заявку
+                        </button>
+                      )
+                    ) : (
+                      <button 
+                        className="btn btn-primary" 
+                        style={{ flex: 1 }}
+                        onClick={async () => {
+                          try {
+                            await roomAPI.joinRoom(roomId, currentUser.id)
+                            setIsMember(true)
+                            // Reload room data to update member count
+                            const data = await roomAPI.getDetails(roomId)
+                            setRoomData(data)
+                          } catch (err) {
+                            console.error("Ошибка присоединения к комнате:", err)
+                            alert("Не удалось присоединиться к комнате: " + (err.message || "Неизвестная ошибка"))
+                          }
+                        }}
+                      >
+                        Присоединиться к комнате
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             )}

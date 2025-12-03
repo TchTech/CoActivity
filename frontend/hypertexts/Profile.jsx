@@ -223,6 +223,11 @@ function Profile({ onNavigate, userId }) {
   const [roomCount, setRoomCount] = useState(0)
   const [externalLinks, setExternalLinks] = useState([])
   const [activeTab, setActiveTab] = useState("posts") // "posts", "about"
+  const [ratingSummary, setRatingSummary] = useState({ average: null, count: 0 })
+  const [showRatingModal, setShowRatingModal] = useState(false)
+  const [ratingValue, setRatingValue] = useState(5)
+  const [isEditingAbout, setIsEditingAbout] = useState(false)
+  const [aboutText, setAboutText] = useState("")
 
   const defaultUser = {
     id: 1,
@@ -335,6 +340,31 @@ function Profile({ onNavigate, userId }) {
           console.error("Ошибка загрузки внешних ссылок:", error)
           setExternalLinks([])
         }
+
+        // Загрузка рейтинга
+        try {
+          const summary = await userAPI.getRatingSummary(profileUserId)
+          // Ensure summary has valid structure
+          if (summary && typeof summary === 'object') {
+            setRatingSummary({
+              average: summary.average != null && !isNaN(summary.average) ? Number(summary.average) : null,
+              count: summary.count != null ? Number(summary.count) : 0
+            })
+          } else {
+            setRatingSummary({ average: null, count: 0 })
+          }
+        } catch (error) {
+          console.error("Ошибка загрузки рейтинга:", error)
+          setRatingSummary({ average: null, count: 0 })
+        }
+
+        // Загрузка about
+        try {
+          const aboutData = await userAPI.getAbout(profileUserId)
+          setAboutText(aboutData.about || "")
+        } catch (error) {
+          console.error("Ошибка загрузки about:", error)
+        }
       } catch (error) {
         console.error("Ошибка загрузки профиля:", error)
         // Fallback на моковые данные только для собственного профиля
@@ -364,10 +394,47 @@ function Profile({ onNavigate, userId }) {
 
     try {
       if (isSubscribed) {
-        await unsubscribeFromUser(currentUser.id, userData.id)
+        // Unsubscribe
+        try {
+          await unsubscribeFromUser(currentUser.id, userData.id)
+        } catch (error) {
+          // If already unsubscribed, that's fine - just update UI
+          if (error.message && error.message.includes("409")) {
+            console.log("User already unsubscribed, updating UI")
+          } else {
+            throw error
+          }
+        }
       } else {
-        await subscribeToUser(currentUser.id, userData.id)
+        // Subscribe - check if already subscribed first
+        const alreadySubscribed = subscribedUsers.some(
+          (u) => (u.id || u) === userData.id
+        ) || subscriptions.some(
+          (sub) => (sub.id || sub) === userData.id
+        )
+        
+        if (alreadySubscribed) {
+          console.log("User already subscribed, skipping API call")
+          // Update UI to reflect subscription state
+          setSubscriptions([...subscriptions, userData])
+          return
+        }
+
+        try {
+          await subscribeToUser(currentUser.id, userData.id)
+        } catch (error) {
+          // Handle 409 conflict gracefully
+          if (error.message && (error.message.includes("409") || error.message.includes("already"))) {
+            console.log("User already subscribed, updating UI")
+            // Update UI to reflect subscription state
+            setSubscriptions([...subscriptions, userData])
+            return
+          } else {
+            throw error
+          }
+        }
       }
+      
       // Reload profile to update subscriptions/followers
       const updatedProfile = await userAPI.getProfile(profileUserId)
       setUserData(updatedProfile || userData)
@@ -377,6 +444,14 @@ function Profile({ onNavigate, userId }) {
       setFollowers(Array.isArray(fols) ? fols : [])
     } catch (error) {
       console.error("Ошибка при подписке/отписке:", error)
+      // Show user-friendly error message
+      const errorMsg = error.message || "Неизвестная ошибка"
+      if (errorMsg.includes("409") || errorMsg.includes("already")) {
+        // Already handled above, but just in case
+        console.log("Subscription conflict handled")
+      } else {
+        alert("Не удалось выполнить действие: " + errorMsg)
+      }
     }
   }
 
@@ -476,8 +551,29 @@ function Profile({ onNavigate, userId }) {
                 className="avatar avatar-xl"
               />
             )}
-            {userRating !== null && (
-              <div className="profile-rating">{userRating.toFixed(1)}</div>
+            {ratingSummary.average != null && typeof ratingSummary.average === 'number' && !isNaN(ratingSummary.average) && (
+              <div 
+                className="profile-rating"
+                style={{
+                  position: "absolute",
+                  bottom: "-10px",
+                  right: "-10px",
+                  backgroundColor: "var(--accent-blue)",
+                  color: "white",
+                  borderRadius: "50%",
+                  width: "40px",
+                  height: "40px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: "600",
+                  border: "2px solid var(--bg-primary)",
+                }}
+                title={`Средний рейтинг: ${ratingSummary.average.toFixed(1)} (${ratingSummary.count || 0} оценок)`}
+              >
+                {ratingSummary.average.toFixed(1)}
+              </div>
             )}
           </div>
 
@@ -489,7 +585,9 @@ function Profile({ onNavigate, userId }) {
               <button className={`btn ${isSubscribed ? "btn-secondary" : "btn-primary"}`} onClick={handleSubscription}>
                 {isSubscribed ? "Отписаться" : "Подписаться"}
               </button>
-              <button className="btn btn-secondary">Сообщение</button>
+              <button className="btn btn-secondary" onClick={() => setShowRatingModal(true)}>
+                Оценить пользователя
+              </button>
             </div>
           )}
 
@@ -547,8 +645,53 @@ function Profile({ onNavigate, userId }) {
           </div>
         ) : (
           <div className="profile-about">
-            <h2>О человеке</h2>
-            <p className="profile-about-text">{userData.about || "Информация не указана"}</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-md)" }}>
+              <h2>О человеке</h2>
+              {isOwnProfile && (
+                <button
+                  className="btn btn-sm"
+                  onClick={() => {
+                    if (isEditingAbout) {
+                      // Save
+                      userAPI.updateAbout(profileUserId, currentUser.id, aboutText)
+                        .then(() => {
+                          setIsEditingAbout(false)
+                          setUserData({ ...userData, about: aboutText })
+                        })
+                        .catch(err => {
+                          console.error("Ошибка сохранения about:", err)
+                          alert("Не удалось сохранить изменения")
+                        })
+                    } else {
+                      // Edit
+                      setIsEditingAbout(true)
+                    }
+                  }}
+                >
+                  {isEditingAbout ? "Сохранить" : "Редактировать"}
+                </button>
+              )}
+            </div>
+            {isEditingAbout ? (
+              <textarea
+                value={aboutText}
+                onChange={(e) => setAboutText(e.target.value)}
+                placeholder="Расскажите о себе..."
+                maxLength={2000}
+                style={{
+                  width: "100%",
+                  minHeight: "100px",
+                  padding: "var(--spacing-sm)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-color)",
+                  fontSize: "var(--font-size-base)",
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                }}
+              />
+            ) : (
+              <p className="profile-about-text">{aboutText || userData.about || "информация не указана"}</p>
+            )}
 
             <div className="profile-tags">
               {(userData.interests || []).map((interest, index) => (
@@ -576,6 +719,94 @@ function Profile({ onNavigate, userId }) {
       </div>
 
       {isOwnProfile && <BottomNavigation currentPage="profile" onNavigate={onNavigate} />}
+
+      {/* Rating Modal */}
+      {showRatingModal && !isOwnProfile && currentUser && (
+        <RatingModal
+          currentRating={ratingValue}
+          onRatingChange={setRatingValue}
+          onClose={() => setShowRatingModal(false)}
+          onSubmit={async () => {
+            try {
+              await userAPI.createRating(profileUserId, currentUser.id, ratingValue)
+              // Reload rating summary
+              const summary = await userAPI.getRatingSummary(profileUserId)
+              if (summary && typeof summary === 'object') {
+                setRatingSummary({
+                  average: summary.average != null && !isNaN(summary.average) ? Number(summary.average) : null,
+                  count: summary.count != null ? Number(summary.count) : 0
+                })
+              }
+              setShowRatingModal(false)
+              alert("Рейтинг сохранен")
+            } catch (error) {
+              console.error("Ошибка сохранения рейтинга:", error)
+              const errorMsg = error.message || "Не удалось сохранить рейтинг"
+              if (errorMsg.includes("cannot rate themselves") || errorMsg.includes("самого себя")) {
+                alert("Вы не можете оценить самого себя")
+              } else {
+                alert("Не удалось сохранить рейтинг: " + errorMsg)
+              }
+            }
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function RatingModal({ currentRating, onRatingChange, onClose, onSubmit }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          backgroundColor: "var(--bg-primary)",
+          padding: "var(--spacing-lg)",
+          borderRadius: "var(--radius-lg)",
+          maxWidth: "400px",
+          width: "90%",
+          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ marginBottom: "var(--spacing-md)", fontSize: "var(--font-size-lg)" }}>Оценить пользователя</h3>
+        <div style={{ marginBottom: "var(--spacing-md)" }}>
+          <input
+            type="range"
+            min="0"
+            max="10"
+            step="0.5"
+            value={currentRating}
+            onChange={(e) => onRatingChange(parseFloat(e.target.value))}
+            style={{ width: "100%" }}
+          />
+          <div style={{ textAlign: "center", marginTop: "var(--spacing-sm)", fontSize: "var(--font-size-lg)", fontWeight: "600" }}>
+            {currentRating.toFixed(1)} / 10
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+          <button className="btn btn-primary" onClick={onSubmit} style={{ flex: 1 }}>
+            Сохранить
+          </button>
+          <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1 }}>
+            Отмена
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
