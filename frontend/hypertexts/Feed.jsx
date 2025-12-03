@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { getAllPosts, getPostsByUserIds } from "../scripts/postsData"
-import { postAPI, imageAPI } from "../lib/api"
+import { postAPI, imageAPI, notificationAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
 import "../styles/variables.css"
@@ -69,6 +69,33 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
 
       <h3 className="post-title">{post.name || post.title}</h3>
       <p className="post-content">{post.text || post.content}</p>
+
+      {/* Show pinned room label if post is pinned */}
+      {post.pinnedToRooms && post.pinnedToRooms.length > 0 && (
+        <div style={{ marginTop: "var(--spacing-xs)", marginBottom: "var(--spacing-xs)" }}>
+          {post.pinnedToRooms.map((pin) => (
+            <span
+              key={pin.id || pin.room?.id}
+              className="badge"
+              style={{
+                backgroundColor: "var(--accent-gold)",
+                color: "var(--bg-primary)",
+                marginRight: "var(--spacing-xs)",
+                cursor: "pointer",
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                const roomId = pin.room?.id || pin.roomId
+                if (roomId) {
+                  onNavigate("roomInfo", roomId)
+                }
+              }}
+            >
+              📌 Закреплено в: {pin.room?.name || "Комната"}
+            </span>
+          ))}
+        </div>
+      )}
 
       {post.image && (
         <img
@@ -237,19 +264,6 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
           </svg>
           <span>{post.comments?.length || post.comments || 0}</span>
         </button>
-        <button
-          className="post-action-btn"
-          style={{
-            marginLeft: "auto",
-            backgroundColor: "var(--accent-gold)",
-            color: "var(--bg-primary)",
-            padding: "8px 20px",
-            borderRadius: "var(--radius-full)",
-          }}
-          onClick={() => console.log("[v0] Откликнуться на пост:", post.id)}
-        >
-          ОТКЛИКНУТЬСЯ
-        </button>
       </div>
     </div>
   )
@@ -260,6 +274,8 @@ function Feed({ onNavigate }) {
   const [activeTab, setActiveTab] = useState("main") // 'main' или 'subscriptions'
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   // Загрузка постов
   useEffect(() => {

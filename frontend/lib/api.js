@@ -291,6 +291,43 @@ export const userAPI = {
     // There is no explicit rating endpoint in swagger; return a mock structure to satisfy UI.
     return { rating: 8.5 }
   },
+
+  async getRoomCount(userId) {
+    // Backend: GET /users/{userId}/rooms/count
+    return request(`/users/${userId}/rooms/count`, { method: "GET" })
+  },
+}
+
+// --- EXTERNAL LINKS API ---
+
+export const externalLinksAPI = {
+  async get(userId) {
+    // Backend: GET /users/{userId}/profile/external-links
+    return request(`/users/${userId}/profile/external-links`, { method: "GET" })
+  },
+
+  async create(userId, link) {
+    // Backend: POST /users/{userId}/profile/external-links
+    return request(`/users/${userId}/profile/external-links`, {
+      method: "POST",
+      body: link,
+    })
+  },
+
+  async update(userId, linkId, link) {
+    // Backend: PUT /users/{userId}/profile/external-links/{linkId}
+    return request(`/users/${userId}/profile/external-links/${linkId}`, {
+      method: "PUT",
+      body: link,
+    })
+  },
+
+  async delete(userId, linkId) {
+    // Backend: DELETE /users/{userId}/profile/external-links/{linkId}
+    return request(`/users/${userId}/profile/external-links/${linkId}`, {
+      method: "DELETE",
+    })
+  },
 }
 
 // --- POSTS API ---
@@ -517,6 +554,58 @@ export const roomAPI = {
       params: { userId },
     })
   },
+
+  async getDetails(roomId) {
+    // Backend: GET /rooms/{roomId}
+    return request(`/rooms/${roomId}`, { method: "GET" })
+  },
+
+  async createMembershipRequest(roomId, userId, message) {
+    // Backend: POST /rooms/{roomId}/requests?userId=
+    return request(`/rooms/${roomId}/requests`, {
+      method: "POST",
+      params: { userId },
+      body: message ? { message } : {},
+    })
+  },
+
+  async getMembershipRequests(roomId, userId) {
+    // Backend: GET /rooms/{roomId}/requests?userId=
+    return request(`/rooms/${roomId}/requests`, {
+      method: "GET",
+      params: { userId },
+    })
+  },
+
+  async cancelMembershipRequest(roomId, requestId, userId) {
+    // Backend: DELETE /rooms/{roomId}/requests/{requestId}?userId=
+    return request(`/rooms/${roomId}/requests/${requestId}`, {
+      method: "DELETE",
+      params: { userId },
+    })
+  },
+
+  async pinPost(roomId, postId, userId) {
+    // Backend: POST /rooms/{roomId}/pinned-posts?userId=
+    return request(`/rooms/${roomId}/pinned-posts`, {
+      method: "POST",
+      params: { userId },
+      body: { postId },
+    })
+  },
+
+  async unpinPost(roomId, postId, userId) {
+    // Backend: DELETE /rooms/{roomId}/pinned-posts/{postId}?userId=
+    return request(`/rooms/${roomId}/pinned-posts/${postId}`, {
+      method: "DELETE",
+      params: { userId },
+    })
+  },
+
+  async getPinnedPosts(roomId) {
+    // Backend: GET /rooms/{roomId}/pinned-posts
+    return request(`/rooms/${roomId}/pinned-posts`, { method: "GET" })
+  },
 }
 
 // --- NOTIFICATIONS API ---
@@ -555,6 +644,23 @@ export const notificationAPI = {
     // Backend: POST /notifications/{userId}/read-all
     return request(`/notifications/${userId}/read-all`, {
       method: "POST",
+    })
+  },
+
+  async markNotificationsAsRead(notificationIds, userId) {
+    // Backend: POST /notifications/mark-read?userId=
+    return request("/notifications/mark-read", {
+      method: "POST",
+      params: { userId },
+      body: notificationIds,
+    })
+  },
+
+  async dismiss(notificationId, userId) {
+    // Backend: DELETE /notifications/{notificationId}?userId=
+    return request(`/notifications/${notificationId}`, {
+      method: "DELETE",
+      params: { userId },
     })
   },
 }

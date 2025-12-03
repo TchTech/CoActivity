@@ -436,19 +436,6 @@ function Comments({ onNavigate, postId }) {
               </svg>
               <span>{postComments}</span>
             </button>
-            {/* Кнопка "ОТКЛИКНУТЬСЯ" */}
-            <button
-              className="post-action-btn"
-              style={{
-                marginLeft: "auto",
-                backgroundColor: "var(--accent-gold)",
-                color: "var(--bg-primary)",
-                padding: "8px 20px",
-                borderRadius: "var(--radius-full)",
-              }}
-            >
-              ОТКЛИКНУТЬСЯ
-            </button>
           </div>
         </div> {/* <-- ЗАКРЫВАЕТ post-card */}
 

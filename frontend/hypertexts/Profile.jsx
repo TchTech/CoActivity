@@ -3,7 +3,7 @@ import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { getUserById } from "../scripts/usersData"
 import { getPostsByUserId } from "../scripts/postsData"
-import { userAPI, postAPI, profileAPI, imageAPI } from "../lib/api"
+import { userAPI, postAPI, profileAPI, imageAPI, externalLinksAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
 import "../styles/variables.css"
@@ -220,6 +220,9 @@ function Profile({ onNavigate, userId }) {
   const [subscriptions, setSubscriptions] = useState([])
   const [followers, setFollowers] = useState([])
   const [avatarUploading, setAvatarUploading] = useState(false)
+  const [roomCount, setRoomCount] = useState(0)
+  const [externalLinks, setExternalLinks] = useState([])
+  const [activeTab, setActiveTab] = useState("posts") // "posts", "about"
 
   const defaultUser = {
     id: 1,
@@ -313,6 +316,24 @@ function Profile({ onNavigate, userId }) {
         } else {
           setSubscriptions([])
           setFollowers([])
+        }
+
+        // Загрузка количества комнат
+        try {
+          const countData = await userAPI.getRoomCount(profileUserId)
+          setRoomCount(countData.count || 0)
+        } catch (error) {
+          console.error("Ошибка загрузки количества комнат:", error)
+          setRoomCount(0)
+        }
+
+        // Загрузка внешних ссылок
+        try {
+          const links = await externalLinksAPI.get(profileUserId)
+          setExternalLinks(Array.isArray(links) ? links : [])
+        } catch (error) {
+          console.error("Ошибка загрузки внешних ссылок:", error)
+          setExternalLinks([])
         }
       } catch (error) {
         console.error("Ошибка загрузки профиля:", error)
@@ -478,7 +499,7 @@ function Profile({ onNavigate, userId }) {
               <div className="stat-label">Подписчики</div>
             </div>
             <div className="stat-item">
-              <div className="stat-value">{userData.rooms?.length || userData.rooms || 0}</div>
+              <div className="stat-value">{roomCount}</div>
               <div className="stat-label">Комнаты</div>
             </div>
             <div className="stat-item">
@@ -488,41 +509,289 @@ function Profile({ onNavigate, userId }) {
           </div>
         </div>
 
-        <div className="profile-about">
-          <h2>О человеке</h2>
-          <p className="profile-about-text">{userData.about}</p>
+        {/* Tabs */}
+        <div className="tabs">
+          <button 
+            className={`tab ${activeTab === "posts" ? "active" : ""}`} 
+            onClick={() => setActiveTab("posts")}
+          >
+            Посты
+          </button>
+          <button 
+            className={`tab ${activeTab === "about" ? "active" : ""}`} 
+            onClick={() => setActiveTab("about")}
+          >
+            О себе
+          </button>
+        </div>
 
-          <div className="profile-tags">
-            {(userData.interests || []).map((interest, index) => (
-              <span key={index} className="tag">
-                {typeof interest === "object" ? interest.name || interest : interest}
-              </span>
-            ))}
+        {activeTab === "posts" ? (
+          <div className="profile-content-section">
+            <h2 className="profile-content-header">Контент</h2>
+
+            {userPosts.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--text-muted)" }}>
+                Нет постов
+              </div>
+            ) : (
+              userPosts.map((post) => (
+                <ProfilePostCard
+                  key={post.id}
+                  post={post}
+                  userData={userData}
+                  userRating={userRating}
+                  onNavigate={onNavigate}
+                />
+              ))
+            )}
           </div>
-        </div>
+        ) : (
+          <div className="profile-about">
+            <h2>О человеке</h2>
+            <p className="profile-about-text">{userData.about || "Информация не указана"}</p>
 
-        <div className="profile-content-section">
-          <h2 className="profile-content-header">Контент</h2>
-
-          {userPosts.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--text-muted)" }}>
-              Нет постов
+            <div className="profile-tags">
+              {(userData.interests || []).map((interest, index) => (
+                <span key={index} className="tag">
+                  {typeof interest === "object" ? interest.name || interest : interest}
+                </span>
+              ))}
             </div>
-          ) : (
-            userPosts.map((post) => (
-              <ProfilePostCard
-                key={post.id}
-                post={post}
-                userData={userData}
-                userRating={userRating}
-                onNavigate={onNavigate}
-              />
-            ))
-          )}
-        </div>
+
+            {/* External Links */}
+            <div style={{ marginTop: "var(--spacing-lg)" }}>
+              <h3 style={{ fontSize: "var(--font-size-lg)", marginBottom: "var(--spacing-md)" }}>Внешние ссылки</h3>
+              {isOwnProfile ? (
+                <ExternalLinksEditor 
+                  userId={profileUserId} 
+                  links={externalLinks} 
+                  onLinksChange={setExternalLinks}
+                />
+              ) : (
+                <ExternalLinksList links={externalLinks} />
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {isOwnProfile && <BottomNavigation currentPage="profile" onNavigate={onNavigate} />}
+    </div>
+  )
+}
+
+function ExternalLinksList({ links }) {
+  if (!links || links.length === 0) {
+    return <div style={{ color: "var(--text-muted)", fontSize: "var(--font-size-sm)" }}>Нет внешних ссылок</div>
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)" }}>
+      {links.map((link) => (
+        <a
+          key={link.id}
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--spacing-sm)",
+            padding: "var(--spacing-sm)",
+            backgroundColor: "var(--bg-secondary)",
+            borderRadius: "var(--radius-md)",
+            textDecoration: "none",
+            color: "var(--accent-blue)",
+          }}
+        >
+          <span style={{ fontWeight: "600" }}>{link.label || link.platformName || "Ссылка"}</span>
+          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>{link.url}</span>
+        </a>
+      ))}
+    </div>
+  )
+}
+
+function ExternalLinksEditor({ userId, links, onLinksChange }) {
+  const [editingLink, setEditingLink] = useState(null)
+  const [newLink, setNewLink] = useState({ platformName: "", label: "", url: "" })
+  const [saving, setSaving] = useState(false)
+
+  const handleAddLink = async () => {
+    if (!newLink.url || !newLink.url.trim()) {
+      alert("URL обязателен")
+      return
+    }
+
+    setSaving(true)
+    try {
+      const created = await externalLinksAPI.create(userId, newLink)
+      onLinksChange([...links, created])
+      setNewLink({ platformName: "", label: "", url: "" })
+    } catch (error) {
+      console.error("Ошибка добавления ссылки:", error)
+      alert("Не удалось добавить ссылку: " + (error.message || "Неизвестная ошибка"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUpdateLink = async (linkId, updatedLink) => {
+    setSaving(true)
+    try {
+      const updated = await externalLinksAPI.update(userId, linkId, updatedLink)
+      onLinksChange(links.map(l => l.id === linkId ? updated : l))
+      setEditingLink(null)
+    } catch (error) {
+      console.error("Ошибка обновления ссылки:", error)
+      alert("Не удалось обновить ссылку: " + (error.message || "Неизвестная ошибка"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteLink = async (linkId) => {
+    if (!confirm("Удалить эту ссылку?")) return
+
+    setSaving(true)
+    try {
+      await externalLinksAPI.delete(userId, linkId)
+      onLinksChange(links.filter(l => l.id !== linkId))
+    } catch (error) {
+      console.error("Ошибка удаления ссылки:", error)
+      alert("Не удалось удалить ссылку: " + (error.message || "Неизвестная ошибка"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)", marginBottom: "var(--spacing-md)" }}>
+        <input
+          type="text"
+          placeholder="Название платформы (например, GitHub)"
+          value={newLink.platformName}
+          onChange={(e) => setNewLink({ ...newLink, platformName: e.target.value })}
+          style={{ padding: "var(--spacing-sm)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}
+        />
+        <input
+          type="text"
+          placeholder="Метка (необязательно)"
+          value={newLink.label}
+          onChange={(e) => setNewLink({ ...newLink, label: e.target.value })}
+          style={{ padding: "var(--spacing-sm)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}
+        />
+        <input
+          type="url"
+          placeholder="URL (например, https://github.com/username)"
+          value={newLink.url}
+          onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
+          style={{ padding: "var(--spacing-sm)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}
+        />
+        <button 
+          className="btn btn-primary" 
+          onClick={handleAddLink}
+          disabled={saving || !newLink.url}
+        >
+          {saving ? "Сохранение..." : "Добавить ссылку"}
+        </button>
+      </div>
+
+      {links.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)" }}>
+          {links.map((link) => (
+            editingLink === link.id ? (
+              <LinkEditForm
+                key={link.id}
+                link={link}
+                onSave={(updated) => handleUpdateLink(link.id, updated)}
+                onCancel={() => setEditingLink(null)}
+              />
+            ) : (
+              <div
+                key={link.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "var(--spacing-sm)",
+                  backgroundColor: "var(--bg-secondary)",
+                  borderRadius: "var(--radius-md)",
+                }}
+              >
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: "none", color: "var(--accent-blue)", flex: 1 }}
+                >
+                  <div style={{ fontWeight: "600" }}>{link.label || link.platformName || "Ссылка"}</div>
+                  <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>{link.url}</div>
+                </a>
+                <div style={{ display: "flex", gap: "var(--spacing-xs)" }}>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => setEditingLink(link.id)}
+                    style={{ padding: "4px 8px" }}
+                  >
+                    Изменить
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => handleDeleteLink(link.id)}
+                    style={{ padding: "4px 8px", backgroundColor: "var(--error)" }}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            )
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LinkEditForm({ link, onSave, onCancel }) {
+  const [formData, setFormData] = useState({
+    platformName: link.platformName || "",
+    label: link.label || "",
+    url: link.url || "",
+  })
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)", padding: "var(--spacing-sm)", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--radius-md)" }}>
+      <input
+        type="text"
+        placeholder="Название платформы"
+        value={formData.platformName}
+        onChange={(e) => setFormData({ ...formData, platformName: e.target.value })}
+        style={{ padding: "var(--spacing-sm)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}
+      />
+      <input
+        type="text"
+        placeholder="Метка"
+        value={formData.label}
+        onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+        style={{ padding: "var(--spacing-sm)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}
+      />
+      <input
+        type="url"
+        placeholder="URL"
+        value={formData.url}
+        onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+        style={{ padding: "var(--spacing-sm)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-color)" }}
+      />
+      <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+        <button className="btn btn-primary" onClick={() => onSave(formData)} style={{ flex: 1 }}>
+          Сохранить
+        </button>
+        <button className="btn btn-secondary" onClick={onCancel} style={{ flex: 1 }}>
+          Отмена
+        </button>
+      </div>
     </div>
   )
 }
