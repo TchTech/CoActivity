@@ -81,6 +81,9 @@ public class User {
   @JsonIgnoreProperties({"content"})
   private Image avatar;
 
+  @Column(name = "about")
+  private String about;
+
   public User(String username, String email, String passwordHash) {
     this.username = username;
     this.name = username;

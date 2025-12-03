@@ -5,6 +5,7 @@ import com.mipt.CoActivity.model.Room;
 import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.model.UserSettings;
 import com.mipt.CoActivity.service.UserService;
+import com.mipt.CoActivity.service.UserRatingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,10 +22,12 @@ import java.util.Map;
 public class UserController {
   private static final Logger logger = LoggerFactory.getLogger(UserController.class);
   private final UserService userService;
+  private final UserRatingService userRatingService;
 
   @Autowired
-  public UserController(UserService userService) {
+  public UserController(UserService userService, UserRatingService userRatingService) {
     this.userService = userService;
+    this.userRatingService = userRatingService;
   }
 
   @GetMapping("/{id}/profile")
@@ -270,5 +273,38 @@ public class UserController {
       logger.error("Error uploading avatar: ", e);
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
+  }
+
+  @PostMapping("/{userId}/ratings")
+  @ResponseStatus(HttpStatus.CREATED)
+  public ResponseEntity<com.mipt.CoActivity.model.UserRating> createOrUpdateRating(
+      @PathVariable Long userId,
+      @RequestParam Long raterUserId,
+      @RequestBody UserRatingRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(userRatingService.createOrUpdateRating(userId, raterUserId, request));
+  }
+
+  @GetMapping("/{userId}/ratings/summary")
+  public ResponseEntity<UserRatingSummaryResponse> getRatingSummary(@PathVariable Long userId) {
+    return ResponseEntity.ok(userRatingService.getRatingSummary(userId));
+  }
+
+  @PutMapping("/{userId}/about")
+  public ResponseEntity<Void> updateAbout(
+      @PathVariable Long userId,
+      @RequestParam Long currentUserId,
+      @RequestBody UpdateAboutRequest request) {
+    if (!userId.equals(currentUserId)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+    userService.updateAbout(userId, request);
+    return ResponseEntity.ok().build();
+  }
+
+  @GetMapping("/{userId}/about")
+  public ResponseEntity<Map<String, String>> getAbout(@PathVariable Long userId) {
+    String about = userService.getAbout(userId);
+    return ResponseEntity.ok(Map.of("about", about != null ? about : ""));
   }
 }

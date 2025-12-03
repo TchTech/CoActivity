@@ -157,8 +157,10 @@ public class UserService {
                     .findById(userToSubscribeId)
                     .orElseThrow(() -> new ResourceNotFoundException("User to subscribe not found"));
 
+    // Idempotent: if already subscribed, just return success
     if (user.getSubscriptions().contains(userToSubscribe)) {
-      throw new ConflictException("User is already subscribed to this user");
+      logger.debug("User {} is already subscribed to user {}, returning success", userId, userToSubscribeId);
+      return;
     }
 
     user.getSubscriptions().add(userToSubscribe);
@@ -166,6 +168,7 @@ public class UserService {
 
     userRepository.save(user);
     userRepository.save(userToSubscribe);
+    logger.info("User {} subscribed to user {}", userId, userToSubscribeId);
   }
 
   public void unsubscribe(Long userId, Long userToUnsubscribeId) {
@@ -176,8 +179,10 @@ public class UserService {
                     .findById(userToUnsubscribeId)
                     .orElseThrow(() -> new ResourceNotFoundException("User to unsubscribe not found"));
 
+    // Idempotent: if not subscribed, just return success
     if (!user.getSubscriptions().contains(userToUnsubscribe)) {
-      throw new ConflictException("User is not subscribed to this user");
+      logger.debug("User {} is not subscribed to user {}, returning success", userId, userToUnsubscribeId);
+      return;
     }
 
     user.getSubscriptions().remove(userToUnsubscribe);
@@ -185,6 +190,7 @@ public class UserService {
 
     userRepository.save(user);
     userRepository.save(userToUnsubscribe);
+    logger.info("User {} unsubscribed from user {}", userId, userToUnsubscribeId);
   }
 
   public User getUserProfile(Long id) {
@@ -272,9 +278,7 @@ public class UserService {
                 user.getName(), userId, targetUser.getName(), request.getTargetUserId());
         break;
       case "addFriend":
-        if (user.getSubscriptions().contains(targetUser)) {
-          throw new ConflictException("User is already a friend");
-        }
+        // Idempotent: subscribe will handle if already subscribed
         subscribe(userId, request.getTargetUserId());
         break;
       case "getCommonRooms":
@@ -655,5 +659,18 @@ public class UserService {
     com.mipt.CoActivity.model.Image avatarImage = imageService.uploadImage(file);
     user.setAvatar(avatarImage);
     return userRepository.save(user);
+  }
+
+  @Transactional
+  public void updateAbout(Long userId, UpdateAboutRequest request) {
+    User user = getUserProfile(userId);
+    user.setAbout(request.getAbout());
+    userRepository.save(user);
+    logger.info("User {} updated their about field", userId);
+  }
+
+  public String getAbout(Long userId) {
+    User user = getUserProfile(userId);
+    return user.getAbout();
   }
 }
