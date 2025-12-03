@@ -207,4 +207,11 @@ public class RoomController {
   public ResponseEntity<List<com.mipt.CoActivity.model.Post>> getPinnedPosts(@PathVariable Long roomId) {
     return ResponseEntity.ok(roomService.getPinnedPosts(roomId));
   }
+
+  @GetMapping
+  public ResponseEntity<List<Room>> getAllRooms(
+      @RequestParam(required = false, defaultValue = "0") Integer offset,
+      @RequestParam(required = false, defaultValue = "50") Integer limit) {
+    return ResponseEntity.ok(roomService.getAllRooms(offset, limit));
+  }
 }

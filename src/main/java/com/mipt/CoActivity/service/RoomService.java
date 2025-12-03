@@ -7,6 +7,9 @@ import com.mipt.CoActivity.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -279,8 +282,18 @@ public class RoomService {
     User sender = userRepository.findById(request.getSenderId())
         .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     
-    if (!room.getCollaborators().contains(sender)) {
-      throw new ForbiddenException("User is not a member of this room");
+    // For default room, ensure user is a member (auto-add if needed)
+    if (Boolean.TRUE.equals(room.getIsDefault())) {
+      if (!room.getCollaborators().contains(sender)) {
+        logger.info("Auto-adding user {} to default room {}", sender.getId(), roomId);
+        room.getCollaborators().add(sender);
+        roomRepository.save(room);
+      }
+    } else {
+      // For non-default rooms, check membership strictly
+      if (!room.getCollaborators().contains(sender)) {
+        throw new ForbiddenException("User is not a member of this room");
+      }
     }
     
     Message message = new Message(room, sender, request.getContent());
@@ -693,9 +706,16 @@ public class RoomService {
     response.setMeetingType(room.getMeetingType());
     response.setMeetingTime(room.getMeetingTime());
     response.setMaxCollaborators(room.getMaxCollaborators());
-    response.setJoinType(room.getJoinType());
+    response.setJoinType(room.getJoinType() != null ? room.getJoinType() : "open");
     response.setIsDefault(room.getIsDefault() != null ? room.getIsDefault() : false);
     
     return response;
+  }
+
+  public List<Room> getAllRooms(Integer offset, Integer limit) {
+    int page = limit > 0 ? offset / limit : 0;
+    Pageable pageable = PageRequest.of(
+        page, limit, Sort.by("createdAt").descending());
+    return roomRepository.findAll(pageable).getContent();
   }
 }
