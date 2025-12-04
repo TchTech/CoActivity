@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import BottomNavigation from "./BottomNavigation"
+import { roomAPI } from "../lib/api"
+import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -9,6 +11,7 @@ import "../styles/create.css"
 import "../styles/navigation.css"
 
 function CreateRoom({ onNavigate }) {
+  const { currentUser } = useUser()
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -21,6 +24,8 @@ function CreateRoom({ onNavigate }) {
     address: "",
     maxMembers: 20,
   })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   const handleChange = (e) => {
     setFormData({
@@ -29,32 +34,65 @@ function CreateRoom({ onNavigate }) {
     })
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (!currentUser?.id) {
+      setError("Необходимо войти в систему")
+      return
+    }
 
     // Валидация обязательных полей
     if (!formData.name || !formData.category || !formData.description || !formData.date || !formData.time) {
-      alert("Пожалуйста, заполните все обязательные поля")
+      setError("Пожалуйста, заполните все обязательные поля")
       return
     }
 
     if (formData.name.length > 50) {
-      alert("Название не должно превышать 50 символов")
+      setError("Название не должно превышать 50 символов")
       return
     }
 
     if (formData.description.length > 500) {
-      alert("Описание не должно превышать 500 символов")
+      setError("Описание не должно превышать 500 символов")
       return
     }
 
     if (formData.format === "offline" && !formData.address) {
-      alert("Укажите адрес для очного формата")
+      setError("Укажите адрес для очного формата")
       return
     }
 
-    console.log("Создание комнаты:", formData)
-    onNavigate("rooms")
+    setLoading(true)
+    setError("")
+
+    try {
+      const meetingDateTime = new Date(
+        `${formData.date}T${formData.time || "00:00"}:00`
+      ).toISOString()
+
+      const payload = {
+        description: formData.description,
+        category: formData.category,
+        maxCollaborators: parseInt(formData.maxMembers, 10) || null,
+        meetingTime: meetingDateTime,
+        meetingType: formData.format === "online" ? "online" : "offline",
+        location:
+          formData.format === "offline"
+            ? `${formData.city}${formData.address ? ", " + formData.address : ""}`
+            : null,
+        joinType: formData.type === "open" ? "open" : "application",
+      }
+
+      const createdRoom = await roomAPI.create(currentUser.id, payload)
+      console.log("Комната создана:", createdRoom)
+      onNavigate("rooms")
+    } catch (err) {
+      console.error("Ошибка создания комнаты:", err)
+      setError(err.message || "Ошибка при создании комнаты")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -69,6 +107,7 @@ function CreateRoom({ onNavigate }) {
       </div>
 
       <div className="create-container">
+        {error && <div className="error-message" style={{ marginBottom: "var(--spacing-md)" }}>{error}</div>}
         <form className="create-form" onSubmit={handleSubmit}>
           {/* Основная информация */}
           <div className="form-section">
@@ -265,8 +304,8 @@ function CreateRoom({ onNavigate }) {
             <button type="button" className="btn btn-secondary" onClick={() => onNavigate("rooms")}>
               Отмена
             </button>
-            <button type="submit" className="btn btn-primary">
-              Создать комнату
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? "Создание..." : "Создать комнату"}
             </button>
           </div>
         </form>

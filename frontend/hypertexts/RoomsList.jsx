@@ -1,5 +1,8 @@
 "use client"
+import { useEffect, useState } from "react"
 import BottomNavigation from "./BottomNavigation"
+import { roomAPI } from "../lib/api"
+import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -7,78 +10,248 @@ import "../styles/rooms.css"
 import "../styles/navigation.css"
 
 function RoomsList({ onNavigate }) {
-  // Демо данные комнат
-  const rooms = [
-    {
-      id: 1,
-      name: "Физика-механика в Саратове",
-      lastMessage: "Петр: Не забудьте взять с собой блокноты!",
-      time: "14:30",
-      avatar: "/physics-icon.jpg",
-      category: "Наука",
-      unread: 3,
-    },
-    {
-      id: 2,
-      name: "Программисты Москвы",
-      lastMessage: "Анна: Кто будет на хакатоне?",
-      time: "Вчера",
-      avatar: "/coding-icon.jpg",
-      category: "IT",
-      unread: 0,
-    },
-    {
-      id: 3,
-      name: "Настольный теннис - выходные",
-      lastMessage: "Вы: Отлично, жду встречи!",
-      time: "15 дек",
-      avatar: "/table-tennis-match.png",
-      category: "Спорт",
-      unread: 0,
-    },
-    {
-      id: 4,
-      name: "Робототехника для начинающих",
-      lastMessage: "Сергей: Завтра будет мастер-класс",
-      time: "10 дек",
-      avatar: "/robot-icon.png",
-      category: "Технологии",
-      unread: 1,
-    },
-  ]
+  const { currentUser } = useUser()
+  const [rooms, setRooms] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+  const [activeTab, setActiveTab] = useState("all") // "all" or "mine"
+
+  useEffect(() => {
+    const loadRooms = async () => {
+      if (!currentUser?.id && activeTab === "mine") {
+        console.log("[RoomsList] No currentUser.id, skipping load")
+        setLoading(false)
+        return
+      }
+
+      setLoading(true)
+      setError("")
+      try {
+        let data
+        if (activeTab === "all") {
+          console.log("[RoomsList] Loading all rooms")
+          data = await roomAPI.getAllRooms(0, 50)
+        } else {
+          console.log("[RoomsList] Loading rooms for user:", currentUser.id)
+          data = await roomAPI.getUserRooms(currentUser.id)
+        }
+        console.log("[RoomsList] Loaded rooms from API:", data)
+        console.log("[RoomsList] Rooms type:", typeof data, "isArray:", Array.isArray(data), "length:", Array.isArray(data) ? data.length : 'N/A')
+        
+        // Ensure we have an array
+        const roomsArray = Array.isArray(data) ? data : (data ? [data] : [])
+        console.log("[RoomsList] Rooms array after normalization:", roomsArray.length)
+        
+        // Sort rooms by creation date (newest first)
+        const sortedRooms = roomsArray.length > 0
+          ? roomsArray.sort((a, b) => {
+              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+              return dateB - dateA
+            })
+          : []
+        console.log("[RoomsList] Sorted rooms:", sortedRooms.length)
+        if (sortedRooms.length > 0) {
+          console.log("[RoomsList] First room sample:", sortedRooms[0])
+        }
+        setRooms(sortedRooms)
+      } catch (err) {
+        console.error("Ошибка загрузки комнат:", err)
+        setError(err.message || "Не удалось загрузить комнаты")
+        setRooms([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadRooms()
+  }, [currentUser, activeTab])
+
+  // Search rooms when query changes
+  useEffect(() => {
+    if (searchQuery.trim().length > 0) {
+      const searchRooms = async () => {
+        setIsSearching(true)
+        try {
+          console.log("[RoomsList] Searching rooms with query:", searchQuery.trim())
+          const data = await roomAPI.search(searchQuery.trim())
+          console.log("[RoomsList] Search results:", data)
+          console.log("[RoomsList] Search results type:", typeof data, "isArray:", Array.isArray(data), "length:", Array.isArray(data) ? data.length : 'N/A')
+          
+          // Ensure we have an array
+          const roomsArray = Array.isArray(data) ? data : (data ? [data] : [])
+          console.log("[RoomsList] Search rooms array after normalization:", roomsArray.length)
+          
+          const sortedRooms = roomsArray.length > 0
+            ? roomsArray.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+                return dateB - dateA
+              })
+            : []
+          console.log("[RoomsList] Sorted search results:", sortedRooms.length)
+          if (sortedRooms.length > 0) {
+            console.log("[RoomsList] First search result sample:", sortedRooms[0])
+          }
+          setRooms(sortedRooms)
+        } catch (err) {
+          console.error("Ошибка поиска комнат:", err)
+          setError(err.message || "Ошибка при поиске комнат")
+          setRooms([])
+        } finally {
+          setIsSearching(false)
+        }
+      }
+      const timeoutId = setTimeout(searchRooms, 300) // Debounce search
+      return () => clearTimeout(timeoutId)
+    } else {
+      // If search is empty, load user's rooms
+      if (currentUser?.id) {
+        const loadRooms = async () => {
+          setLoading(true)
+          setError("")
+          try {
+            console.log("[RoomsList] Reloading rooms for user:", currentUser.id)
+            const data = await roomAPI.getUserRooms(currentUser.id)
+            console.log("[RoomsList] Reloaded rooms:", data)
+            console.log("[RoomsList] Reloaded rooms type:", typeof data, "isArray:", Array.isArray(data), "length:", Array.isArray(data) ? data.length : 'N/A')
+            
+            // Ensure we have an array
+            const roomsArray = Array.isArray(data) ? data : (data ? [data] : [])
+            console.log("[RoomsList] Reloaded rooms array after normalization:", roomsArray.length)
+            
+            const sortedRooms = roomsArray.length > 0
+              ? roomsArray.sort((a, b) => {
+                  const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+                  const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+                  return dateB - dateA
+                })
+              : []
+            console.log("[RoomsList] Reloaded sorted rooms:", sortedRooms.length)
+            if (sortedRooms.length > 0) {
+              console.log("[RoomsList] First reloaded room sample:", sortedRooms[0])
+            }
+            setRooms(sortedRooms)
+          } catch (err) {
+            console.error("Ошибка загрузки комнат:", err)
+            setError(err.message || "Не удалось загрузить комнаты")
+            setRooms([])
+          } finally {
+            setLoading(false)
+          }
+        }
+        loadRooms()
+      }
+    }
+  }, [searchQuery, currentUser])
 
   return (
     <div>
       {/* Верхняя навигация */}
       <div className="top-nav">
-        <div className="top-nav-title">Мои комнаты</div>
+        <div className="top-nav-title">Комнаты</div>
         <div className="top-nav-actions">
-          <button className="btn-icon">🔍</button>
           <button className="btn-icon" onClick={() => onNavigate("createRoom")}>
             +
           </button>
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="tabs">
+        <button 
+          className={`tab ${activeTab === "all" ? "active" : ""}`} 
+          onClick={() => setActiveTab("all")}
+        >
+          Все комнаты
+        </button>
+        <button 
+          className={`tab ${activeTab === "mine" ? "active" : ""}`} 
+          onClick={() => setActiveTab("mine")}
+        >
+          Мои комнаты
+        </button>
+      </div>
+
+      {/* Поиск */}
+      <div style={{ padding: "var(--spacing-md)", paddingBottom: "var(--spacing-sm)" }}>
+        <input
+          type="text"
+          placeholder="Поиск комнат по названию..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "var(--spacing-sm) var(--spacing-md)",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--border-color)",
+            fontSize: "var(--font-size-base)",
+            backgroundColor: "var(--bg-secondary)",
+            color: "var(--text-primary)",
+          }}
+        />
+      </div>
+
       <div className="rooms-list-container">
-        {rooms.map((room) => (
-          <div key={room.id} className="room-item" onClick={() => onNavigate("chat")}>
-            <div className="room-avatar">
-              <img src={room.avatar || "/placeholder.svg"} alt={room.name} className="avatar avatar-md" />
-              {room.unread > 0 && <div className="room-unread">{room.unread}</div>}
-            </div>
-
-            <div className="room-info">
-              <div className="room-name">{room.name}</div>
-              <div className="room-last-message">{room.lastMessage}</div>
-            </div>
-
-            <div className="room-meta">
-              <div className="room-time">{room.time}</div>
-              <div className="room-category">{room.category}</div>
-            </div>
+        {(loading || isSearching) ? (
+          <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--text-muted)" }}>
+            {isSearching ? "Поиск..." : "Загрузка комнат..."}
           </div>
-        ))}
+        ) : error ? (
+          <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--error-color)" }}>
+            {error}
+          </div>
+        ) : rooms.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--text-muted)" }}>
+            {searchQuery.trim().length > 0 ? "Комнаты не найдены" : "У вас пока нет комнат"}
+          </div>
+        ) : (
+          rooms.map((room) => (
+            <div
+              key={room.id}
+              className="room-item"
+              onClick={() => {
+                const roomId = typeof room.id === "object" ? (room.id?.id || room.id?.roomId || null) : room.id
+                if (roomId) {
+                  onNavigate("roomInfo", roomId)
+                } else {
+                  console.error("[RoomsList] Invalid room.id:", room.id)
+                }
+              }}
+            >
+              <div className="room-avatar">
+                <img src={"/placeholder.svg"} alt={room.description || room.name} className="avatar avatar-md" />
+              </div>
+
+              <div className="room-info">
+                <div className="room-name">{room.name || room.description || "Комната"}</div>
+                <div className="room-last-message">
+                  {room.description && room.description.length > 50 
+                    ? room.description.substring(0, 50) + "..." 
+                    : room.description || ""}
+                </div>
+                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}>
+                  Участников: {room.collaborators?.length || room.memberCount || 0}
+                  {room.joinType === "by_application" && (
+                    <span style={{ marginLeft: "var(--spacing-sm)" }}>• По заявкам</span>
+                  )}
+                  {room.joinType === "open" && (
+                    <span style={{ marginLeft: "var(--spacing-sm)" }}>• Открытая</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="room-meta">
+                <div className="room-time">
+                  {room.meetingTime ? new Date(room.meetingTime).toLocaleString("ru-RU") : ""}
+                </div>
+                <div className="room-category">{room.category}</div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <BottomNavigation currentPage="rooms" onNavigate={onNavigate} />

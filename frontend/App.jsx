@@ -13,6 +13,7 @@ import CreatePost from "./hypertexts/CreatePost"
 import CreateRoom from "./hypertexts/CreateRoom"
 import Settings from "./hypertexts/Settings"
 import Feed from "./hypertexts/Feed"
+import Notifications from "./hypertexts/Notifications"
 
 /**
  * Главный компонент приложения
@@ -22,16 +23,42 @@ function App() {
   const [currentPage, setCurrentPage] = useState("login")
   const [viewingUserId, setViewingUserId] = useState(null)
   const [viewingPostId, setViewingPostId] = useState(null)
+  const [viewingRoomId, setViewingRoomId] = useState(null)
 
   const handleNavigate = (page, param) => {
-    console.log("[v0] Navigation:", page, "param:", param)
-    setCurrentPage(page)
+    // Ensure page is always a string
+    const pageStr = typeof page === "string" ? page : String(page)
+    console.log("[App] Navigation:", pageStr, "param:", param, "param type:", typeof param)
+    
+    // Ensure param is a primitive value, not an object
+    let paramValue = null
+    if (param !== null && param !== undefined) {
+      if (typeof param === "object") {
+        // If param is an object, try to extract an ID
+        paramValue = param.id || param.userId || param.postId || param.roomId || null
+        console.warn("[App] Navigation param was an object, extracted:", paramValue)
+      } else {
+        paramValue = param
+      }
+    }
+    
+    console.log("[App] Setting currentPage to:", pageStr, "with param:", paramValue)
+    setCurrentPage(pageStr)
 
-    if (page === "profile") {
-      setViewingUserId(param || null)
-    } else if (page === "comments") {
-      setViewingPostId(param || null)
-      console.log("[v0] Setting post ID:", param)
+    if (pageStr === "profile") {
+      setViewingUserId(paramValue)
+      console.log("[App] Set viewingUserId to:", paramValue)
+    } else if (pageStr === "comments") {
+      setViewingPostId(paramValue)
+      console.log("[App] Set viewingPostId to:", paramValue)
+    } else if (pageStr === "chat" || pageStr === "roomInfo") {
+      setViewingRoomId(paramValue)
+      console.log("[App] Set viewingRoomId to:", paramValue)
+    } else {
+      // Clear all params for other pages
+      setViewingUserId(null)
+      setViewingPostId(null)
+      setViewingRoomId(null)
     }
   }
 
@@ -50,15 +77,17 @@ function App() {
       case "rooms":
         return <RoomsList onNavigate={handleNavigate} />
       case "chat":
-        return <Chat onNavigate={handleNavigate} />
+        return <Chat onNavigate={handleNavigate} roomId={viewingRoomId} />
       case "roomInfo":
-        return <RoomInfo onNavigate={handleNavigate} />
+        return <RoomInfo onNavigate={handleNavigate} roomId={viewingRoomId} />
       case "createPost":
         return <CreatePost onNavigate={handleNavigate} />
       case "createRoom":
         return <CreateRoom onNavigate={handleNavigate} />
       case "settings":
         return <Settings onNavigate={handleNavigate} />
+      case "notifications":
+        return <Notifications onNavigate={handleNavigate} />
       default:
         return <Login onNavigate={handleNavigate} />
     }

@@ -80,7 +80,7 @@ public class PostService {
                     .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     Post post =
             postRepository
-                    .findById(postId)
+                    .findById(postId.intValue())
                     .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
     if (post.getLikedUsers().contains(user)) {
@@ -100,7 +100,7 @@ public class PostService {
                     .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     Post post =
             postRepository
-                    .findById(postId)
+                    .findById(postId.intValue())
                     .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
     if (post.getDislikedUsers().contains(user)) {
@@ -118,12 +118,20 @@ public class PostService {
   }
 
   public List<Post> getAllPosts() {
-    return postRepository.findAll();
+    List<Post> posts = postRepository.findAll();
+    // Load pinned rooms for each post
+    for (Post post : posts) {
+      // This will be lazy-loaded when accessed
+      if (post.getPinnedToRooms() != null) {
+        post.getPinnedToRooms().size(); // Trigger lazy loading
+      }
+    }
+    return posts;
   }
 
   public Post getPostById(Long postId) {
     return postRepository
-            .findById(postId)
+            .findById(postId.intValue())
             .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
   }
 }

@@ -60,7 +60,6 @@ function PostCard({ post }) {
           </button>
         </div>
 
-        <button className="join-button">Откликнуться</button>
       </div>
     </article>
   )

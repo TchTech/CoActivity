@@ -11,4 +11,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
   Optional<Room> findByName(String name);
   List<Room> findByCollaboratorsId(Long userId);
   List<Room> findByAdminsId(Long userId);
+  List<Room> findByNameContainingIgnoreCase(String name);
+  List<Room> findByDescriptionContainingIgnoreCase(String description);
+  java.util.Optional<Room> findByIsDefaultTrue();
 }

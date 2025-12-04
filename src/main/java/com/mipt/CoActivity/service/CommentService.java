@@ -30,7 +30,7 @@ public class CommentService {
   public Comment createComment(Long postId, Comment comment) {
     Post post =
             postRepository
-                    .findById(postId)
+                    .findById(postId.intValue())
                     .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
     if (comment.getAuthor() == null || comment.getAuthor().getId() == null) {
@@ -53,7 +53,7 @@ public class CommentService {
   public Comment addComment(Long postId, Long userId, String text) {
     Post post =
             postRepository
-                    .findById(postId)
+                    .findById(postId.intValue())
                     .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
     User user =
             userRepository
@@ -67,7 +67,7 @@ public class CommentService {
   public List<Comment> getComments(Long postId) {
     Post post =
             postRepository
-                    .findById(postId)
+                    .findById(postId.intValue())
                     .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
     return post.getComments();
   }

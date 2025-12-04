@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import BottomNavigation from "./BottomNavigation"
-import { postAPI } from "../lib/api"
+import { postAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
@@ -16,6 +16,7 @@ function CreatePost({ onNavigate }) {
     text: "",
     image: null,
     linkedRoom: "",
+    externalLinks: "",
   })
   const [imagePreview, setImagePreview] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -67,14 +68,22 @@ function CreatePost({ onNavigate }) {
     setError("")
 
     try {
-      // TODO: Загрузить изображение, если оно есть
-      // Сначала нужно загрузить изображение на сервер и получить его ID
+      // Загрузить изображение, если оно есть
       let imageId = null
       if (formData.image) {
-        // const imageResponse = await imageAPI.upload(formData.image)
-        // imageId = imageResponse.id
-        // Пока что пропускаем загрузку изображения
+        const imageResponse = await imageAPI.upload(formData.image)
+        imageId = imageResponse.id
       }
+
+      // Парсим внешние ссылки (разделенные запятыми или переносами строк)
+      let externalLinksArray = []
+      if (formData.externalLinks && formData.externalLinks.trim()) {
+        externalLinksArray = formData.externalLinks
+          .split(/[,\n]/)
+          .map(link => link.trim())
+          .filter(link => link.length > 0 && (link.startsWith("http://") || link.startsWith("https://")))
+      }
+      const externalLinksString = externalLinksArray.length > 0 ? JSON.stringify(externalLinksArray) : null
 
       // Создание поста
       const postData = {
@@ -83,6 +92,7 @@ function CreatePost({ onNavigate }) {
         author: { id: currentUser.id },
         image: imageId ? { id: imageId } : null,
         room: formData.linkedRoom ? { id: parseInt(formData.linkedRoom) } : null,
+        externalLinks: externalLinksString,
       }
 
       const createdPost = await postAPI.create(postData)
@@ -166,6 +176,26 @@ function CreatePost({ onNavigate }) {
                 </div>
               )}
             </label>
+          </div>
+
+          <div className="form-section">
+            <div className="form-section-title">Внешние ссылки (необязательно)</div>
+            <div className="input-group">
+              <label className="input-label">Ссылки</label>
+              <textarea
+                name="externalLinks"
+                className="input textarea"
+                placeholder="Введите ссылки, разделенные запятыми или переносами строк (например: https://example.com, https://another.com)"
+                value={formData.externalLinks}
+                onChange={handleChange}
+                rows="3"
+              />
+              <div
+                style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}
+              >
+                Ссылки должны начинаться с http:// или https://
+              </div>
+            </div>
           </div>
 
           <div className="form-section">
