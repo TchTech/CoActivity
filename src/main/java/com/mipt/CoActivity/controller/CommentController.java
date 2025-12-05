@@ -23,6 +23,20 @@ public class CommentController {
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(commentService.createComment(postId, comment));
   }
+  
+  @PostMapping("/{parentCommentId}/reply")
+  @ResponseStatus(HttpStatus.CREATED)
+  public ResponseEntity<Comment> createReply(
+      @PathVariable Long postId, 
+      @PathVariable Long parentCommentId,
+      @RequestBody Comment comment) {
+    // Устанавливаем родительский комментарий
+    Comment parentComment = new Comment();
+    parentComment.setId(parentCommentId);
+    comment.setParentComment(parentComment);
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(commentService.createComment(postId, comment));
+  }
 
   @GetMapping
   public ResponseEntity<List<Comment>> getComments(@PathVariable Long postId) {

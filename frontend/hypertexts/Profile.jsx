@@ -6,12 +6,62 @@ import { getPostsByUserId } from "../scripts/postsData"
 import { userAPI, postAPI, profileAPI, imageAPI, externalLinksAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
+import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/profile.css"
 
-function ProfilePostCard({ post, userData, userRating, onNavigate }) {
+function ProfilePostCard({ post, userData, userRating, onNavigate, currentUser, onDeletePost }) {
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  
+  const isAuthor = currentUser && (post.author?.id === currentUser.id || post.userId === currentUser.id)
+  
+  const handleDeleteClick = (e) => {
+    e.stopPropagation()
+    if (!currentUser || !isAuthor) {
+      return
+    }
+    setShowDeleteDialog(true)
+  }
+  
+  const handleDeleteConfirm = async (e) => {
+    // Предотвращаем всплытие события, чтобы не вызвать навигацию
+    if (e) {
+      e.stopPropagation()
+    }
+    
+    setIsDeleting(true)
+    setShowDeleteDialog(false) // Закрываем диалог сразу
+    
+    try {
+      const postId = typeof post.id === "object" ? (post.id?.id || post.id?.postId || null) : post.id
+      if (postId) {
+        await postAPI.delete(postId, currentUser.id)
+        // Вызываем callback для обновления списка постов
+        if (onDeletePost) {
+          onDeletePost(postId)
+        }
+      }
+    } catch (error) {
+      console.error("Ошибка при удалении поста:", error)
+      // Если ошибка 404, значит пост уже удален - просто обновляем список
+      if (error.status === 404 || (error.message && error.message.includes("404"))) {
+        if (onDeletePost) {
+          const postId = typeof post.id === "object" ? (post.id?.id || post.id?.postId || null) : post.id
+          if (postId) {
+            onDeletePost(postId)
+          }
+        }
+      } else {
+        alert("Не удалось удалить пост. Попробуйте еще раз.")
+        setShowDeleteDialog(false) // Закрываем диалог даже при ошибке
+      }
+    } finally {
+      setIsDeleting(false)
+    }
+  }
   // Hook used at top of component, not inside a loop in another component.
   const postInteractions = usePostInteractions(post)
 
@@ -43,6 +93,24 @@ function ProfilePostCard({ post, userData, userRating, onNavigate }) {
               : post.time}
           </div>
         </div>
+        {isAuthor && (
+          <>
+            <button
+              className="btn btn-secondary"
+              onClick={handleDeleteClick}
+              disabled={isDeleting}
+              style={{ fontSize: "var(--font-size-sm)", padding: "6px 12px" }}
+              title="Удалить пост"
+            >
+              {isDeleting ? "..." : "🗑️"}
+            </button>
+            <ConfirmDeleteDialog
+              open={showDeleteDialog}
+              onOpenChange={setShowDeleteDialog}
+              onConfirm={handleDeleteConfirm}
+            />
+          </>
+        )}
       </div>
 
       <h3 className="post-title">{post.name || post.title}</h3>
@@ -131,28 +199,12 @@ function ProfilePostCard({ post, userData, userRating, onNavigate }) {
           }}
           disabled={postInteractions.loading}
         >
-          <svg
+          <img 
+            src="/like.png" 
+            alt="Лайк" 
             className="post-action-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path
-              d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6"
-              fill={postInteractions.isLiked ? "currentColor" : "none"}
-            />
-            <path
-              d="M12 2L7 7h10L12 2z"
-              fill={postInteractions.isLiked ? "currentColor" : "none"}
-            />
-            <path
-              d="M7 7v15h10V7"
-              fill={postInteractions.isLiked ? "currentColor" : "none"}
-            />
-          </svg>
+            style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+          />
           <span>{postInteractions.likes}</span>
         </button>
         <button
@@ -163,28 +215,12 @@ function ProfilePostCard({ post, userData, userRating, onNavigate }) {
           }}
           disabled={postInteractions.loading}
         >
-          <svg
+          <img 
+            src="/dislike.png" 
+            alt="Дизлайк" 
             className="post-action-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path
-              d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6"
-              fill={postInteractions.isDisliked ? "currentColor" : "none"}
-            />
-            <path
-              d="M12 22L7 17h10L12 22z"
-              fill={postInteractions.isDisliked ? "currentColor" : "none"}
-            />
-            <path
-              d="M7 17V2h10v15"
-              fill={postInteractions.isDisliked ? "currentColor" : "none"}
-            />
-          </svg>
+            style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+          />
           <span>{postInteractions.dislikes}</span>
         </button>
         <button
@@ -639,6 +675,14 @@ function Profile({ onNavigate, userId }) {
                   userData={userData}
                   userRating={userRating}
                   onNavigate={onNavigate}
+                  currentUser={currentUser}
+                  onDeletePost={(postId) => {
+                    // Удаляем пост из списка постов
+                    setUserPosts((prevPosts) => prevPosts.filter((p) => {
+                      const pId = typeof p.id === "object" ? (p.id?.id || p.id?.postId || null) : p.id
+                      return pId !== postId
+                    }))
+                  }}
                 />
               ))
             )}

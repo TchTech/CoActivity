@@ -44,9 +44,19 @@ public class CommentService {
 
     comment.setAuthor(author);
     comment.setPost(post);
+    
+    // Если это ответ на комментарий, устанавливаем родительский комментарий
+    if (comment.getParentComment() != null && comment.getParentComment().getId() != null) {
+      Comment parentComment = commentRepository
+              .findById(comment.getParentComment().getId())
+              .orElseThrow(() -> new ResourceNotFoundException("Parent comment not found"));
+      comment.setParentComment(parentComment);
+    }
 
     Comment savedComment = commentRepository.save(comment);
-    logger.info("Comment {} created by user {} on post {}", savedComment.getId(), author.getId(), postId);
+    logger.info("Comment {} created by user {} on post {} (parent: {})", 
+        savedComment.getId(), author.getId(), postId, 
+        savedComment.getParentComment() != null ? savedComment.getParentComment().getId() : "none");
     return savedComment;
   }
 
@@ -65,11 +75,16 @@ public class CommentService {
   }
 
   public List<Comment> getComments(Long postId) {
-    Post post =
-            postRepository
-                    .findById(postId.intValue())
-                    .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
-    return post.getComments();
+    // Возвращаем только корневые комментарии (без родительского комментария)
+    List<Comment> rootComments = commentRepository.findByPostIdAndParentCommentIsNull(postId.intValue());
+    
+    // Загружаем ответы для каждого корневого комментария
+    for (Comment comment : rootComments) {
+      List<Comment> replies = commentRepository.findByParentCommentId(comment.getId());
+      comment.setReplies(replies);
+    }
+    
+    return rootComments;
   }
 
   public void deleteComment(Long commentId) {

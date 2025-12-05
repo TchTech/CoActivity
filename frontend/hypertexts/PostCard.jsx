@@ -46,7 +46,12 @@ function PostCard({ post }) {
       <div className="post-actions">
         <div className="post-interactions">
           <button className="interaction-btn" onClick={handleLike} aria-label="Лайк">
-            <span className="interaction-icon">{isLiked ? "❤️" : "🤍"}</span>
+            <img 
+              src="/like.png" 
+              alt="Лайк" 
+              className="interaction-icon"
+              style={{ width: '18px', height: '18px', objectFit: 'contain' }}
+            />
             {likes}
           </button>
 

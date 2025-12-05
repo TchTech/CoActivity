@@ -429,6 +429,22 @@ export const postAPI = {
       ? allPosts.filter(post => post.author?.id === userId || post.authorId === userId)
       : []
   },
+
+  async delete(postId, userId) {
+    // Ensure IDs are primitive values
+    const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+    const userIdValue = typeof userId === "object" ? (userId?.id || userId?.userId || null) : userId
+    
+    if (!postIdValue || !userIdValue) {
+      throw new Error(`Invalid IDs: postId=${postId}, userId=${userId}`)
+    }
+    
+    // Backend: DELETE /posts/{postId}?userId=
+    return request(`/posts/${postIdValue}`, {
+      method: "DELETE",
+      params: { userId: userIdValue },
+    })
+  },
 }
 
 // --- USER PROFILE API ---
@@ -518,6 +534,37 @@ export const commentAPI = {
     return request(`/posts/${postIdValue}/comments/${commentIdValue}/like`, {
       method: "POST",
       params: { userId: userIdValue },
+    })
+  },
+
+  async dislike(postId, commentId, userId) {
+    // Ensure all IDs are primitive values
+    const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+    const commentIdValue = typeof commentId === "object" ? (commentId?.id || commentId?.commentId || null) : commentId
+    const userIdValue = typeof userId === "object" ? (userId?.id || userId?.userId || null) : userId
+    
+    if (!postIdValue || !commentIdValue || !userIdValue) {
+      throw new Error(`Invalid IDs: postId=${postId}, commentId=${commentId}, userId=${userId}`)
+    }
+    
+    // Backend: POST /posts/{postId}/comments/{commentId}/dislike?userId=
+    return request(`/posts/${postIdValue}/comments/${commentIdValue}/dislike`, {
+      method: "POST",
+      params: { userId: userIdValue },
+    })
+  },
+
+  async createReply(postId, parentCommentId, comment) {
+    // Ensure postId is a primitive value
+    const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+    const parentCommentIdValue = typeof parentCommentId === "object" ? (parentCommentId?.id || parentCommentId?.commentId || null) : parentCommentId
+    if (!postIdValue || !parentCommentIdValue) {
+      throw new Error(`Invalid IDs: postId=${postId}, parentCommentId=${parentCommentId}`)
+    }
+    // Backend: POST /posts/{postId}/comments/{parentCommentId}/reply
+    return request(`/posts/${postIdValue}/comments/${parentCommentIdValue}/reply`, {
+      method: "POST",
+      body: comment,
     })
   },
 }
@@ -726,6 +773,7 @@ export const imageAPI = {
     const res = await fetch(url.toString(), {
       method: "POST",
       body: formData,
+      // Не устанавливаем Content-Type явно - браузер установит его автоматически с boundary для multipart/form-data
     })
 
     if (!res.ok) {

@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+---
+User Stories
+Role: Regular User
+
+As a regular user, I want to publish posts with text and images so that I can share my thoughts and content with other users on the platform.
+
+As a regular user, I want to like posts that I enjoy so that I can show support to the author and express my approval of their content.
+
+As a regular user, I want to comment on other users’ posts so that I can ask questions, give feedback, and participate in discussions.
+
+As a regular user, I want to follow other users (and unfollow them if necessary) so that I can see their new posts in my feed and keep track of their activity.
+
+As a regular user, I want to mention other users in my posts and comments so that they receive a notification and can join the discussion.
+
+As a regular user, I want to create rooms for joint activities by selecting an activity category so that I can gather people interested in doing activities together based on shared interests.
+
+As a regular user, I want to search for existing rooms by activity categories so that I can find events that match my interests.
+
+As a regular user, I want to filter room search results by location so that I can find activities near me.
+
+As a regular user, I want to filter the list of rooms by interests so that I can find activities that best match my hobbies.
+
+As a regular user, I want to submit requests to join selected activity rooms so that I can participate in events that interest me.
+
+As a regular user who created an activity room, I want to view and manage participation requests (approve or reject them) so that I can control the composition of participants in my event.
+
+As a regular user, I want to participate in the group chat of an activity room so that I can communicate with other participants and coordinate our actions for the event.
+
+As a regular user, I want to receive notifications about new likes and comments on my posts, as well as mentions of me, so that I can promptly react to activity around my content.
+
+As a regular user, I want to receive notifications about the status of my participation requests (for example, approval) and about new messages in group chats so that I can stay informed about important updates related to joint activities.
+
+As a regular user, I want to fill out my profile by indicating my interests, experience, and skill level so that other users can better understand my preferences, background, and abilities.
+
+As a regular user, I want to view other users’ profiles (their interests, experience, and skill levels) so that I can find suitable people for friendship or joint activities.
+
+Role: Administrator
+
+As an administrator, I want to block user accounts that severely or repeatedly violate the rules so that I can protect the community and prevent further violations.
+
+As an administrator, I want to delete or close activity rooms so that I can maintain order and the quality of available events.
+
+As an administrator, I want to moderate group chats in activity rooms (delete offensive messages and exclude violators if necessary) so that I can maintain a friendly communication environment.
