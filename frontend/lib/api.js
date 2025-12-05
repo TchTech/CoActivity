@@ -1,11 +1,13 @@
 // Simple API helper for the CoActivity backend
 // Uses fetch and maps to the existing Spring Boot endpoints.
 
+// Use current origin in browser (Next.js will proxy /api/* via rewrite)
+// Use absolute URL in server-side rendering
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
-  (typeof window !== "undefined" && window.location.origin.includes("localhost")
-    ? "http://localhost:8080"
-    : "http://localhost:8080")
+  (typeof window !== "undefined"
+    ? window.location.origin // Use current origin - Next.js rewrite will handle /api/*
+    : "http://localhost:8080") // Use absolute URL in SSR
 
 async function request(path, { method = "GET", params, body, headers } = {}) {
   // Ensure path is a string, not an object
@@ -884,11 +886,83 @@ export const roomAPI = {
     })
   },
 
-  async createRatingRequest(roomId, requestedUserId) {
-    // Backend: POST /rating-requests?roomId=&requestedUserId=
-    return request("/rating-requests", {
+  async createRatingRequest(roomId, requestedUserId, requesterUserId) {
+    // Backend: POST /api/rooms/{roomId}/rating-requests?requestedUserId=&requesterUserId=
+    return request(`/api/rooms/${roomId}/rating-requests`, {
       method: "POST",
-      params: { roomId, requestedUserId },
+      params: { requestedUserId, requesterUserId },
+    })
+  },
+
+  /**
+   * Kick a user from a room (admin/creator only)
+   * POST /api/rooms/{roomId}/admin/kick
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} userIdToKick - The user ID to kick
+   * @param {number} adminUserId - The admin/creator user ID
+   * @returns {Promise<void>}
+   * @throws {Error} If not admin (403), user not found (404), etc.
+   */
+  async kickUserFromRoom(roomId, userIdToKick, adminUserId) {
+    // Backend: POST /api/rooms/{roomId}/admin/kick?userIdToKick=&adminUserId=
+    return request(`/api/rooms/${roomId}/admin/kick`, {
+      method: "POST",
+      params: { userIdToKick, adminUserId },
+    })
+  },
+
+  /**
+   * Delete a message from room chat (admin/creator only)
+   * DELETE /api/rooms/{roomId}/chat/messages/{messageId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} messageId - The message ID
+   * @param {number} adminUserId - The admin/creator user ID
+   * @returns {Promise<void>}
+   * @throws {Error} If not admin (403), message not found (404), etc.
+   */
+  async deleteMessage(roomId, messageId, adminUserId) {
+    // Backend: DELETE /api/rooms/{roomId}/chat/messages/{messageId}?adminUserId=
+    return request(`/api/rooms/${roomId}/chat/messages/${messageId}`, {
+      method: "DELETE",
+      params: { adminUserId },
+    })
+  },
+
+  /**
+   * Promote a user to admin in a room (creator only)
+   * POST /api/rooms/{roomId}/admin/promote
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} userIdToPromote - The user ID to promote
+   * @param {number} adminUserId - The creator user ID
+   * @returns {Promise<void>}
+   * @throws {Error} If not creator (403), user not found (404), etc.
+   */
+  async promoteToAdmin(roomId, userIdToPromote, adminUserId) {
+    // Backend: POST /api/rooms/{roomId}/admin/promote?userIdToPromote=&adminUserId=
+    return request(`/api/rooms/${roomId}/admin/promote`, {
+      method: "POST",
+      params: { userIdToPromote, adminUserId },
+    })
+  },
+
+  /**
+   * Demote a user from admin in a room (creator only)
+   * POST /api/rooms/{roomId}/admin/demote
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} userIdToDemote - The user ID to demote
+   * @param {number} adminUserId - The creator user ID
+   * @returns {Promise<void>}
+   * @throws {Error} If not creator (403), user not found (404), etc.
+   */
+  async demoteFromAdmin(roomId, userIdToDemote, adminUserId) {
+    // Backend: POST /api/rooms/{roomId}/admin/demote?userIdToDemote=&adminUserId=
+    return request(`/api/rooms/${roomId}/admin/demote`, {
+      method: "POST",
+      params: { userIdToDemote, adminUserId },
     })
   },
 }

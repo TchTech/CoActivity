@@ -927,4 +927,283 @@ public class RoomService {
 
     return false;
   }
+
+  /**
+   * Kick a user from a room (admin/creator only).
+   * 
+   * @param roomId The room ID
+   * @param userIdToKick The user ID to kick
+   * @param adminUserId The admin/creator user ID
+   * @throws ResourceNotFoundException if room or user not found
+   * @throws ForbiddenException if user is not admin/creator
+   */
+  @Transactional
+  public void kickUserFromRoom(Long roomId, Long userIdToKick, Long adminUserId) {
+    Room room = roomRepository.findById(roomId)
+            .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    User admin = userRepository.findById(adminUserId)
+            .orElseThrow(() -> new ResourceNotFoundException("Admin user not found"));
+    
+    User userToKick = userRepository.findById(userIdToKick)
+            .orElseThrow(() -> new ResourceNotFoundException("User to kick not found"));
+    
+    // Check if admin is creator or admin
+    if (!room.getCreatedBy().getId().equals(adminUserId) && 
+        !room.getAdmins().stream().anyMatch(a -> a.getId().equals(adminUserId))) {
+      throw new ForbiddenException("Only room creator or admins can kick users");
+    }
+    
+    // Remove from collaborators
+    if (room.getCollaborators().removeIf(c -> c.getId().equals(userIdToKick))) {
+      roomRepository.save(room);
+      logger.info("User {} kicked from room {} by admin {}", userIdToKick, roomId, adminUserId);
+    } else {
+      throw new BadRequestException("User is not a member of this room");
+    }
+  }
+
+  /**
+   * Delete a message from room chat (admin/creator only).
+   * 
+   * @param roomId The room ID
+   * @param messageId The message ID
+   * @param adminUserId The admin/creator user ID
+   * @throws ResourceNotFoundException if room or message not found
+   * @throws ForbiddenException if user is not admin/creator
+   */
+  @Transactional
+  public void deleteMessage(Long roomId, Long messageId, Long adminUserId) {
+    Room room = roomRepository.findById(roomId)
+            .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    Message message = messageRepository.findById(messageId)
+            .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
+    
+    // Verify message belongs to room
+    if (!message.getRoom().getId().equals(roomId)) {
+      throw new BadRequestException("Message does not belong to this room");
+    }
+    
+    // Check if admin is creator or admin
+    if (!room.getCreatedBy().getId().equals(adminUserId) && 
+        !room.getAdmins().stream().anyMatch(a -> a.getId().equals(adminUserId))) {
+      throw new ForbiddenException("Only room creator or admins can delete messages");
+    }
+    
+    // Soft delete
+    message.setIsDeleted(true);
+    messageRepository.save(message);
+    logger.info("Message {} deleted from room {} by admin {}", messageId, roomId, adminUserId);
+  }
+
+  /**
+   * Promote a user to admin in a room (creator only).
+   * 
+   * @param roomId The room ID
+   * @param userIdToPromote The user ID to promote
+   * @param adminUserId The creator user ID
+   * @throws ResourceNotFoundException if room or user not found
+   * @throws ForbiddenException if user is not creator
+   */
+  @Transactional
+  public void promoteToAdmin(Long roomId, Long userIdToPromote, Long adminUserId) {
+    Room room = roomRepository.findById(roomId)
+            .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    // Only creator can promote
+    if (!room.getCreatedBy().getId().equals(adminUserId)) {
+      throw new ForbiddenException("Only room creator can promote users to admin");
+    }
+    
+    User userToPromote = userRepository.findById(userIdToPromote)
+            .orElseThrow(() -> new ResourceNotFoundException("User to promote not found"));
+    
+    // Check if user is a collaborator
+    if (!room.getCollaborators().stream().anyMatch(c -> c.getId().equals(userIdToPromote))) {
+      throw new BadRequestException("User must be a collaborator before being promoted to admin");
+    }
+    
+    // Check if already admin
+    if (room.getAdmins().stream().anyMatch(a -> a.getId().equals(userIdToPromote))) {
+      throw new BadRequestException("User is already an admin");
+    }
+    
+    // Add to admins
+    room.getAdmins().add(userToPromote);
+    roomRepository.save(room);
+    logger.info("User {} promoted to admin in room {} by creator {}", userIdToPromote, roomId, adminUserId);
+    
+    // Send notification to promoted user
+    try {
+      User creator = userRepository.findById(adminUserId)
+              .orElseThrow(() -> new ResourceNotFoundException("Creator not found"));
+      
+      NotificationData notificationData = NotificationData.builder()
+              .roomId(roomId)
+              .responderId(adminUserId)
+              .build();
+      
+      String content = String.format("Вас назначили администратором комнаты \"%s\"",
+              room.getName() != null ? room.getName() : room.getDescription());
+      
+      notificationService.createNotification(
+              userIdToPromote,
+              "ADMIN_PROMOTED",
+              "Назначение администратором",
+              content,
+              notificationData,
+              roomId
+      );
+    } catch (Exception e) {
+      logger.error("Failed to send promotion notification to user {}: {}", userIdToPromote, e.getMessage(), e);
+      // Don't fail promotion if notification fails
+    }
+  }
+
+  /**
+   * Demote a user from admin in a room (creator only).
+   * 
+   * @param roomId The room ID
+   * @param userIdToDemote The user ID to demote
+   * @param adminUserId The creator user ID
+   * @throws ResourceNotFoundException if room or user not found
+   * @throws ForbiddenException if user is not creator
+   */
+  @Transactional
+  public void demoteFromAdmin(Long roomId, Long userIdToDemote, Long adminUserId) {
+    Room room = roomRepository.findById(roomId)
+            .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    // Only creator can demote
+    if (!room.getCreatedBy().getId().equals(adminUserId)) {
+      throw new ForbiddenException("Only room creator can demote admins");
+    }
+    
+    User userToDemote = userRepository.findById(userIdToDemote)
+            .orElseThrow(() -> new ResourceNotFoundException("User to demote not found"));
+    
+    // Check if user is an admin
+    if (!room.getAdmins().stream().anyMatch(a -> a.getId().equals(userIdToDemote))) {
+      throw new BadRequestException("User is not an admin");
+    }
+    
+    // Cannot demote creator
+    if (room.getCreatedBy().getId().equals(userIdToDemote)) {
+      throw new BadRequestException("Cannot demote room creator");
+    }
+    
+    // Remove from admins
+    room.getAdmins().removeIf(a -> a.getId().equals(userIdToDemote));
+    roomRepository.save(room);
+    logger.info("User {} demoted from admin in room {} by creator {}", userIdToDemote, roomId, adminUserId);
+    
+    // Send notification to demoted user
+    try {
+      NotificationData notificationData = NotificationData.builder()
+              .roomId(roomId)
+              .responderId(adminUserId)
+              .build();
+      
+      String content = String.format("Вас сняли с должности администратора комнаты \"%s\"",
+              room.getName() != null ? room.getName() : room.getDescription());
+      
+      notificationService.createNotification(
+              userIdToDemote,
+              "ADMIN_DEMOTED",
+              "Снятие с должности администратора",
+              content,
+              notificationData,
+              roomId
+      );
+    } catch (Exception e) {
+      logger.error("Failed to send demotion notification to user {}: {}", userIdToDemote, e.getMessage(), e);
+      // Don't fail demotion if notification fails
+    }
+  }
+
+  /**
+   * Request rating from room participants for a specific user (creator or admin).
+   * 
+   * @param roomId The room ID
+   * @param requestedUserId The user ID to be rated
+   * @param requesterUserId The user ID requesting the rating (must be creator or admin)
+   * @throws ResourceNotFoundException if room or user not found
+   * @throws ForbiddenException if user is not creator or admin
+   */
+  @Transactional
+  public void requestRating(Long roomId, Long requestedUserId, Long requesterUserId) {
+    Room room = roomRepository.findById(roomId)
+            .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+    
+    User requestedUser = userRepository.findById(requestedUserId)
+            .orElseThrow(() -> new ResourceNotFoundException("User to be rated not found"));
+    
+    User requester = userRepository.findById(requesterUserId)
+            .orElseThrow(() -> new ResourceNotFoundException("Requester not found"));
+    
+    // Check if requester is creator or admin
+    boolean isCreator = room.getCreatedBy() != null && room.getCreatedBy().getId().equals(requesterUserId);
+    boolean isAdmin = room.getAdmins() != null && room.getAdmins().stream()
+            .anyMatch(admin -> admin.getId().equals(requesterUserId));
+    
+    if (!isCreator && !isAdmin) {
+      throw new ForbiddenException("Only room creator or admin can request ratings");
+    }
+    
+    // Get all room participants (collaborators) except the requested user and requester
+    List<User> participants = room.getCollaborators().stream()
+            .filter(participant -> !participant.getId().equals(requestedUserId))
+            .filter(participant -> !participant.getId().equals(requesterUserId))
+            .collect(Collectors.toList());
+    
+    if (participants.isEmpty()) {
+      logger.info("No participants to send rating request to for room {}", roomId);
+      return;
+    }
+    
+    String requestedUserName = requestedUser.getName() != null 
+            ? requestedUser.getName() 
+            : requestedUser.getUsername();
+    String roomName = room.getName() != null ? room.getName() : "Комната";
+    
+    // Send notification to each participant
+    int notificationsSent = 0;
+    for (User participant : participants) {
+      try {
+        NotificationData notificationData = NotificationData.builder()
+                .roomId(roomId)
+                .requestedUserId(requestedUserId)
+                .requestedUserName(requestedUserName)
+                .build();
+        
+        String title = "Запрос на оценку";
+        String content = String.format(
+                "Создатель комнаты \"%s\" просит вас оценить пользователя %s",
+                roomName,
+                requestedUserName
+        );
+        
+        notificationService.createNotification(
+                participant.getId(),
+                "RATE_USER_REQUEST",
+                title,
+                content,
+                notificationData,
+                roomId
+        );
+        
+        notificationsSent++;
+        logger.debug("Sent rating request notification to user {} for rating user {} in room {}",
+                participant.getId(), requestedUserId, roomId);
+      } catch (Exception e) {
+        logger.error("Failed to send rating request notification to user {}: {}", 
+                participant.getId(), e.getMessage(), e);
+        // Continue with other participants
+      }
+    }
+    
+    logger.info("Sent {} rating request notifications for user {} in room {} by requester {}",
+            notificationsSent, requestedUserId, roomId, requesterUserId);
+  }
 }

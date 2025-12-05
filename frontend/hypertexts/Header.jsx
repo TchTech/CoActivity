@@ -14,9 +14,7 @@ function Header() {
         <div className="app-logo">CoActivity</div>
 
         <div className="header-actions">
-          <button className="icon-button" aria-label="Уведомления">
-            🔔
-          </button>
+          {/* Уведомления теперь только в RoomsList */}
         </div>
       </div>
     </header>

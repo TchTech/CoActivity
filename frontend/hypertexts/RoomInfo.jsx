@@ -175,6 +175,49 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
     setShowAlert(true)
   }
 
+  const handleRequestRating = async () => {
+    if (!currentUser?.id || !roomId || !roomData?.members || !roomData?.creatorId) {
+      return
+    }
+
+    // Filter out creator and current user from members list
+    const membersToNotify = roomData.members.filter(member => 
+      member.id !== roomData.creatorId && member.id !== currentUser.id
+    )
+
+    if (membersToNotify.length === 0) {
+      setAlertData({
+        title: "Информация",
+        message: "Нет участников для запроса оценки",
+        variant: "info"
+      })
+      setShowAlert(true)
+      return
+    }
+
+    try {
+      // Request rating from all participants for the creator
+      // requestedUserId = creatorId (who should be rated)
+      // requesterUserId = currentUser.id (who is requesting)
+      await roomAPI.createRatingRequest(roomId, roomData.creatorId, currentUser.id)
+      
+      setAlertData({
+        title: "Успешно",
+        message: `Запрос на оценку отправлен ${membersToNotify.length} участникам`,
+        variant: "success"
+      })
+      setShowAlert(true)
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setAlertData({
+        title: "Ошибка",
+        message: "Не удалось отправить запрос на оценку: " + errorMessage,
+        variant: "error"
+      })
+      setShowAlert(true)
+    }
+  }
+
   if (loading) {
     return (
       <div>
@@ -662,6 +705,22 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                       onRequestRejected={handleRequestRejected}
                       onError={showErrorAlert}
                     />
+                    
+                    {/* Request Rating Button */}
+                    {roomData.members && roomData.members.length > 0 && (
+                      <div style={{ marginTop: "var(--spacing-md)" }}>
+                        <button
+                          className="btn btn-primary"
+                          onClick={handleRequestRating}
+                          style={{ 
+                            width: "100%",
+                            fontSize: "var(--font-size-sm)"
+                          }}
+                        >
+                          Запросить оценку у участников
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -209,24 +209,8 @@ function RoomsList({ onNavigate, currentPage }) {
       {/* Верхняя навигация */}
       <div className="top-nav">
         <div className="top-nav-title">Комнаты</div>
-        <div className="top-nav-actions">
-          <button className="btn-icon" onClick={() => onNavigate("notifications")}>
-            <svg 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2"
-              style={{ 
-                width: "24px", 
-                height: "24px"
-              }}
-            >
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-          </button>
-          
-          {/* Notification Bell */}
+        <div className="top-nav-actions" style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center" }}>
+          {/* Notification Bell - единственный колокольчик для всех уведомлений */}
           {currentUser?.id && (
             <Popover open={notificationPanelOpen} onOpenChange={setNotificationPanelOpen}>
               <PopoverTrigger asChild>
@@ -405,38 +389,68 @@ function RoomsList({ onNavigate, currentPage }) {
                 {(() => {
                   // Получаем аватарку создателя комнаты
                   const creatorAvatarId = room.createdBy?.avatar?.id
-                  const hasCreatorAvatar = creatorAvatarId != null && creatorAvatarId !== undefined && creatorAvatarId !== 0
+                  const hasCreatorAvatar = creatorAvatarId != null && creatorAvatarId !== undefined && creatorAvatarId !== 0 && creatorAvatarId !== ""
                   const roomId = typeof room.id === "object" ? (room.id?.id || room.id?.roomId || null) : room.id
                   
                   if (hasCreatorAvatar) {
-                    return (
-                      <img 
-                        src={imageAPI.getImageUrl(creatorAvatarId)} 
-                        alt={room.createdBy?.name || room.createdBy?.username || room.name} 
-                        className="avatar avatar-md avatar-clickable"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (roomId) {
-                            onNavigate("roomInfo", roomId)
-                          }
-                        }}
-                        onError={(e) => {
-                          console.error("[RoomsList] Failed to load creator avatar:", creatorAvatarId)
-                          e.target.style.display = 'none'
-                        }}
-                      />
-                    )
+                    try {
+                      const avatarUrl = imageAPI.getImageUrl(creatorAvatarId)
+                      return (
+                        <img 
+                          src={avatarUrl} 
+                          alt={room.createdBy?.name || room.createdBy?.username || room.name || "Создатель"} 
+                          className="avatar avatar-md avatar-clickable"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (roomId) {
+                              onNavigate("roomInfo", roomId)
+                            }
+                          }}
+                          onError={(e) => {
+                            // Silently hide broken images
+                            e.target.style.display = 'none'
+                          }}
+                        />
+                      )
+                    } catch (err) {
+                      // If getImageUrl fails, show placeholder
+                      return (
+                        <div
+                          className="avatar avatar-md"
+                          style={{
+                            backgroundColor: "var(--bg-tertiary)",
+                            border: "1px solid var(--border-color)",
+                            width: "40px",
+                            height: "40px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "var(--text-muted)",
+                            fontSize: "var(--font-size-xs)"
+                          }}
+                        >
+                          {room.createdBy?.name?.[0]?.toUpperCase() || room.createdBy?.username?.[0]?.toUpperCase() || "?"}
+                        </div>
+                      )
+                    }
                   } else {
                     return (
                       <div
                         className="avatar avatar-md"
                         style={{
-                          backgroundColor: "transparent",
-                          border: "none",
+                          backgroundColor: "var(--bg-tertiary)",
+                          border: "1px solid var(--border-color)",
                           width: "40px",
-                          height: "40px"
+                          height: "40px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "var(--text-muted)",
+                          fontSize: "var(--font-size-xs)"
                         }}
-                      />
+                      >
+                        {room.createdBy?.name?.[0]?.toUpperCase() || room.createdBy?.username?.[0]?.toUpperCase() || "?"}
+                      </div>
                     )
                   }
                 })()}

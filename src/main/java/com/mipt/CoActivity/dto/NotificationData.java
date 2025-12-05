@@ -21,6 +21,10 @@ public class NotificationData {
     private Long requesterId;
     private Long responderId;
     private String reason;
+    private Long requestedUserId;
+    private String requestedUserName;
+    private Long creatorId;
+    private String creatorName;
     
     /**
      * Convert to JSON string for storage in Notification.data field.
