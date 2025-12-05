@@ -856,44 +856,44 @@ export const roomAPI = {
 
 export const notificationAPI = {
   async getAll(userId) {
-    // Backend: GET /notifications/{userId}
-    return request(`/notifications/${userId}`, {
+    // Backend: GET /api/notifications/{userId}
+    return request(`/api/notifications/${userId}`, {
       method: "GET",
     })
   },
 
   async getUnread(userId) {
-    // Backend: GET /notifications/{userId}/unread
-    return request(`/notifications/${userId}/unread`, {
+    // Backend: GET /api/notifications/{userId}/unread
+    return request(`/api/notifications/${userId}/unread`, {
       method: "GET",
     })
   },
 
   async getUnreadCount(userId) {
-    // Backend: GET /notifications/{userId}/unread-count
-    return request(`/notifications/${userId}/unread-count`, {
+    // Backend: GET /api/notifications/{userId}/unread-count
+    return request(`/api/notifications/${userId}/unread-count`, {
       method: "GET",
     })
   },
 
   async markAsRead(notificationId, userId) {
-    // Backend: POST /notifications/{notificationId}/read?userId=
-    return request(`/notifications/${notificationId}/read`, {
+    // Backend: POST /api/notifications/{notificationId}/read?userId=
+    return request(`/api/notifications/${notificationId}/read`, {
       method: "POST",
       params: { userId },
     })
   },
 
   async markAllAsRead(userId) {
-    // Backend: POST /notifications/{userId}/read-all
-    return request(`/notifications/${userId}/read-all`, {
+    // Backend: POST /api/notifications/{userId}/read-all
+    return request(`/api/notifications/${userId}/read-all`, {
       method: "POST",
     })
   },
 
   async markNotificationsAsRead(notificationIds, userId) {
-    // Backend: POST /notifications/mark-read?userId=
-    return request("/notifications/mark-read", {
+    // Backend: POST /api/notifications/mark-read?userId=
+    return request("/api/notifications/mark-read", {
       method: "POST",
       params: { userId },
       body: notificationIds,
@@ -901,8 +901,8 @@ export const notificationAPI = {
   },
 
   async dismiss(notificationId, userId) {
-    // Backend: DELETE /notifications/{notificationId}?userId=
-    return request(`/notifications/${notificationId}`, {
+    // Backend: DELETE /api/notifications/{notificationId}?userId=
+    return request(`/api/notifications/${notificationId}`, {
       method: "DELETE",
       params: { userId },
     })

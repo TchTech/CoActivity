@@ -11,7 +11,7 @@ import BottomNavigation from "./BottomNavigation"
 import { JoinRequestButton, PendingRequestsList } from "../components/rooms"
 import { handleApiError } from "../types"
 
-function RoomInfo({ onNavigate, roomId, currentPage }) {
+function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
   const { currentUser } = useUser()
   const [roomData, setRoomData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -131,6 +131,15 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
       // Reload room data
       const data = await roomAPI.getDetails(roomId)
       setRoomData(data)
+      
+      // Dispatch custom event to notify RoomsList to refresh
+      window.dispatchEvent(new CustomEvent('roomUpdated', { detail: { roomId } }))
+      
+      // Also call callback if provided
+      if (onRoomUpdated) {
+        onRoomUpdated()
+      }
+      
       alert("Комната успешно закрыта")
     } catch (err) {
       const errorMessage = handleApiError(err)
@@ -463,7 +472,31 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
             {/* Actions */}
             {currentUser && (
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)", marginTop: "var(--spacing-lg)" }}>
-                {isMember ? (
+                {roomData.isClosed ? (
+                  <div style={{
+                    padding: "var(--spacing-md)",
+                    backgroundColor: "var(--bg-secondary)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--destructive)",
+                    textAlign: "center"
+                  }}>
+                    <div style={{ 
+                      color: "var(--destructive)", 
+                      fontWeight: "600",
+                      marginBottom: "var(--spacing-xs)"
+                    }}>
+                      Комната закрыта
+                    </div>
+                    <div style={{ 
+                      fontSize: "var(--font-size-sm)", 
+                      color: "var(--text-muted)" 
+                    }}>
+                      {isAdmin || isMember 
+                        ? "Вы можете просматривать информацию о комнате, но новые участники не принимаются."
+                        : "Эта комната больше не принимает новых участников."}
+                    </div>
+                  </div>
+                ) : isMember ? (
                   <button 
                     className="btn btn-primary" 
                     style={{ flex: 1 }}

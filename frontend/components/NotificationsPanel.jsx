@@ -7,7 +7,7 @@ import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 
-function NotificationsPanel({ userId, onClose, onNavigate }) {
+function NotificationsPanel({ userId, onClose, onNavigate, onNotificationUpdate }) {
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -47,6 +47,10 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
         n.id === notificationId ? { ...n, isRead: true } : n
       ))
       setUnreadCount(Math.max(0, unreadCount - 1))
+      // Notify parent to refresh badge counter
+      if (onNotificationUpdate) {
+        onNotificationUpdate()
+      }
     } catch (error) {
       console.error("Ошибка отметки уведомления:", error)
     }
@@ -54,10 +58,15 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
 
   const handleDismiss = async (notificationId) => {
     try {
+      const notification = notifications.find(n => n.id === notificationId)
       await notificationAPI.dismiss(notificationId, userId)
       setNotifications(notifications.filter(n => n.id !== notificationId))
-      if (!notifications.find(n => n.id === notificationId)?.isRead) {
+      if (notification && !notification.isRead) {
         setUnreadCount(Math.max(0, unreadCount - 1))
+      }
+      // Notify parent to refresh badge counter
+      if (onNotificationUpdate) {
+        onNotificationUpdate()
       }
     } catch (error) {
       console.error("Ошибка удаления уведомления:", error)
@@ -65,12 +74,27 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
   }
 
   const handleMarkAllAsRead = async () => {
+    if (!userId) {
+      console.error("Cannot mark all as read: userId is missing")
+      return
+    }
+    
     try {
+      console.log("[NotificationsPanel] Marking all notifications as read for user:", userId)
       await notificationAPI.markAllAsRead(userId)
+      console.log("[NotificationsPanel] Successfully marked all as read")
+      
+      // Update local state
       setNotifications(notifications.map(n => ({ ...n, isRead: true })))
       setUnreadCount(0)
+      
+      // Notify parent to refresh badge counter
+      if (onNotificationUpdate) {
+        onNotificationUpdate()
+      }
     } catch (error) {
       console.error("Ошибка отметки всех уведомлений:", error)
+      alert("Не удалось отметить все уведомления как прочитанные: " + (error.message || "Неизвестная ошибка"))
     }
   }
 
@@ -128,16 +152,9 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
   return (
     <div
       style={{
-        position: "fixed",
-        top: "60px",
-        right: "var(--spacing-md)",
-        width: "350px",
+        width: "100%",
         maxHeight: "500px",
         backgroundColor: "var(--bg-primary)",
-        border: "1px solid var(--border-color)",
-        borderRadius: "var(--radius-lg)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-        zIndex: 1000,
         display: "flex",
         flexDirection: "column",
       }}
@@ -153,15 +170,6 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
       >
         <h3 style={{ margin: 0, fontSize: "var(--font-size-lg)" }}>Уведомления</h3>
         <div style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center" }}>
-          {unreadCount > 0 && (
-            <button
-              className="btn btn-sm"
-              onClick={handleMarkAllAsRead}
-              style={{ fontSize: "var(--font-size-sm)", padding: "4px 8px" }}
-            >
-              Отметить все прочитанными
-            </button>
-          )}
           <button
             className="btn-icon"
             onClick={onClose}

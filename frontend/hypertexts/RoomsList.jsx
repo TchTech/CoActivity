@@ -22,6 +22,24 @@ function RoomsList({ onNavigate, currentPage }) {
   const [activeTab, setActiveTab] = useState("all") // "all" or "mine"
   const [unreadCount, setUnreadCount] = useState(0)
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Function to refresh room list (can be called from child components)
+  const refreshRoomList = () => {
+    setRefreshKey(prev => prev + 1)
+  }
+
+  // Listen for room update events
+  useEffect(() => {
+    const handleRoomUpdated = () => {
+      refreshRoomList()
+    }
+    
+    window.addEventListener('roomUpdated', handleRoomUpdated)
+    return () => {
+      window.removeEventListener('roomUpdated', handleRoomUpdated)
+    }
+  }, [])
 
   useEffect(() => {
     const loadRooms = async () => {
@@ -150,27 +168,32 @@ function RoomsList({ onNavigate, currentPage }) {
         loadRooms()
       }
     }
-  }, [searchQuery, currentUser])
+  }, [searchQuery, currentUser, refreshKey])
 
   // Load unread notification count
+  const refreshUnreadCount = async () => {
+    if (!currentUser?.id) {
+      setUnreadCount(0)
+      return
+    }
+
+    try {
+      const countData = await notificationAPI.getUnreadCount(currentUser.id)
+      setUnreadCount(countData?.count || 0)
+    } catch (error) {
+      console.error("Ошибка загрузки количества уведомлений:", error)
+      setUnreadCount(0)
+    }
+  }
+
   useEffect(() => {
     if (!currentUser?.id) {
       setUnreadCount(0)
       return
     }
 
-    const loadUnreadCount = async () => {
-      try {
-        const countData = await notificationAPI.getUnreadCount(currentUser.id)
-        setUnreadCount(countData?.count || 0)
-      } catch (error) {
-        console.error("Ошибка загрузки количества уведомлений:", error)
-        setUnreadCount(0)
-      }
-    }
-
-    loadUnreadCount()
-    const interval = setInterval(loadUnreadCount, 30000) // Poll every 30s
+    refreshUnreadCount()
+    const interval = setInterval(refreshUnreadCount, 30000) // Poll every 30s
     return () => clearInterval(interval)
   }, [currentUser])
 
@@ -232,6 +255,7 @@ function RoomsList({ onNavigate, currentPage }) {
                   userId={currentUser.id}
                   onClose={() => setNotificationPanelOpen(false)}
                   onNavigate={onNavigate}
+                  onNotificationUpdate={refreshUnreadCount}
                 />
               </PopoverContent>
             </Popover>
@@ -337,6 +361,10 @@ function RoomsList({ onNavigate, currentPage }) {
             <div
               key={room.id}
               className="room-item"
+              style={{
+                opacity: room.isClosed ? 0.7 : 1,
+                borderLeft: room.isClosed ? "3px solid var(--destructive, #ef4444)" : "none"
+              }}
               onClick={() => {
                 const roomId = typeof room.id === "object" ? (room.id?.id || room.id?.roomId || null) : room.id
                 if (roomId) {
@@ -351,13 +379,40 @@ function RoomsList({ onNavigate, currentPage }) {
               </div>
 
               <div className="room-info">
-                <div className="room-name">{room.name || room.description || "Комната"}</div>
-                <div className="room-last-message">
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)" }}>
+                  <div className="room-name" style={{ 
+                    opacity: room.isClosed ? 0.6 : 1,
+                    flex: 1
+                  }}>
+                    {room.name || room.description || "Комната"}
+                  </div>
+                  {room.isClosed && (
+                    <span style={{
+                      fontSize: "var(--font-size-xs)",
+                      padding: "2px 8px",
+                      backgroundColor: "var(--destructive, #ef4444)",
+                      color: "white",
+                      borderRadius: "var(--radius-sm)",
+                      fontWeight: "600",
+                      textTransform: "uppercase"
+                    }}>
+                      Закрыта
+                    </span>
+                  )}
+                </div>
+                <div className="room-last-message" style={{ 
+                  opacity: room.isClosed ? 0.6 : 1 
+                }}>
                   {room.description && room.description.length > 50 
                     ? room.description.substring(0, 50) + "..." 
                     : room.description || ""}
                 </div>
-                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}>
+                <div style={{ 
+                  fontSize: "var(--font-size-sm)", 
+                  color: room.isClosed ? "var(--text-muted)" : "var(--text-muted)", 
+                  marginTop: "var(--spacing-xs)",
+                  opacity: room.isClosed ? 0.6 : 1
+                }}>
                   Участников: {room.collaborators?.length || room.memberCount || 0}
                   {room.joinType === "by_application" && (
                     <span style={{ marginLeft: "var(--spacing-sm)" }}>• По заявкам</span>

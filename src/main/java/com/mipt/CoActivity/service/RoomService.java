@@ -718,6 +718,7 @@ public class RoomService {
     response.setMaxCollaborators(room.getMaxCollaborators());
     response.setJoinType(room.getJoinType() != null ? room.getJoinType() : "open");
     response.setIsDefault(room.getIsDefault() != null ? room.getIsDefault() : false);
+    response.setIsClosed(room.getIsClosed() != null ? room.getIsClosed() : false);
     
     // Fill members list
     List<RoomDetailsResponse.RoomMemberInfo> membersList = new ArrayList<>();
