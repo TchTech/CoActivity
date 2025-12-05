@@ -10,7 +10,7 @@ import "../styles/components.css"
 import "../styles/create.css"
 import "../styles/navigation.css"
 
-function CreatePost({ onNavigate }) {
+function CreatePost({ onNavigate, currentPage }) {
   const { currentUser } = useUser()
   const [formData, setFormData] = useState({
     title: "",
@@ -253,7 +253,7 @@ function CreatePost({ onNavigate }) {
         </form>
       </div>
 
-      <BottomNavigation currentPage="home" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "createPost"} onNavigate={onNavigate} />
     </div>
   )
 }

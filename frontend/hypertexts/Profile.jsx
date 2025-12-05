@@ -30,33 +30,33 @@ function ProfilePostCard({ post, userData, userRating, onNavigate, currentUser, 
     // Предотвращаем всплытие события, чтобы не вызвать навигацию
     if (e) {
       e.stopPropagation()
+      e.preventDefault()
     }
     
     setIsDeleting(true)
     setShowDeleteDialog(false) // Закрываем диалог сразу
     
+    const postId = typeof post.id === "object" ? (post.id?.id || post.id?.postId || null) : post.id
+    
+    // Оптимистичное обновление: сразу удаляем пост из списка, чтобы он исчез из UI
+    if (postId && onDeletePost) {
+      onDeletePost(postId)
+    }
+    
     try {
-      const postId = typeof post.id === "object" ? (post.id?.id || post.id?.postId || null) : post.id
       if (postId) {
         await postAPI.delete(postId, currentUser.id)
-        // Вызываем callback для обновления списка постов
-        if (onDeletePost) {
-          onDeletePost(postId)
-        }
+        // Пост уже удален из списка выше, здесь просто логируем успех
+        console.log("Пост успешно удален:", postId)
       }
     } catch (error) {
       console.error("Ошибка при удалении поста:", error)
-      // Если ошибка 404, значит пост уже удален - просто обновляем список
+      // Если ошибка 404, значит пост уже удален - это нормально, пост уже скрыт
       if (error.status === 404 || (error.message && error.message.includes("404"))) {
-        if (onDeletePost) {
-          const postId = typeof post.id === "object" ? (post.id?.id || post.id?.postId || null) : post.id
-          if (postId) {
-            onDeletePost(postId)
-          }
-        }
+        console.log("Пост уже был удален на сервере")
       } else {
-        alert("Не удалось удалить пост. Попробуйте еще раз.")
-        setShowDeleteDialog(false) // Закрываем диалог даже при ошибке
+        // При другой ошибке показываем сообщение, но пост уже скрыт из UI
+        alert("Не удалось удалить пост на сервере, но он уже скрыт из списка.")
       }
     } finally {
       setIsDeleting(false)
@@ -79,7 +79,23 @@ function ProfilePostCard({ post, userData, userRating, onNavigate, currentUser, 
       }}
     >
       <div className="post-header">
-        <img src={userData.avatar || "/placeholder.svg"} alt={userData.name} className="avatar avatar-md" />
+        {userData.avatar?.id ? (
+          <img 
+            src={imageAPI.getImageUrl(userData.avatar.id)} 
+            alt={userData.name} 
+            className="avatar avatar-md" 
+          />
+        ) : (
+          <div
+            className="avatar avatar-md"
+            style={{
+              backgroundColor: "transparent",
+              border: "none",
+              width: "40px",
+              height: "40px"
+            }}
+          />
+        )}
         <div className="post-user-info">
           <div className="post-username">
             {userData.name}
@@ -106,7 +122,12 @@ function ProfilePostCard({ post, userData, userRating, onNavigate, currentUser, 
             </button>
             <ConfirmDeleteDialog
               open={showDeleteDialog}
-              onOpenChange={setShowDeleteDialog}
+              onOpenChange={(open) => {
+                // Предотвращаем закрытие диалога через клик вне его, если идет удаление
+                if (!isDeleting) {
+                  setShowDeleteDialog(open)
+                }
+              }}
               onConfirm={handleDeleteConfirm}
             />
           </>
@@ -247,7 +268,7 @@ function ProfilePostCard({ post, userData, userRating, onNavigate, currentUser, 
   )
 }
 
-function Profile({ onNavigate, userId }) {
+function Profile({ onNavigate, userId, currentPage }) {
   const { currentUser, subscribedUsers, subscribeToUser, unsubscribeFromUser } = useUser()
   const [userData, setUserData] = useState(null)
   const [userPosts, setUserPosts] = useState([])
@@ -546,16 +567,23 @@ function Profile({ onNavigate, userId }) {
           <div className="profile-avatar-section">
             {isOwnProfile ? (
               <label style={{ position: "relative", cursor: "pointer" }}>
-                <img
-                  src={
-                    userData.avatar?.id
-                      ? `${imageAPI.getImageUrl ? imageAPI.getImageUrl(userData.avatar.id) : `http://localhost:8080/images/${userData.avatar.id}`}`
-                      : userData.avatar || "/placeholder.svg"
-                  }
-                  alt={userData.name}
-                  className="avatar avatar-xl"
-                  style={{ opacity: avatarUploading ? 0.5 : 1 }}
-                />
+                {userData.avatar?.id ? (
+                  <img
+                    src={imageAPI.getImageUrl(userData.avatar.id)}
+                    alt={userData.name}
+                    className="avatar avatar-xl"
+                    style={{ opacity: avatarUploading ? 0.5 : 1 }}
+                  />
+                ) : (
+                  <div
+                    className="avatar avatar-xl"
+                    style={{
+                      backgroundColor: "transparent",
+                      border: "none",
+                      opacity: avatarUploading ? 0.5 : 1
+                    }}
+                  />
+                )}
                 {avatarUploading && (
                   <div style={{
                     position: "absolute",
@@ -577,15 +605,21 @@ function Profile({ onNavigate, userId }) {
                 />
               </label>
             ) : (
-              <img
-                src={
-                  userData.avatar?.id
-                    ? `${imageAPI.getImageUrl ? imageAPI.getImageUrl(userData.avatar.id) : `http://localhost:8080/images/${userData.avatar.id}`}`
-                    : userData.avatar || "/placeholder.svg"
-                }
-                alt={userData.name}
-                className="avatar avatar-xl"
-              />
+              userData.avatar?.id ? (
+                <img
+                  src={imageAPI.getImageUrl(userData.avatar.id)}
+                  alt={userData.name}
+                  className="avatar avatar-xl"
+                />
+              ) : (
+                <div
+                  className="avatar avatar-xl"
+                  style={{
+                    backgroundColor: "transparent",
+                    border: "none"
+                  }}
+                />
+              )
             )}
             {ratingSummary.average != null && typeof ratingSummary.average === 'number' && !isNaN(ratingSummary.average) && (
               <div 
@@ -762,7 +796,7 @@ function Profile({ onNavigate, userId }) {
         )}
       </div>
 
-      {isOwnProfile && <BottomNavigation currentPage="profile" onNavigate={onNavigate} />}
+      {isOwnProfile && <BottomNavigation currentPage={currentPage || "profile"} onNavigate={onNavigate} />}
 
       {/* Rating Modal */}
       {showRatingModal && !isOwnProfile && currentUser && (

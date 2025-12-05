@@ -1,9 +1,13 @@
 package com.mipt.CoActivity.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class RoomDetailsResponse {
     private Long id;
     private String name;
@@ -21,5 +25,23 @@ public class RoomDetailsResponse {
     private Integer maxCollaborators;
     private String joinType;
     private Boolean isDefault;
+    private List<RoomMemberInfo> members = new ArrayList<>();
+    
+    @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class RoomMemberInfo {
+        private Long id;
+        private String username;
+        private String name;
+        private Double rating;
+        private MemberAvatar avatar;
+        private Boolean isAdmin;
+        
+        @Data
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class MemberAvatar {
+            private Integer id;
+        }
+    }
 }
 

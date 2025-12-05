@@ -8,7 +8,7 @@ import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/navigation.css"
 
-function Notifications({ onNavigate }) {
+function Notifications({ onNavigate, currentPage }) {
   const { currentUser } = useUser()
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
@@ -171,7 +171,7 @@ function Notifications({ onNavigate }) {
         )}
       </div>
 
-      <BottomNavigation currentPage="notifications" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "notifications"} onNavigate={onNavigate} />
     </div>
   )
 }

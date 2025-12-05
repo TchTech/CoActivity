@@ -24,18 +24,30 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
   return (
     <div key={post.id} className="post-card" style={{ marginBottom: "var(--spacing-md)" }}>
       <div className="post-header">
-        <img
-          src={post.author?.avatar || "/placeholder.svg"}
-          alt={post.author?.name || "Пользователь"}
-          className="avatar avatar-md avatar-clickable"
-          onClick={(e) => {
-            e.stopPropagation()
-            const userId = post.userId || post.author?.id
-            if (userId) {
-              onNavigate("profile", userId)
-            }
-          }}
-        />
+        {post.author?.avatar?.id ? (
+          <img
+            src={imageAPI.getImageUrl(post.author.avatar.id)}
+            alt={post.author?.name || "Пользователь"}
+            className="avatar avatar-md avatar-clickable"
+            onClick={(e) => {
+              e.stopPropagation()
+              const userId = post.userId || post.author?.id
+              if (userId) {
+                onNavigate("profile", userId)
+              }
+            }}
+          />
+        ) : (
+          <div
+            className="avatar avatar-md"
+            style={{
+              backgroundColor: "transparent",
+              border: "none",
+              width: "40px",
+              height: "40px"
+            }}
+          />
+        )}
         <div className="post-user-info">
           <div className="post-username">
             {post.author?.name || post.author?.username || "Пользователь"}
@@ -237,7 +249,7 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
   )
 }
 
-function Feed({ onNavigate }) {
+function Feed({ onNavigate, currentPage }) {
   const { currentUser, subscribedUsers, subscribeToUser, unsubscribeFromUser } = useUser()
   const [activeTab, setActiveTab] = useState("main") // 'main' или 'subscriptions'
   const [posts, setPosts] = useState([])
@@ -379,7 +391,7 @@ function Feed({ onNavigate }) {
         )}
       </div>
 
-      <BottomNavigation currentPage="home" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "home"} onNavigate={onNavigate} />
     </div>
   )
 }

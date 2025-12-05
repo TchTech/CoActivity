@@ -5,11 +5,11 @@ import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/rooms.css"
 import "../styles/navigation.css"
-import { roomAPI } from "../lib/api"
+import { roomAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import BottomNavigation from "./BottomNavigation"
 
-function RoomInfo({ onNavigate, roomId }) {
+function RoomInfo({ onNavigate, roomId, currentPage }) {
   const { currentUser } = useUser()
   const [roomData, setRoomData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -30,6 +30,8 @@ function RoomInfo({ onNavigate, roomId }) {
       setError("")
       try {
         const data = await roomAPI.getDetails(roomId)
+        console.log("[RoomInfo] Received room data:", data)
+        console.log("[RoomInfo] Members:", data.members)
         setRoomData(data)
         
         // Check if user is a member
@@ -231,6 +233,156 @@ function RoomInfo({ onNavigate, roomId }) {
                   </div>
                 </div>
               )}
+              
+              {/* Members List */}
+              {roomData.members && Array.isArray(roomData.members) && roomData.members.length > 0 ? (
+                <div style={{ 
+                  marginTop: "var(--spacing-lg)",
+                  paddingTop: "var(--spacing-lg)",
+                  borderTop: "1px solid var(--border-color)"
+                }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--spacing-sm)",
+                    marginBottom: "var(--spacing-md)",
+                    paddingBottom: "var(--spacing-sm)",
+                    borderBottom: "1px solid var(--border-color)"
+                  }}>
+                    <svg 
+                      width="18" 
+                      height="18" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="var(--accent-gold)" 
+                      strokeWidth="2"
+                      style={{ opacity: 0.8 }}
+                    >
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    <span style={{
+                      fontSize: "var(--font-size-sm)",
+                      color: "var(--accent-gold)",
+                      fontWeight: "600",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>
+                      Список участников
+                    </span>
+                  </div>
+                  <div style={{ 
+                    display: "flex", 
+                    flexDirection: "column", 
+                    gap: "var(--spacing-xs)",
+                    maxHeight: "300px",
+                    overflowY: "auto",
+                    padding: "var(--spacing-xs)",
+                    borderRadius: "var(--radius-md)",
+                    backgroundColor: "var(--bg-tertiary)"
+                  }}>
+                    {roomData.members.map((member) => (
+                      <div
+                        key={member.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "var(--spacing-md)",
+                          padding: "var(--spacing-sm) var(--spacing-md)",
+                          borderRadius: "var(--radius-md)",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          backgroundColor: "transparent"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "var(--bg-secondary)"
+                          e.currentTarget.style.transform = "translateX(2px)"
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent"
+                          e.currentTarget.style.transform = "translateX(0)"
+                        }}
+                        onClick={() => {
+                          if (member.id) {
+                            onNavigate("profile", member.id)
+                          }
+                        }}
+                      >
+                        {member.avatar?.id ? (
+                          <img
+                            src={imageAPI.getImageUrl(member.avatar.id)}
+                            alt={member.name || member.username}
+                            className="avatar avatar-md"
+                            style={{ flexShrink: 0 }}
+                          />
+                        ) : (
+                          <div
+                            className="avatar avatar-md"
+                            style={{
+                              backgroundColor: "transparent",
+                              border: "none",
+                              width: "40px",
+                              height: "40px",
+                              flexShrink: 0
+                            }}
+                          />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ 
+                            fontSize: "var(--font-size-base)", 
+                            fontWeight: "600", 
+                            color: "var(--text-primary)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "var(--spacing-xs)"
+                          }}>
+                            <span>{member.name || member.username}</span>
+                            {member.isAdmin && (
+                              <span style={{
+                                fontSize: "var(--font-size-xs)",
+                                color: "var(--accent-gold)",
+                                opacity: 0.8,
+                                fontWeight: "500"
+                              }}>
+                                (админ)
+                              </span>
+                            )}
+                          </div>
+                          {member.rating != null && member.rating > 0 && (
+                            <div style={{ 
+                              fontSize: "var(--font-size-sm)", 
+                              color: "var(--text-muted)",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "var(--spacing-xs)"
+                            }}>
+                              <span className="badge badge-rating">{member.rating.toFixed(1)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : roomData.members !== undefined && roomData.members !== null && roomData.members.length === 0 ? (
+                <div style={{ 
+                  marginTop: "var(--spacing-lg)",
+                  paddingTop: "var(--spacing-lg)",
+                  borderTop: "1px solid var(--border-color)",
+                  textAlign: "center",
+                  padding: "var(--spacing-md)",
+                  color: "var(--text-muted)",
+                  fontSize: "var(--font-size-sm)",
+                  fontStyle: "italic"
+                }}>
+                  В комнате пока нет участников
+                </div>
+              ) : null}
             </div>
 
             {/* Creator */}
@@ -320,7 +472,7 @@ function RoomInfo({ onNavigate, roomId }) {
         <RoomPostsTab roomId={roomId} onNavigate={onNavigate} currentUser={currentUser} />
       )}
 
-      <BottomNavigation currentPage="rooms" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "rooms"} onNavigate={onNavigate} />
     </div>
   )
 }
@@ -390,18 +542,30 @@ function RoomPostsTab({ roomId, onNavigate, currentUser }) {
           }}
         >
           <div className="post-header">
-            <img
-              src={post.author?.avatar?.id ? `http://localhost:8080/images/${post.author.avatar.id}` : "/placeholder.svg"}
-              alt={post.author?.name || "Пользователь"}
-              className="avatar avatar-md avatar-clickable"
-              onClick={(e) => {
-                e.stopPropagation()
-                const userId = post.author?.id
-                if (userId) {
-                  onNavigate("profile", userId)
-                }
-              }}
-            />
+            {post.author?.avatar?.id ? (
+              <img
+                src={imageAPI.getImageUrl(post.author.avatar.id)}
+                alt={post.author?.name || "Пользователь"}
+                className="avatar avatar-md avatar-clickable"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const userId = post.author?.id
+                  if (userId) {
+                    onNavigate("profile", userId)
+                  }
+                }}
+              />
+            ) : (
+              <div
+                className="avatar avatar-md"
+                style={{
+                  backgroundColor: "transparent",
+                  border: "none",
+                  width: "40px",
+                  height: "40px"
+                }}
+              />
+            )}
             <div className="post-user-info">
               <div className="post-username">
                 {post.author?.name || post.author?.username || "Пользователь"}

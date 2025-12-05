@@ -13,7 +13,7 @@ import "../styles/components.css"
 import "../styles/post.css"
 import "../styles/navigation.css"
 
-function Comments({ onNavigate, postId }) {
+function Comments({ onNavigate, postId, currentPage }) {
   const { currentUser } = useUser()
   const [postData, setPostData] = useState(null)
   const [comments, setComments] = useState([])
@@ -74,12 +74,12 @@ function Comments({ onNavigate, postId }) {
                   id: authorId,
                   name: authorName,
                   username: c.author?.username,
-                  avatar: c.author?.avatar || "/placeholder.svg",
+                  avatar: c.author?.avatar, // Сохраняем объект avatar с id, если он есть
                   rating: c.author?.rating,
                 },
                 text: c.text || c.content || "",
                 createdAt: c.createdAt || c.created_at,
-                time: c.createdAt ? new Date(c.createdAt).toLocaleDateString("ru-RU") : "",
+                time: "", // Время комментария не отображается
                 likes: c.likedUsers?.length || 0,
                 likedUsers: c.likedUsers || [],
                 dislikedUsers: c.dislikedUsers || [],
@@ -295,12 +295,12 @@ function Comments({ onNavigate, postId }) {
         author: {
           id: currentUser.id,
           name: currentUser.name || currentUser.username || "Вы",
-          avatar: currentUser.avatar || "/male-avatar.png",
-          rating: currentUser.rating || 0,
+          avatar: currentUser.avatar, // Сохраняем аватарку текущего пользователя
+          rating: currentUser.rating,
         },
         text: commentText,
         createdAt: new Date().toISOString(),
-        time: "только что",
+        time: "", // Не показываем время для новых комментариев
         likes: 0,
         likedUsers: [],
         isLiked: false,
@@ -338,12 +338,12 @@ function Comments({ onNavigate, postId }) {
                   id: authorId,
                   name: authorName,
                   username: c.author?.username,
-                  avatar: c.author?.avatar || "/placeholder.svg",
+                  avatar: c.author?.avatar, // Сохраняем объект avatar с id, если он есть
                   rating: c.author?.rating,
                 },
                 text: c.text || c.content || "",
                 createdAt: c.createdAt || c.created_at,
-                time: c.createdAt ? new Date(c.createdAt).toLocaleDateString("ru-RU") : "",
+                time: "", // Время комментария не отображается
                 likes: c.likedUsers?.length || 0,
                 likedUsers: c.likedUsers || [],
                 dislikedUsers: c.dislikedUsers || [],
@@ -387,15 +387,27 @@ function Comments({ onNavigate, postId }) {
       <div style={{ padding: "var(--spacing-lg)", paddingBottom: "80px" }} className="comments-content">
         <div className="post-card">
           <div className="post-header">
-            <img
-              src={postData.author?.avatar || "/placeholder.svg"}
-              alt={postData.author?.name || "Пользователь"}
-              className="avatar avatar-md avatar-clickable"
-              onClick={(e) => {
-                e.stopPropagation()
-                onNavigate("profile", postData.userId || postData.author?.id)
-              }}
-            />
+            {postData.author?.avatar?.id ? (
+              <img
+                src={imageAPI.getImageUrl(postData.author.avatar.id)}
+                alt={postData.author?.name || "Пользователь"}
+                className="avatar avatar-md avatar-clickable"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate("profile", postData.userId || postData.author?.id)
+                }}
+              />
+            ) : (
+              <div
+                className="avatar avatar-md"
+                style={{
+                  backgroundColor: "transparent",
+                  border: "none",
+                  width: "40px",
+                  height: "40px"
+                }}
+              />
+            )}
             <div className="post-user-info">
               <div className="post-username">
                 {postData.author?.name || postData.author?.username || "Пользователь"}
@@ -521,32 +533,49 @@ function Comments({ onNavigate, postId }) {
             
             const authorId = comment.userId || comment.author?.id
             const authorName = comment.author?.name || comment.author?.username || "Пользователь"
-            const authorAvatar = comment.author?.avatar || "/placeholder.svg"
+            const authorAvatar = comment.author?.avatar
             const commentText = comment.text || comment.content || ""
-            const commentTime = comment.time || (comment.createdAt ? new Date(comment.createdAt).toLocaleDateString("ru-RU") : "")
+            // Время комментария не отображается
+            const commentTime = ""
+            
+            // Проверяем, есть ли аватарка у автора комментария
+            const hasAvatar = authorAvatar?.id
             
             return (
               <div key={comment.id}>
                 <div className="comment">
                   <div className="comment-header">
-                    <img
-                      src={authorAvatar}
-                      alt={authorName}
-                      className="avatar avatar-md avatar-clickable"
-                      onClick={() => {
-                        if (authorId) {
-                          onNavigate("profile", authorId)
-                        }
-                      }}
-                    />
+                    {hasAvatar ? (
+                      <img
+                        src={imageAPI.getImageUrl(authorAvatar.id)}
+                        alt={authorName}
+                        className="avatar avatar-md avatar-clickable"
+                        onClick={() => {
+                          if (authorId) {
+                            onNavigate("profile", authorId)
+                          }
+                        }}
+                      />
+                    ) : (
+                      // Если аватарки нет, показываем пустое место
+                      <div 
+                        className="avatar avatar-md"
+                        style={{ 
+                          backgroundColor: "transparent",
+                          border: "none",
+                          width: "40px",
+                          height: "40px"
+                        }}
+                      />
+                    )}
                     <div style={{ flex: 1 }}>
                       <div className="post-username">
                         {authorName}
-                        {comment.author?.rating && (
+                        {comment.author?.rating && comment.author.rating > 0 && (
                           <span className="badge badge-rating">{comment.author.rating.toFixed(1)}</span>
                         )}
                       </div>
-                      <div className="post-time">{commentTime}</div>
+                      {commentTime && <div className="post-time">{commentTime}</div>}
                     </div>
                   </div>
 
@@ -612,7 +641,7 @@ function Comments({ onNavigate, postId }) {
         </div>
       </div>
 
-      <BottomNavigation currentPage="home" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "home"} onNavigate={onNavigate} />
     </div>
   )
 }

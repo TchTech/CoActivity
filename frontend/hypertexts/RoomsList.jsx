@@ -9,7 +9,7 @@ import "../styles/components.css"
 import "../styles/rooms.css"
 import "../styles/navigation.css"
 
-function RoomsList({ onNavigate }) {
+function RoomsList({ onNavigate, currentPage }) {
   const { currentUser } = useUser()
   const [rooms, setRooms] = useState([])
   const [loading, setLoading] = useState(true)
@@ -254,7 +254,7 @@ function RoomsList({ onNavigate }) {
         )}
       </div>
 
-      <BottomNavigation currentPage="rooms" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "rooms"} onNavigate={onNavigate} />
     </div>
   )
 }

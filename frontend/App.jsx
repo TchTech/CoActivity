@@ -69,25 +69,25 @@ function App() {
       case "register":
         return <Register onNavigate={handleNavigate} />
       case "home":
-        return <Feed onNavigate={handleNavigate} />
+        return <Feed onNavigate={handleNavigate} currentPage={currentPage} />
       case "profile":
-        return <Profile onNavigate={handleNavigate} userId={viewingUserId} />
+        return <Profile onNavigate={handleNavigate} userId={viewingUserId} currentPage={currentPage} />
       case "comments":
-        return <Comments onNavigate={handleNavigate} postId={viewingPostId} />
+        return <Comments onNavigate={handleNavigate} postId={viewingPostId} currentPage={currentPage} />
       case "rooms":
-        return <RoomsList onNavigate={handleNavigate} />
+        return <RoomsList onNavigate={handleNavigate} currentPage={currentPage} />
       case "chat":
-        return <Chat onNavigate={handleNavigate} roomId={viewingRoomId} />
+        return <Chat onNavigate={handleNavigate} roomId={viewingRoomId} currentPage={currentPage} />
       case "roomInfo":
-        return <RoomInfo onNavigate={handleNavigate} roomId={viewingRoomId} />
+        return <RoomInfo onNavigate={handleNavigate} roomId={viewingRoomId} currentPage={currentPage} />
       case "createPost":
-        return <CreatePost onNavigate={handleNavigate} />
+        return <CreatePost onNavigate={handleNavigate} currentPage={currentPage} />
       case "createRoom":
-        return <CreateRoom onNavigate={handleNavigate} />
+        return <CreateRoom onNavigate={handleNavigate} currentPage={currentPage} />
       case "settings":
-        return <Settings onNavigate={handleNavigate} />
+        return <Settings onNavigate={handleNavigate} currentPage={currentPage} />
       case "notifications":
-        return <Notifications onNavigate={handleNavigate} />
+        return <Notifications onNavigate={handleNavigate} currentPage={currentPage} />
       default:
         return <Login onNavigate={handleNavigate} />
     }

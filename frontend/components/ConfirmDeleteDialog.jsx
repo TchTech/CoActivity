@@ -20,8 +20,12 @@ import {
  * @param {string} description - описание действия
  */
 export function ConfirmDeleteDialog({ open, onOpenChange, onConfirm, title = "Удалить пост?", description = "Вы уверены, что хотите удалить этот пост? Это действие нельзя отменить." }) {
-  const handleConfirm = () => {
-    onConfirm()
+  const handleConfirm = (e) => {
+    // Предотвращаем всплытие события
+    if (e) {
+      e.stopPropagation()
+    }
+    onConfirm(e)
     onOpenChange(false)
   }
 

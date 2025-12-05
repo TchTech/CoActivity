@@ -47,7 +47,9 @@ public class RoomController {
 
   @GetMapping("/{roomId}")
   public ResponseEntity<RoomDetailsResponse> getRoomDetails(@PathVariable Long roomId) {
-    return ResponseEntity.ok(roomService.getRoomDetails(roomId));
+    RoomDetailsResponse response = roomService.getRoomDetails(roomId);
+    System.out.println("[RoomController] Returning room details, members count: " + (response.getMembers() != null ? response.getMembers().size() : "null"));
+    return ResponseEntity.ok(response);
   }
 
   @GetMapping("/{roomId}/brief")

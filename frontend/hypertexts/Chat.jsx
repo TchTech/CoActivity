@@ -5,7 +5,7 @@ import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/rooms.css"
-import { roomAPI } from "../lib/api"
+import { roomAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 
 function Chat({ onNavigate, roomId }) {
@@ -28,15 +28,22 @@ function Chat({ onNavigate, roomId }) {
 
       try {
         const data = await roomAPI.openChat(roomId, currentUser.id)
+        console.log("[Chat] Received data from API:", data)
+        console.log("[Chat] Messages:", data.messages)
         setRoomInfo({ id: data.roomId })
         setMessages(
           Array.isArray(data.messages)
-            ? data.messages.map((m, index) => ({
-                id: m.id || index,
-                senderId: m.senderId,
-                content: m.content,
-                timestamp: m.timestamp,
-              }))
+            ? data.messages.map((m, index) => {
+                console.log("[Chat] Mapping message:", m, "senderAvatar:", m.senderAvatar)
+                return {
+                  id: m.id || index,
+                  senderId: m.senderId,
+                  senderName: m.senderName,
+                  senderAvatar: m.senderAvatar,
+                  content: m.content,
+                  timestamp: m.timestamp,
+                }
+              })
             : []
         )
         setError("")
@@ -75,6 +82,8 @@ function Chat({ onNavigate, roomId }) {
         {
           id: Date.now(),
           senderId: currentUser.id,
+          senderName: currentUser.name || currentUser.username,
+          senderAvatar: currentUser.avatar,
           content: text,
           timestamp: new Date().toISOString(),
         },
@@ -133,11 +142,44 @@ function Chat({ onNavigate, roomId }) {
         ) : (
           messages.map((message) => {
             const isOwn = currentUser && message.senderId === currentUser.id
+            const senderName = message.senderName || `Участник #${message.senderId}`
+            // Проверяем наличие аватарки: либо из данных сообщения, либо из currentUser для собственных сообщений
+            let avatarId = null
+            if (message.senderAvatar && message.senderAvatar.id !== null && message.senderAvatar.id !== undefined) {
+              avatarId = message.senderAvatar.id
+            } else if (isOwn && currentUser && currentUser.avatar && currentUser.avatar.id) {
+              avatarId = currentUser.avatar.id
+            }
+            const hasAvatar = avatarId !== null && avatarId !== undefined
+            console.log("[Chat] Rendering message:", message, "hasAvatar:", hasAvatar, "avatarId:", avatarId, "isOwn:", isOwn)
+            
             return (
               <div key={message.id} className={`message ${isOwn ? "own" : ""}`}>
-                <img src={"/placeholder.svg"} alt={isOwn ? "Вы" : "Участник"} className="avatar avatar-md" />
+                {hasAvatar ? (
+                  <img 
+                    src={imageAPI.getImageUrl(avatarId)} 
+                    alt={senderName} 
+                    className="avatar avatar-md avatar-clickable"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (message.senderId) {
+                        onNavigate("profile", message.senderId)
+                      }
+                    }}
+                  />
+                ) : (
+                  <div
+                    className="avatar avatar-md"
+                    style={{
+                      backgroundColor: "transparent",
+                      border: "none",
+                      width: "40px",
+                      height: "40px"
+                    }}
+                  />
+                )}
                 <div className="message-content">
-                  {!isOwn && <div className="message-sender">Участник #{message.senderId}</div>}
+                  {!isOwn && <div className="message-sender">{senderName}</div>}
                   <div className="message-text">{message.content}</div>
                   <div className="message-time">
                     {message.timestamp
