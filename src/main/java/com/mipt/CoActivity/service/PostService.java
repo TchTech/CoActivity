@@ -148,9 +148,13 @@ public class PostService {
 
   public List<Post> getAllPosts() {
     List<Post> posts = postRepository.findAll();
-    // Load pinned rooms for each post
+    // Load room and pinned rooms for each post
     for (Post post : posts) {
-      // This will be lazy-loaded when accessed
+      // Trigger lazy loading for room
+      if (post.getRoom() != null) {
+        post.getRoom().getName(); // Trigger lazy loading
+      }
+      // Trigger lazy loading for pinned rooms
       if (post.getPinnedToRooms() != null) {
         post.getPinnedToRooms().size(); // Trigger lazy loading
       }

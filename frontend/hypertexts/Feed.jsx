@@ -81,32 +81,67 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
       <h3 className="post-title">{post.name || post.title}</h3>
       <p className="post-content">{post.text || post.content}</p>
 
-      {/* Show pinned room label if post is pinned */}
-      {post.pinnedToRooms && post.pinnedToRooms.length > 0 && (
-        <div style={{ marginTop: "var(--spacing-xs)", marginBottom: "var(--spacing-xs)" }}>
-          {post.pinnedToRooms.map((pin) => (
-            <span
-              key={pin.id || pin.room?.id}
-              className="badge"
-              style={{
-                backgroundColor: "var(--accent-gold)",
-                color: "var(--bg-primary)",
-                marginRight: "var(--spacing-xs)",
-                cursor: "pointer",
-              }}
-              onClick={(e) => {
-                e.stopPropagation()
-                const roomId = pin.room?.id || pin.roomId
-                if (roomId) {
-                  onNavigate("roomInfo", roomId)
-                }
-              }}
-            >
-              📌 Закреплено в: {pin.room?.name || "Комната"}
+      {/* Show room label if post is attached to a room */}
+      {post.room && (
+        <div style={{ 
+          marginTop: "var(--spacing-sm)", 
+          marginBottom: "var(--spacing-sm)",
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--spacing-xs)"
+        }}>
+          <div
+            style={{
+              backgroundColor: "#FFD700", // Yellow background like in the image
+              color: "var(--text-primary)",
+              padding: "var(--spacing-xs) var(--spacing-sm)",
+              borderRadius: "var(--radius-md)",
+              fontSize: "var(--font-size-sm)",
+              fontWeight: "500",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--spacing-xs)",
+              cursor: "pointer",
+              transition: "opacity 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = "0.8"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = "1"
+            }}
+            onClick={(e) => {
+              e.stopPropagation()
+              const roomId = typeof post.room === "object" 
+                ? (post.room?.id || post.roomId || null) 
+                : post.roomId
+              if (roomId) {
+                onNavigate("roomInfo", roomId)
+              }
+            }}
+          >
+            <span style={{ fontSize: "16px" }}>📌</span>
+            <span>
+              Закреплено в:{" "}
+              {typeof post.room === "object" && post.room?.name ? (
+                <span
+                  style={{
+                    color: "var(--accent-blue)",
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                  }}
+                >
+                  {post.room.name}
+                </span>
+              ) : (
+                <span>Комната</span>
+              )}
             </span>
-          ))}
+          </div>
         </div>
       )}
+
 
       {post.image && (
         <img
