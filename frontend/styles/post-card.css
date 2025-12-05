@@ -71,11 +71,14 @@
 
 .post-image {
   width: 100%;
-  max-width: 400px;
+  max-width: 100%;
+  max-height: 600px;
   height: auto;
   border-radius: 12px;
   margin: 20px 0;
   display: block;
+  object-fit: contain;
+  background-color: var(--bg-tertiary, rgba(0, 0, 0, 0.05));
 }
 
 /* Действия с постом */

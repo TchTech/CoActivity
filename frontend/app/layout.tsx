@@ -5,7 +5,12 @@ import "./globals.css" // Import globals.css at the top of the file
 export const metadata: Metadata = {
   title: "CoActivity - Найди единомышленников",
   description: "Социальная сеть для создания комнат по интересам и совместных активностей",
-    generator: 'v0.app'
+  generator: 'v0.app',
+  icons: {
+    icon: '/Co_p9.ico',
+    shortcut: '/Co_p9.ico',
+    apple: '/Co_p9.ico',
+  },
 }
 
 export default function RootLayout({

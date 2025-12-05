@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -137,6 +138,12 @@ public class RoomService {
                               chatMsg.setSenderId(msg.getAuthor().getId());
                               chatMsg.setContent(msg.getText());
                               chatMsg.setTimestamp(msg.getDateCreated());
+                              chatMsg.setSenderName(msg.getAuthor().getName() != null ? msg.getAuthor().getName() : msg.getAuthor().getUsername());
+                              if (msg.getAuthor().getAvatar() != null) {
+                                  ChatMessageResponse.SenderAvatar avatar = new ChatMessageResponse.SenderAvatar();
+                                  avatar.setId(msg.getAuthor().getAvatar().getId());
+                                  chatMsg.setSenderAvatar(avatar);
+                              }
                               return chatMsg;
                             })
                     .collect(Collectors.toList()));
@@ -708,6 +715,53 @@ public class RoomService {
     response.setMaxCollaborators(room.getMaxCollaborators());
     response.setJoinType(room.getJoinType() != null ? room.getJoinType() : "open");
     response.setIsDefault(room.getIsDefault() != null ? room.getIsDefault() : false);
+    
+    // Fill members list
+    List<RoomDetailsResponse.RoomMemberInfo> membersList = new ArrayList<>();
+    if (room.getCollaborators() != null && !room.getCollaborators().isEmpty()) {
+      logger.info("Room {} has {} collaborators", roomId, room.getCollaborators().size());
+      membersList = room.getCollaborators().stream()
+          .map(user -> {
+            RoomDetailsResponse.RoomMemberInfo memberInfo = new RoomDetailsResponse.RoomMemberInfo();
+            memberInfo.setId(user.getId());
+            memberInfo.setUsername(user.getUsername());
+            memberInfo.setName(user.getName() != null ? user.getName() : user.getUsername());
+            // Check if user is creator or admin
+            boolean isCreator = room.getCreatedBy() != null && room.getCreatedBy().getId().equals(user.getId());
+            boolean isAdmin = room.getAdmins() != null && room.getAdmins().stream()
+                .anyMatch(admin -> admin.getId().equals(user.getId()));
+            memberInfo.setIsAdmin(isCreator || isAdmin);
+            // Calculate average rating from feedbacks
+            // Note: feedbacks might be lazy-loaded, so we need to ensure it's loaded
+            try {
+              if (user.getFeedbacks() != null && !user.getFeedbacks().isEmpty()) {
+                double avgRating = user.getFeedbacks().stream()
+                    .filter(f -> f != null && f.getRating() != null)
+                    .mapToDouble(f -> f.getRating())
+                    .average()
+                    .orElse(0.0);
+                if (avgRating > 0) {
+                  memberInfo.setRating(avgRating);
+                }
+              }
+            } catch (Exception e) {
+              logger.warn("Error calculating rating for user {}: {}", user.getId(), e.getMessage());
+            }
+            // Set avatar if exists
+            if (user.getAvatar() != null) {
+              RoomDetailsResponse.RoomMemberInfo.MemberAvatar avatar = new RoomDetailsResponse.RoomMemberInfo.MemberAvatar();
+              avatar.setId(user.getAvatar().getId());
+              memberInfo.setAvatar(avatar);
+            }
+            return memberInfo;
+          })
+          .collect(Collectors.toList());
+      logger.info("Created members list with {} members", membersList.size());
+    } else {
+      logger.info("Room {} has no collaborators or collaborators is null", roomId);
+    }
+    response.setMembers(membersList);
+    logger.info("Set members list to response, size: {}", response.getMembers() != null ? response.getMembers().size() : "null");
     
     return response;
   }

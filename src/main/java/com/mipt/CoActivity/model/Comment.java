@@ -39,11 +39,22 @@ public class Comment {
   @JoinColumn(name="postId")
   @JsonIgnoreProperties({"comments", "author", "likedUsers", "dislikedUsers", "room"})
   private Post post;
+  
+  @ManyToOne
+  @JoinColumn(name="parentCommentId")
+  @JsonIgnoreProperties({"post", "author", "likedUsers", "dislikedUsers", "parentComment", "replies"})
+  private Comment parentComment;
+  
+  @OneToMany(mappedBy = "parentComment")
+  @JsonIgnoreProperties({"post", "author", "likedUsers", "dislikedUsers", "parentComment"})
+  private List<Comment> replies = new ArrayList<>();
+  
   public Comment(String text, User user, Post post) {
     this.author = user;
     this.text = text;
     this.post = post;
     this.likedUsers = new ArrayList<>();
     this.dislikedUsers = new ArrayList<>();
+    this.replies = new ArrayList<>();
   }
 }

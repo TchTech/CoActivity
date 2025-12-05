@@ -24,18 +24,30 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
   return (
     <div key={post.id} className="post-card" style={{ marginBottom: "var(--spacing-md)" }}>
       <div className="post-header">
-        <img
-          src={post.author?.avatar || "/placeholder.svg"}
-          alt={post.author?.name || "Пользователь"}
-          className="avatar avatar-md avatar-clickable"
-          onClick={(e) => {
-            e.stopPropagation()
-            const userId = post.userId || post.author?.id
-            if (userId) {
-              onNavigate("profile", userId)
-            }
-          }}
-        />
+        {post.author?.avatar?.id ? (
+          <img
+            src={imageAPI.getImageUrl(post.author.avatar.id)}
+            alt={post.author?.name || "Пользователь"}
+            className="avatar avatar-md avatar-clickable"
+            onClick={(e) => {
+              e.stopPropagation()
+              const userId = post.userId || post.author?.id
+              if (userId) {
+                onNavigate("profile", userId)
+              }
+            }}
+          />
+        ) : (
+          <div
+            className="avatar avatar-md"
+            style={{
+              backgroundColor: "transparent",
+              border: "none",
+              width: "40px",
+              height: "40px"
+            }}
+          />
+        )}
         <div className="post-user-info">
           <div className="post-username">
             {post.author?.name || post.author?.username || "Пользователь"}
@@ -187,28 +199,12 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
           }}
           disabled={postInteractions.loading}
         >
-          <svg
+          <img 
+            src="/like.png" 
+            alt="Лайк" 
             className="post-action-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path
-              d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6"
-              fill={postInteractions.isLiked ? "currentColor" : "none"}
-            />
-            <path
-              d="M12 2L7 7h10L12 2z"
-              fill={postInteractions.isLiked ? "currentColor" : "none"}
-            />
-            <path
-              d="M7 7v15h10V7"
-              fill={postInteractions.isLiked ? "currentColor" : "none"}
-            />
-          </svg>
+            style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+          />
           <span>{postInteractions.likes}</span>
         </button>
         <button
@@ -219,28 +215,12 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
           }}
           disabled={postInteractions.loading}
         >
-          <svg
+          <img 
+            src="/dislike.png" 
+            alt="Дизлайк" 
             className="post-action-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path
-              d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6"
-              fill={postInteractions.isDisliked ? "currentColor" : "none"}
-            />
-            <path
-              d="M12 22L7 17h10L12 22z"
-              fill={postInteractions.isDisliked ? "currentColor" : "none"}
-            />
-            <path
-              d="M7 17V2h10v15"
-              fill={postInteractions.isDisliked ? "currentColor" : "none"}
-            />
-          </svg>
+            style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+          />
           <span>{postInteractions.dislikes}</span>
         </button>
         <button
@@ -269,7 +249,7 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
   )
 }
 
-function Feed({ onNavigate }) {
+function Feed({ onNavigate, currentPage }) {
   const { currentUser, subscribedUsers, subscribeToUser, unsubscribeFromUser } = useUser()
   const [activeTab, setActiveTab] = useState("main") // 'main' или 'subscriptions'
   const [posts, setPosts] = useState([])
@@ -411,7 +391,7 @@ function Feed({ onNavigate }) {
         )}
       </div>
 
-      <BottomNavigation currentPage="home" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "home"} onNavigate={onNavigate} />
     </div>
   )
 }

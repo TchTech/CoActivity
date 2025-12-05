@@ -7,7 +7,7 @@ import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/navigation.css"
 
-function Settings({ onNavigate }) {
+function Settings({ onNavigate, currentPage }) {
   const [settings, setSettings] = useState({
     soundEnabled: true,
     vibrationEnabled: true,
@@ -240,7 +240,7 @@ function Settings({ onNavigate }) {
         </button>
       </div>
 
-      <BottomNavigation currentPage="profile" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "profile"} onNavigate={onNavigate} />
     </div>
   )
 }

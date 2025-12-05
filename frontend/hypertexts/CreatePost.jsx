@@ -10,9 +10,10 @@ import "../styles/components.css"
 import "../styles/create.css"
 import "../styles/navigation.css"
 
-function CreatePost({ onNavigate }) {
+function CreatePost({ onNavigate, currentPage }) {
   const { currentUser } = useUser()
   const [formData, setFormData] = useState({
+    title: "",
     text: "",
     image: null,
     linkedRoom: "",
@@ -54,6 +55,16 @@ function CreatePost({ onNavigate }) {
       return
     }
 
+    if (!formData.title.trim()) {
+      setError("Пожалуйста, введите заголовок поста")
+      return
+    }
+
+    if (formData.title.length < 1 || formData.title.length > 100) {
+      setError("Заголовок должен содержать от 1 до 100 символов")
+      return
+    }
+
     if (!formData.text.trim()) {
       setError("Пожалуйста, введите текст поста")
       return
@@ -87,8 +98,8 @@ function CreatePost({ onNavigate }) {
 
       // Создание поста
       const postData = {
-        name: formData.text.substring(0, 50), // Название поста (первые 50 символов)
-        text: formData.text,
+        name: formData.title.trim(), // Заголовок поста
+        text: formData.text.trim(), // Текст поста
         author: { id: currentUser.id },
         image: imageId ? { id: imageId } : null,
         room: formData.linkedRoom ? { id: parseInt(formData.linkedRoom) } : null,
@@ -128,6 +139,21 @@ function CreatePost({ onNavigate }) {
           <div className="form-section">
             <div className="form-section-title">Содержание поста</div>
             <div className="input-group">
+              <label className="input-label">Заголовок *</label>
+              <input
+                type="text"
+                name="title"
+                className="input"
+                placeholder="Введите заголовок поста (1-100 символов)"
+                value={formData.title}
+                onChange={handleChange}
+                maxLength="100"
+              />
+              <div className="char-counter" style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}>
+                {formData.title.length}/100
+              </div>
+            </div>
+            <div className="input-group" style={{ marginTop: "var(--spacing-md)" }}>
               <label className="input-label">Текст *</label>
               <textarea
                 name="text"
@@ -227,7 +253,7 @@ function CreatePost({ onNavigate }) {
         </form>
       </div>
 
-      <BottomNavigation currentPage="home" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "createPost"} onNavigate={onNavigate} />
     </div>
   )
 }

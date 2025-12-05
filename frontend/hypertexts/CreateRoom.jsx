@@ -10,7 +10,7 @@ import "../styles/components.css"
 import "../styles/create.css"
 import "../styles/navigation.css"
 
-function CreateRoom({ onNavigate }) {
+function CreateRoom({ onNavigate, currentPage }) {
   const { currentUser } = useUser()
   const [formData, setFormData] = useState({
     name: "",
@@ -311,7 +311,7 @@ function CreateRoom({ onNavigate }) {
         </form>
       </div>
 
-      <BottomNavigation currentPage="rooms" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "createRoom"} onNavigate={onNavigate} />
     </div>
   )
 }
