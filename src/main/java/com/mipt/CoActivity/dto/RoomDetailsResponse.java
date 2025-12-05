@@ -15,6 +15,7 @@ public class RoomDetailsResponse {
     private String category;
     private Long creatorId;
     private String creatorName;
+    private CreatorAvatar creatorAvatar;
     private String location;
     private Integer memberCount;
     private Integer pinnedPostCount;
@@ -42,6 +43,12 @@ public class RoomDetailsResponse {
         public static class MemberAvatar {
             private Integer id;
         }
+    }
+    
+    @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class CreatorAvatar {
+        private Integer id;
     }
 }
 
