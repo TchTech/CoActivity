@@ -196,13 +196,39 @@ async function request(path, { method = "GET", params, body, headers } = {}) {
   }
 
   if (!res.ok) {
-    const message =
-      (data && (data.message || data.error)) ||
-      `Request failed with status ${res.status}`
-    console.error(`[API] Request failed: ${message}`, { status: res.status, data })
+    // Try to extract error message from various sources
+    let message = `Request failed with status ${res.status}`
+    
+    if (data) {
+      // If we have parsed JSON data, try to extract message
+      if (data.message) {
+        message = data.message
+      } else if (data.error) {
+        message = data.error
+      } else if (typeof data === 'string') {
+        message = data
+      } else if (typeof data === 'object') {
+        // Try to find any string value in the object
+        const errorValues = Object.values(data).filter(v => typeof v === 'string')
+        if (errorValues.length > 0) {
+          message = errorValues[0]
+        }
+      }
+    } else if (text && text.trim().length > 0) {
+      // If no JSON data but we have text, use the text as the error message
+      // This handles plain text error responses from the backend
+      const trimmed = text.trim()
+      // Only use text if it looks like an error message (not too long, not HTML)
+      if (trimmed.length < 500 && !trimmed.startsWith('<')) {
+        message = trimmed
+      }
+    }
+    
+    console.error(`[API] Request failed: ${message}`, { status: res.status, data, text: text?.substring(0, 200) })
     const error = new Error(message)
     error.status = res.status
     error.data = data
+    error.text = text // Include raw text for debugging
     throw error
   }
 
@@ -573,8 +599,8 @@ export const commentAPI = {
 
 export const roomAPI = {
   async create(userId, roomPayload) {
-    // Swagger: POST /rooms with description, category, maxCollaborators, meetingTime, meetingType, location
-    return request("/rooms", {
+    // Backend: POST /api/rooms with description, category, maxCollaborators, meetingTime, meetingType, location
+    return request("/api/rooms", {
       method: "POST",
       params: { userId },
       body: roomPayload,
@@ -582,8 +608,8 @@ export const roomAPI = {
   },
 
   async getAllRooms(offset = 0, limit = 50) {
-    // Backend: GET /rooms?offset=&limit=
-    return request("/rooms", {
+    // Backend: GET /api/rooms?offset=&limit=
+    return request("/api/rooms", {
       method: "GET",
       params: { offset, limit },
     })
@@ -594,16 +620,16 @@ export const roomAPI = {
   },
 
   async openChat(roomId, userId) {
-    // Backend: GET /rooms/{roomId}/chat?userId=
-    return request(`/rooms/${roomId}/chat`, {
+    // Backend: GET /api/rooms/{roomId}/chat?userId=
+    return request(`/api/rooms/${roomId}/chat`, {
       method: "GET",
       params: { userId },
     })
   },
 
   async sendMessage(roomId, senderId, content) {
-    // Swagger: POST /rooms/{roomId}/chat/messages with { senderId, content }
-    return request(`/rooms/${roomId}/chat/messages`, {
+    // Backend: POST /api/rooms/{roomId}/chat/messages with { senderId, content }
+    return request(`/api/rooms/${roomId}/chat/messages`, {
       method: "POST",
       body: {
         senderId,
@@ -613,24 +639,24 @@ export const roomAPI = {
   },
 
   async search(query) {
-    // Backend: GET /rooms/search?query=
-    return request("/rooms/search", {
+    // Backend: GET /api/rooms/search?query=
+    return request("/api/rooms/search", {
       method: "GET",
       params: { query },
     })
   },
 
   async applyToRoom(roomId, userId) {
-    // Backend: POST /rooms/{roomId}/apply
-    return request(`/rooms/${roomId}/apply`, {
+    // Backend: POST /api/rooms/{roomId}/apply
+    return request(`/api/rooms/${roomId}/apply`, {
       method: "POST",
       body: { userId },
     })
   },
 
   async getPendingJoinRequests(roomId) {
-    // Backend: GET /rooms/{roomId}/join-requests
-    return request(`/rooms/${roomId}/join-requests`, {
+    // Backend: GET /api/rooms/{roomId}/join-requests
+    return request(`/api/rooms/${roomId}/join-requests`, {
       method: "GET",
     })
   },
@@ -651,8 +677,8 @@ export const roomAPI = {
   },
 
   async getDetails(roomId) {
-    // Backend: GET /rooms/{roomId}
-    return request(`/rooms/${roomId}`, { method: "GET" })
+    // Backend: GET /api/rooms/{roomId}
+    return request(`/api/rooms/${roomId}`, { method: "GET" })
   },
 
   /**
@@ -661,17 +687,17 @@ export const roomAPI = {
    * 
    * @param {number} roomId - The room ID
    * @param {number} userId - The user ID requesting to join
-   * @param {Object} request - Optional request with message (max 500 chars)
-   * @param {string} [request.message] - Optional message from requester
+   * @param {Object} requestBody - Optional request with message (max 500 chars)
+   * @param {string} [requestBody.message] - Optional message from requester
    * @returns {Promise<Object>} Created RoomJoinRequest
    * @throws {Error} If room is "open" type, user already member, cooldown active, etc.
    */
-  async createJoinRequest(roomId, userId, request = {}) {
+  async createJoinRequest(roomId, userId, requestBody = {}) {
     // Backend: POST /api/rooms/{roomId}/requests?userId={userId}
     return request(`/api/rooms/${roomId}/requests`, {
       method: "POST",
       params: { userId },
-      body: request,
+      body: requestBody,
     })
   },
 
@@ -796,8 +822,8 @@ export const roomAPI = {
   },
 
   async pinPost(roomId, postId, userId) {
-    // Backend: POST /rooms/{roomId}/pinned-posts?userId=
-    return request(`/rooms/${roomId}/pinned-posts`, {
+    // Backend: POST /api/rooms/{roomId}/pinned-posts?userId=
+    return request(`/api/rooms/${roomId}/pinned-posts`, {
       method: "POST",
       params: { userId },
       body: { postId },
@@ -805,21 +831,21 @@ export const roomAPI = {
   },
 
   async unpinPost(roomId, postId, userId) {
-    // Backend: DELETE /rooms/{roomId}/pinned-posts/{postId}?userId=
-    return request(`/rooms/${roomId}/pinned-posts/${postId}`, {
+    // Backend: DELETE /api/rooms/{roomId}/pinned-posts/{postId}?userId=
+    return request(`/api/rooms/${roomId}/pinned-posts/${postId}`, {
       method: "DELETE",
       params: { userId },
     })
   },
 
   async getPinnedPosts(roomId) {
-    // Backend: GET /rooms/{roomId}/pinned-posts
-    return request(`/rooms/${roomId}/pinned-posts`, { method: "GET" })
+    // Backend: GET /api/rooms/{roomId}/pinned-posts
+    return request(`/api/rooms/${roomId}/pinned-posts`, { method: "GET" })
   },
 
   async joinRoom(roomId, userId) {
     // Backend: POST /rooms/{roomId}/join
-    return request(`/rooms/${roomId}/join`, {
+    return request(`/api/rooms/${roomId}/join`, {
       method: "POST",
       body: { userId },
     })

@@ -1,8 +1,11 @@
 "use client"
 import { useEffect, useState } from "react"
+import { Bell } from "lucide-react"
 import BottomNavigation from "./BottomNavigation"
-import { roomAPI } from "../lib/api"
+import { roomAPI, notificationAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import NotificationsPanel from "../components/NotificationsPanel"
+import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -17,6 +20,8 @@ function RoomsList({ onNavigate, currentPage }) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [activeTab, setActiveTab] = useState("all") // "all" or "mine"
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false)
 
   useEffect(() => {
     const loadRooms = async () => {
@@ -147,15 +152,135 @@ function RoomsList({ onNavigate, currentPage }) {
     }
   }, [searchQuery, currentUser])
 
+  // Load unread notification count
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setUnreadCount(0)
+      return
+    }
+
+    const loadUnreadCount = async () => {
+      try {
+        const countData = await notificationAPI.getUnreadCount(currentUser.id)
+        setUnreadCount(countData?.count || 0)
+      } catch (error) {
+        console.error("Ошибка загрузки количества уведомлений:", error)
+        setUnreadCount(0)
+      }
+    }
+
+    loadUnreadCount()
+    const interval = setInterval(loadUnreadCount, 30000) // Poll every 30s
+    return () => clearInterval(interval)
+  }, [currentUser])
+
   return (
     <div>
       {/* Верхняя навигация */}
       <div className="top-nav">
         <div className="top-nav-title">Комнаты</div>
-        <div className="top-nav-actions">
+        <div className="top-nav-actions" style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center" }}>
           <button className="btn-icon" onClick={() => onNavigate("createRoom")}>
             +
           </button>
+          
+          {/* Notification Bell */}
+          {currentUser?.id && (
+            <Popover open={notificationPanelOpen} onOpenChange={setNotificationPanelOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  className="btn-icon"
+                  style={{ position: "relative" }}
+                  aria-label="Уведомления"
+                >
+                  <Bell size={20} />
+                  {unreadCount > 0 && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: "-4px",
+                        right: "-4px",
+                        backgroundColor: "var(--error-color, #ef4444)",
+                        color: "white",
+                        borderRadius: "50%",
+                        width: "18px",
+                        height: "18px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "10px",
+                        fontWeight: "600",
+                        border: "2px solid var(--bg-primary)",
+                      }}
+                    >
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="bottom"
+                align="end"
+                style={{
+                  padding: 0,
+                  width: "350px",
+                  maxHeight: "500px",
+                  overflow: "hidden",
+                }}
+              >
+                <NotificationsPanel
+                  userId={currentUser.id}
+                  onClose={() => setNotificationPanelOpen(false)}
+                  onNavigate={onNavigate}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
+
+          {/* Profile Avatar - Navigate to profile */}
+          {currentUser?.id && (
+            <button
+              className="btn-icon"
+              onClick={() => onNavigate("profile", currentUser.id)}
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "50%",
+                padding: 0,
+                overflow: "hidden",
+                border: "2px solid var(--border-color)",
+              }}
+              aria-label="Профиль"
+            >
+              {currentUser.avatar?.id ? (
+                <img
+                  src={imageAPI.getImageUrl(currentUser.avatar.id)}
+                  alt={currentUser.name || "Профиль"}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    backgroundColor: "var(--accent-blue)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    fontSize: "var(--font-size-sm)",
+                    fontWeight: "600",
+                  }}
+                >
+                  {currentUser.name?.[0]?.toUpperCase() || currentUser.username?.[0]?.toUpperCase() || "?"}
+                </div>
+              )}
+            </button>
+          )}
         </div>
       </div>
 

@@ -474,7 +474,11 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
                 ) : (
                   <JoinRequestButton
                     roomId={roomId}
-                    roomJoinType={roomData.joinType || "open"}
+                    roomJoinType={
+                      roomData.joinType === "by_application" || roomData.joinType === "REQUEST_ONLY"
+                        ? "by_application"
+                        : "open"
+                    }
                     isMember={isMember}
                     hasPendingRequest={hasPendingRequest}
                     pendingRequestId={pendingRequestId}

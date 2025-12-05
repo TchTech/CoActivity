@@ -174,7 +174,7 @@ public class RoomController {
   @ResponseStatus(HttpStatus.CREATED)
   public ResponseEntity<RoomJoinRequestResponse> createRequest(
       @PathVariable Long roomId,
-      @RequestParam @jakarta.validation.constraints.NotNull(message = "User ID is required") Long userId,
+      @RequestParam(required = true) Long userId,
       @RequestBody(required = false) @Valid CreateRoomJoinRequestRequest request) {
     MembershipRequestRequest membershipRequest = null;
     if (request != null) {
@@ -204,7 +204,7 @@ public class RoomController {
   @GetMapping("/{roomId}/requests")
   public ResponseEntity<List<RoomJoinRequestResponse>> getPendingRequests(
       @PathVariable Long roomId,
-      @RequestParam @jakarta.validation.constraints.NotNull(message = "User ID is required") Long userId) {
+      @RequestParam(required = true) Long userId) {
     List<RoomJoinRequest> requests = roomJoinRequestService.getPendingRequests(roomId, userId);
     List<RoomJoinRequestResponse> responses = requests.stream()
         .map(this::mapToResponse)
@@ -240,7 +240,7 @@ public class RoomController {
   public ResponseEntity<Void> approveRequest(
       @PathVariable Long roomId,
       @PathVariable Long requestId,
-      @RequestParam @jakarta.validation.constraints.NotNull(message = "Target user ID is required") Long targetUserId,
+      @RequestParam(required = true) Long targetUserId,
       @RequestBody @Valid ApproveJoinRequestRequest request) {
     roomJoinRequestService.approveRequest(roomId, requestId, targetUserId, request);
     return ResponseEntity.ok().build();
@@ -272,7 +272,7 @@ public class RoomController {
   public ResponseEntity<Void> rejectRequest(
       @PathVariable Long roomId,
       @PathVariable Long requestId,
-      @RequestParam @jakarta.validation.constraints.NotNull(message = "Target user ID is required") Long targetUserId,
+      @RequestParam(required = true) Long targetUserId,
       @RequestBody @Valid RejectJoinRequestRequest request) {
     roomJoinRequestService.rejectRequest(roomId, requestId, targetUserId, request);
     return ResponseEntity.ok().build();
@@ -300,7 +300,7 @@ public class RoomController {
   public ResponseEntity<Void> cancelRequest(
       @PathVariable Long roomId,
       @PathVariable Long requestId,
-      @RequestParam @jakarta.validation.constraints.NotNull(message = "User ID is required") Long userId) {
+      @RequestParam(required = true) Long userId) {
     roomJoinRequestService.cancelRequest(roomId, requestId, userId);
     return ResponseEntity.ok().build();
   }
@@ -317,7 +317,7 @@ public class RoomController {
    */
   @GetMapping("/my-applications")
   public ResponseEntity<List<RoomJoinRequestResponse>> getMyPendingRequests(
-      @RequestParam @jakarta.validation.constraints.NotNull(message = "User ID is required") Long userId) {
+      @RequestParam(required = true) Long userId) {
     List<RoomJoinRequest> requests = roomJoinRequestService.getMyPendingRequests(userId);
     List<RoomJoinRequestResponse> responses = requests.stream()
         .map(this::mapToResponse)
