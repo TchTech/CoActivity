@@ -178,73 +178,7 @@ function RoomsList({ onNavigate, currentPage }) {
       {/* Верхняя навигация */}
       <div className="top-nav">
         <div className="top-nav-title">Комнаты</div>
-<<<<<<< HEAD
         <div className="top-nav-actions">
-=======
-        <div className="top-nav-actions" style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center" }}>
-          {/* Notification Bell - единственный колокольчик для всех уведомлений */}
-          {currentUser?.id && (
-            <Popover open={notificationPanelOpen} onOpenChange={setNotificationPanelOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  className="btn-icon"
-                  style={{ 
-                    position: "relative",
-                    width: "40px",
-                    height: "40px"
-                  }}
-                  aria-label="Уведомления"
-                >
-                  <Bell size={20} style={{ color: "var(--text-primary)" }} />
-                  {unreadCount > 0 && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: "-4px",
-                        right: "-4px",
-                        backgroundColor: "var(--accent-gold)",
-                        color: "var(--bg-primary)",
-                        borderRadius: "50%",
-                        width: "20px",
-                        height: "20px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "11px",
-                        fontWeight: "700",
-                        border: "2px solid var(--bg-primary)",
-                        boxShadow: "0 0 8px rgba(212, 175, 55, 0.6)",
-                      }}
-                    >
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  )}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="bottom"
-                align="end"
-                style={{
-                  padding: 0,
-                  width: "380px",
-                  maxHeight: "600px",
-                  overflow: "hidden",
-                  backgroundColor: "transparent",
-                  border: "none",
-                  boxShadow: "none",
-                }}
-              >
-                <NotificationsPanel
-                  userId={currentUser.id}
-                  onClose={() => setNotificationPanelOpen(false)}
-                  onNavigate={onNavigate}
-                  onNotificationUpdate={refreshUnreadCount}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-
->>>>>>> 305e5262decac7b131cfbe42f251a1a2dafda719
           {/* Profile Avatar - Navigate to profile */}
           {currentUser?.id && (
             <button

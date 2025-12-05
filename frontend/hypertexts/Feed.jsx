@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
-import { getAllPosts, getPostsByUserIds } from "../scripts/postsData"
 import { postAPI, imageAPI, notificationAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
@@ -308,15 +307,8 @@ function Feed({ onNavigate, currentPage }) {
         }
       } catch (error) {
         console.error("Ошибка загрузки постов:", error)
-        // Fallback на моковые данные при ошибке
-        try {
-          const allPosts = activeTab === "main" ? getAllPosts() : getPostsByUserIds(subscribedUsers.map(u => u.id || u))
-          console.log("[Feed] Using fallback mock data:", allPosts.length)
-          setPosts(Array.isArray(allPosts) ? allPosts : [])
-        } catch (fallbackError) {
-          console.error("Ошибка загрузки моковых данных:", fallbackError)
-          setPosts([])
-        }
+        // Не используем fallback на тестовые данные - показываем пустую ленту
+        setPosts([])
       } finally {
         setLoading(false)
       }

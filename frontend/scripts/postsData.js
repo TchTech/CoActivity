@@ -74,36 +74,10 @@ const getRandomPhone = () => {
   return phone
 }
 
-// Генерация постов
+// Генерация постов (отключена - используем данные только с бэкенда)
 const generatePosts = () => {
-  const users = getAllUsers()
-  const posts = []
-
-  for (let i = 0; i < 20; i++) {
-    const user = users[Math.floor(Math.random() * users.length)]
-    const titleIndex = Math.floor(Math.random() * eventTitles.length)
-
-    const post = {
-      id: i + 1,
-      userId: user.id,
-      author: {
-        name: user.name,
-        avatar: user.avatar,
-        rating: user.rating,
-      },
-      title: eventTitles[titleIndex],
-      content: `${eventDescriptions[titleIndex]} 📍 ${getRandomDate()} - ${getRandomTime()} 📍 ${eventLocations[Math.floor(Math.random() * eventLocations.length)]}. Призыв за знаниями, оставайся с открытиями! Места ограничены - регистрируйся сейчас! Тел: ${getRandomPhone()}`,
-      image: eventImages[Math.floor(Math.random() * eventImages.length)],
-      time: `${Math.floor(Math.random() * 24)} ч`,
-      likes: Math.floor(Math.random() * 100) + 5,
-      dislikes: Math.floor(Math.random() * 20) + 1,
-      comments: Math.floor(Math.random() * 30) + 1,
-    }
-
-    posts.push(post)
-  }
-
-  return posts
+  // Возвращаем пустой массив - тестовые данные больше не генерируются
+  return []
 }
 
 export const allPosts = generatePosts()
