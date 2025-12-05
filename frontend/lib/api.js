@@ -164,11 +164,16 @@ async function request(path, { method = "GET", params, body, headers } = {}) {
         console.log(`[API] Parsed JSON successfully. Type: ${Array.isArray(data) ? 'Array' : typeof data}, Length: ${Array.isArray(data) ? data.length : 'N/A'}`)
       } else {
         console.warn(`[API] Response doesn't appear to be JSON. Content-Type: ${contentType}, starts with: ${trimmed.substring(0, 50)}`)
-        // If it's a 200 response but not JSON, log the full response for debugging
-        if (res.ok && trimmed.length < 5000) {
+        // If it's an error response and not JSON, treat as plain text error message
+        if (!res.ok) {
+          data = { message: trimmed, error: trimmed }
+        } else if (res.ok && trimmed.length < 5000) {
+          // If it's a 200 response but not JSON, log the full response for debugging
           console.warn(`[API] Full non-JSON response:`, trimmed)
+          data = null
+        } else {
+          data = null
         }
-        data = null
       }
     } catch (parseError) {
       console.error(`[API] JSON parse error:`, parseError.message)
@@ -189,48 +194,33 @@ async function request(path, { method = "GET", params, body, headers } = {}) {
           data = null
         }
       } else {
-        data = null
+        // If it's an error response, preserve the text as error message
+        if (!res.ok && text && text.trim().length > 0) {
+          data = { message: text.trim(), error: text.trim() }
+        } else {
+          data = null
+        }
       }
     }
   } else {
     console.log(`[API] Empty response body`)
-    data = null
+    // If it's an error with empty body, still create error data
+    if (!res.ok) {
+      data = { message: `Request failed with status ${res.status}`, error: `Request failed with status ${res.status}` }
+    } else {
+      data = null
+    }
   }
 
   if (!res.ok) {
-    // Try to extract error message from various sources
-    let message = `Request failed with status ${res.status}`
-    
-    if (data) {
-      // If we have parsed JSON data, try to extract message
-      if (data.message) {
-        message = data.message
-      } else if (data.error) {
-        message = data.error
-      } else if (typeof data === 'string') {
-        message = data
-      } else if (typeof data === 'object') {
-        // Try to find any string value in the object
-        const errorValues = Object.values(data).filter(v => typeof v === 'string')
-        if (errorValues.length > 0) {
-          message = errorValues[0]
-        }
-      }
-    } else if (text && text.trim().length > 0) {
-      // If no JSON data but we have text, use the text as the error message
-      // This handles plain text error responses from the backend
-      const trimmed = text.trim()
-      // Only use text if it looks like an error message (not too long, not HTML)
-      if (trimmed.length < 500 && !trimmed.startsWith('<')) {
-        message = trimmed
-      }
-    }
-    
-    console.error(`[API] Request failed: ${message}`, { status: res.status, data, text: text?.substring(0, 200) })
+    const message =
+      (data && (data.message || data.error)) ||
+      text?.trim() ||
+      `Request failed with status ${res.status}`
+    console.error(`[API] Request failed: ${message}`, { status: res.status, data })
     const error = new Error(message)
     error.status = res.status
-    error.data = data
-    error.text = text // Include raw text for debugging
+    error.data = data || { message: text?.trim() || message, error: text?.trim() || message }
     throw error
   }
 
@@ -285,6 +275,14 @@ export const userAPI = {
 
   async getProfile(id) {
     return request(`/users/${id}/profile`, { method: "GET" })
+  },
+
+  async updateInterests(userId, interests) {
+    // PUT /users/{userId}/interests
+    return request(`/users/${userId}/interests`, {
+      method: "PUT",
+      body: { interests },
+    })
   },
 
   async getUserRooms(userId) {

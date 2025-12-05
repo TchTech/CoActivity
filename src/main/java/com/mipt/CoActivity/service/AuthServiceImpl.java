@@ -27,6 +27,20 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public User registerNewUser(RegisterRequest request) {
+        // Валидация входных данных
+        if (request.getName() == null || request.getName().trim().isEmpty()) {
+            throw new BadRequestException("Name cannot be empty");
+        }
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            throw new BadRequestException("Email cannot be empty");
+        }
+        if (request.getPassword() == null || request.getPassword().isEmpty()) {
+            throw new BadRequestException("Password cannot be empty");
+        }
+        if (request.getPassword().length() < 8) {
+            throw new BadRequestException("Password must be at least 8 characters long");
+        }
+        
         if (userRepository.findByEmail(request.getEmail()) != null) {
             throw new BadRequestException("Email already exists");
         }
