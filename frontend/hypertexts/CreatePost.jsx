@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
-import { postAPI, imageAPI } from "../lib/api"
+import { postAPI, imageAPI, roomAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
@@ -22,6 +22,30 @@ function CreatePost({ onNavigate, currentPage }) {
   const [imagePreview, setImagePreview] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [userRooms, setUserRooms] = useState([])
+  const [loadingRooms, setLoadingRooms] = useState(true)
+
+  useEffect(() => {
+    const loadUserRooms = async () => {
+      if (!currentUser?.id) {
+        setLoadingRooms(false)
+        return
+      }
+
+      try {
+        setLoadingRooms(true)
+        const rooms = await roomAPI.getUserRooms(currentUser.id)
+        setUserRooms(Array.isArray(rooms) ? rooms : [])
+      } catch (err) {
+        console.error("Ошибка загрузки комнат:", err)
+        setUserRooms([])
+      } finally {
+        setLoadingRooms(false)
+      }
+    }
+
+    loadUserRooms()
+  }, [currentUser])
 
   const handleChange = (e) => {
     setFormData({
@@ -228,16 +252,30 @@ function CreatePost({ onNavigate, currentPage }) {
             <div className="form-section-title">Интеграция с комнатой (необязательно)</div>
             <div className="input-group">
               <label className="input-label">Связать с комнатой</label>
-              <select name="linkedRoom" className="input" value={formData.linkedRoom} onChange={handleChange}>
+              <select 
+                name="linkedRoom" 
+                className="input" 
+                value={formData.linkedRoom} 
+                onChange={handleChange}
+                disabled={loadingRooms}
+              >
                 <option value="">Не связывать</option>
-                <option value="1">Физика-механика в Саратове</option>
-                <option value="2">Программисты Москвы</option>
-                <option value="3">Настольный теннис - выходные</option>
+                {loadingRooms ? (
+                  <option value="">Загрузка комнат...</option>
+                ) : userRooms.length > 0 ? (
+                  userRooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name || room.description || `Комната #${room.id}`}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">У вас нет комнат</option>
+                )}
               </select>
               <div
                 style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}
               >
-                Пост будет показан участникам выбранной комнаты
+                Пост будет автоматически прикреплен к выбранной комнате и показан участникам
               </div>
             </div>
           </div>

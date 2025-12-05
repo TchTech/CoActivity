@@ -7,6 +7,7 @@ import java.time.Instant;
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ChatMessageResponse {
+    private Long id;
     private Long senderId;
     private String content;
     private Instant timestamp;
