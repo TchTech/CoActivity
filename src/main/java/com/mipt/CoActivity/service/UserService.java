@@ -5,7 +5,6 @@ import com.mipt.CoActivity.exception.*;
 import com.mipt.CoActivity.model.*;
 import com.mipt.CoActivity.repository.*;
 import com.mipt.CoActivity.repository.ExternalLinkRepository;
-import com.mipt.CoActivity.service.ImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +31,7 @@ public class UserService {
   private final ImageService imageService;
   private final InterestRepository interestRepository;
   private final InterestCategoryRepository interestCategoryRepository;
+  private final NotificationService notificationService;
 
   @Autowired
   UserService(UserRepository userRepository,
@@ -42,7 +42,8 @@ public class UserService {
               ExternalLinkRepository externalLinkRepository,
               ImageService imageService,
               InterestRepository interestRepository,
-              InterestCategoryRepository interestCategoryRepository) {
+              InterestCategoryRepository interestCategoryRepository,
+              NotificationService notificationService) {
     this.userRepository = userRepository;
     this.userSettingsRepository = userSettingsRepository;
     this.roomRepository = roomRepository;
@@ -52,6 +53,7 @@ public class UserService {
     this.imageService = imageService;
     this.interestRepository = interestRepository;
     this.interestCategoryRepository = interestCategoryRepository;
+    this.notificationService = notificationService;
   }
 
   public User getUserByUsername(String username) {
