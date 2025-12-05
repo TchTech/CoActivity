@@ -720,27 +720,11 @@ export const roomAPI = {
     })
   },
 
-  async kickUserFromRoom(roomId, userIdToKick, adminUserId) {
-    // Backend: POST /rooms/{roomId}/admin/kick
-    return request(`/rooms/${roomId}/admin/kick`, {
+  async createRatingRequest(roomId, requestedUserId) {
+    // Backend: POST /rating-requests?roomId=&requestedUserId=
+    return request("/rating-requests", {
       method: "POST",
-      params: { userIdToKick, adminUserId },
-    })
-  },
-
-  async deleteMessage(roomId, messageId, adminUserId) {
-    // Backend: DELETE /rooms/{roomId}/chat/messages/{messageId}
-    return request(`/rooms/${roomId}/chat/messages/${messageId}`, {
-      method: "DELETE",
-      params: { adminUserId },
-    })
-  },
-
-  async promoteToAdmin(roomId, userIdToPromote, adminUserId) {
-    // Backend: POST /rooms/{roomId}/admin/promote
-    return request(`/rooms/${roomId}/admin/promote`, {
-      method: "POST",
-      params: { userIdToPromote, adminUserId },
+      params: { roomId, requestedUserId },
     })
   },
 }

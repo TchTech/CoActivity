@@ -20,6 +20,8 @@ function CreateRoom({ onNavigate, currentPage }) {
     type: "open",
     date: "",
     time: "",
+    endDate: "",
+    endTime: "",
     city: "Саратов",
     address: "",
     maxMembers: 20,
@@ -63,6 +65,29 @@ function CreateRoom({ onNavigate, currentPage }) {
       return
     }
 
+    // Валидация дат
+    const now = new Date()
+    const meetingDateTime = new Date(`${formData.date}T${formData.time || "00:00"}:00`)
+    
+    if (meetingDateTime <= now) {
+      setError("Дата проведения должна быть в будущем")
+      return
+    }
+
+    if (formData.endDate && formData.endTime) {
+      const endDateTime = new Date(`${formData.endDate}T${formData.endTime || "00:00"}:00`)
+      
+      if (endDateTime <= now) {
+        setError("Дата окончания должна быть в будущем")
+        return
+      }
+      
+      if (endDateTime <= meetingDateTime) {
+        setError("Дата окончания должна быть позже даты проведения")
+        return
+      }
+    }
+
     setLoading(true)
     setError("")
 
@@ -71,11 +96,16 @@ function CreateRoom({ onNavigate, currentPage }) {
         `${formData.date}T${formData.time || "00:00"}:00`
       ).toISOString()
 
+      const endDateTime = formData.endDate && formData.endTime
+        ? new Date(`${formData.endDate}T${formData.endTime || "00:00"}:00`).toISOString()
+        : null
+
       const payload = {
         description: formData.description,
         category: formData.category,
         maxCollaborators: parseInt(formData.maxMembers, 10) || null,
         meetingTime: meetingDateTime,
+        endTime: endDateTime,
         meetingType: formData.format === "online" ? "online" : "offline",
         location:
           formData.format === "offline"
@@ -172,6 +202,28 @@ function CreateRoom({ onNavigate, currentPage }) {
               <label className="input-label">Время проведения *</label>
               <input type="time" name="time" className="input" value={formData.time} onChange={handleChange} />
             </div>
+
+            <div className="input-group">
+              <label className="input-label">Дата окончания (необязательно)</label>
+              <input 
+                type="date" 
+                name="endDate" 
+                className="input" 
+                value={formData.endDate} 
+                onChange={handleChange}
+                min={formData.date || new Date().toISOString().split('T')[0]}
+              />
+              <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}>
+                Комната будет удалена через сутки после этой даты
+              </div>
+            </div>
+
+            {formData.endDate && (
+              <div className="input-group">
+                <label className="input-label">Время окончания</label>
+                <input type="time" name="endTime" className="input" value={formData.endTime} onChange={handleChange} />
+              </div>
+            )}
           </div>
 
           {/* Формат */}

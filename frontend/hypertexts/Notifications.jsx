@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
-import { notificationAPI } from "../lib/api"
+import { notificationAPI, userAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
@@ -13,6 +13,9 @@ function Notifications({ onNavigate, currentPage }) {
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [showRatingModal, setShowRatingModal] = useState(false)
+  const [ratingModalData, setRatingModalData] = useState(null)
+  const [ratingValue, setRatingValue] = useState(5)
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -140,9 +143,41 @@ function Notifications({ onNavigate, currentPage }) {
                 <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", marginBottom: "var(--spacing-xs)" }}>
                   {notification.content}
                 </div>
-                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-muted)" }}>
+                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-muted)", marginBottom: "var(--spacing-xs)" }}>
                   {formatTime(notification.createdAt)}
                 </div>
+                {/* Кнопка "Оценить пользователя" для уведомлений о запросе на оценку */}
+                {(notification.type === "RATE_USER_REQUEST" || notification.type === "RATE_ROOM_CREATOR") && (
+                  <button
+                    className="btn btn-primary"
+                    style={{ 
+                      fontSize: "var(--font-size-sm)",
+                      padding: "var(--spacing-xs) var(--spacing-md)",
+                      marginTop: "var(--spacing-xs)"
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      try {
+                        const data = notification.data ? JSON.parse(notification.data) : {}
+                        const userIdToRate = data.requestedUserId || data.creatorId
+                        const userName = data.requestedUserName || data.creatorName || "Пользователь"
+                        if (userIdToRate && currentUser?.id) {
+                          setRatingModalData({
+                            userId: userIdToRate,
+                            userName: userName,
+                            notificationId: notification.id
+                          })
+                          setRatingValue(5)
+                          setShowRatingModal(true)
+                        }
+                      } catch (error) {
+                        console.error("Ошибка при парсинге данных уведомления:", error)
+                      }
+                    }}
+                  >
+                    Оценить пользователя
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)", marginLeft: "var(--spacing-sm)" }}>
                 {!notification.isRead && (
@@ -172,6 +207,91 @@ function Notifications({ onNavigate, currentPage }) {
       </div>
 
       <BottomNavigation currentPage={currentPage || "notifications"} onNavigate={onNavigate} />
+
+      {/* Rating Modal */}
+      {showRatingModal && ratingModalData && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowRatingModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "var(--bg-primary)",
+              padding: "var(--spacing-lg)",
+              borderRadius: "var(--radius-lg)",
+              maxWidth: "400px",
+              width: "90%",
+              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginBottom: "var(--spacing-md)", fontSize: "var(--font-size-lg)" }}>
+              Оценить {ratingModalData.userName}
+            </h3>
+            <div style={{ marginBottom: "var(--spacing-md)" }}>
+              <input
+                type="range"
+                min="0"
+                max="10"
+                step="0.5"
+                value={ratingValue}
+                onChange={(e) => setRatingValue(parseFloat(e.target.value))}
+                style={{ width: "100%" }}
+              />
+              <div style={{ textAlign: "center", marginTop: "var(--spacing-sm)", fontSize: "var(--font-size-lg)", fontWeight: "600" }}>
+                {ratingValue.toFixed(1)} / 10
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+              <button 
+                className="btn btn-primary" 
+                onClick={async () => {
+                  try {
+                    await userAPI.createRating(ratingModalData.userId, currentUser.id, ratingValue)
+                    alert("Оценка сохранена")
+                    // Помечаем уведомление как прочитанное
+                    if (ratingModalData.notificationId) {
+                      const notification = notifications.find(n => n.id === ratingModalData.notificationId)
+                      if (notification && !notification.isRead) {
+                        handleMarkAsRead(ratingModalData.notificationId)
+                      }
+                    }
+                    setShowRatingModal(false)
+                    setRatingModalData(null)
+                  } catch (error) {
+                    console.error("Ошибка при оценке пользователя:", error)
+                    alert("Не удалось сохранить оценку: " + (error.message || "Неизвестная ошибка"))
+                  }
+                }} 
+                style={{ flex: 1 }}
+              >
+                Сохранить
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowRatingModal(false)
+                  setRatingModalData(null)
+                }} 
+                style={{ flex: 1 }}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -23,6 +23,7 @@ public class RoomDetailsResponse {
     private Instant createdAt;
     private String meetingType;
     private Instant meetingTime;
+    private Instant endTime;
     private Integer maxCollaborators;
     private String joinType;
     private Boolean isDefault;
