@@ -1,8 +1,11 @@
 "use client"
 import { useEffect, useState } from "react"
+import { Bell } from "lucide-react"
 import BottomNavigation from "./BottomNavigation"
-import { roomAPI, imageAPI } from "../lib/api"
+import { roomAPI, notificationAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import NotificationsPanel from "../components/NotificationsPanel"
+import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -17,6 +20,26 @@ function RoomsList({ onNavigate, currentPage }) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [activeTab, setActiveTab] = useState("all") // "all" or "mine"
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Function to refresh room list (can be called from child components)
+  const refreshRoomList = () => {
+    setRefreshKey(prev => prev + 1)
+  }
+
+  // Listen for room update events
+  useEffect(() => {
+    const handleRoomUpdated = () => {
+      refreshRoomList()
+    }
+    
+    window.addEventListener('roomUpdated', handleRoomUpdated)
+    return () => {
+      window.removeEventListener('roomUpdated', handleRoomUpdated)
+    }
+  }, [])
 
   useEffect(() => {
     const loadRooms = async () => {
@@ -152,7 +175,34 @@ function RoomsList({ onNavigate, currentPage }) {
         loadRooms()
       }
     }
-  }, [searchQuery, currentUser])
+  }, [searchQuery, currentUser, refreshKey])
+
+  // Load unread notification count
+  const refreshUnreadCount = async () => {
+    if (!currentUser?.id) {
+      setUnreadCount(0)
+      return
+    }
+
+    try {
+      const countData = await notificationAPI.getUnreadCount(currentUser.id)
+      setUnreadCount(countData?.count || 0)
+    } catch (error) {
+      console.error("Ошибка загрузки количества уведомлений:", error)
+      setUnreadCount(0)
+    }
+  }
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setUnreadCount(0)
+      return
+    }
+
+    refreshUnreadCount()
+    const interval = setInterval(refreshUnreadCount, 30000) // Poll every 30s
+    return () => clearInterval(interval)
+  }, [currentUser])
 
   return (
     <div>
@@ -175,6 +225,113 @@ function RoomsList({ onNavigate, currentPage }) {
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
           </button>
+          
+          {/* Notification Bell */}
+          {currentUser?.id && (
+            <Popover open={notificationPanelOpen} onOpenChange={setNotificationPanelOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  className="btn-icon"
+                  style={{ 
+                    position: "relative",
+                    width: "40px",
+                    height: "40px"
+                  }}
+                  aria-label="Уведомления"
+                >
+                  <Bell size={20} style={{ color: "var(--text-primary)" }} />
+                  {unreadCount > 0 && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: "-4px",
+                        right: "-4px",
+                        backgroundColor: "var(--accent-gold)",
+                        color: "var(--bg-primary)",
+                        borderRadius: "50%",
+                        width: "20px",
+                        height: "20px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        border: "2px solid var(--bg-primary)",
+                        boxShadow: "0 0 8px rgba(212, 175, 55, 0.6)",
+                      }}
+                    >
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="bottom"
+                align="end"
+                style={{
+                  padding: 0,
+                  width: "380px",
+                  maxHeight: "600px",
+                  overflow: "hidden",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  boxShadow: "none",
+                }}
+              >
+                <NotificationsPanel
+                  userId={currentUser.id}
+                  onClose={() => setNotificationPanelOpen(false)}
+                  onNavigate={onNavigate}
+                  onNotificationUpdate={refreshUnreadCount}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
+
+          {/* Profile Avatar - Navigate to profile */}
+          {currentUser?.id && (
+            <button
+              className="btn-icon"
+              onClick={() => onNavigate("profile", currentUser.id)}
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "50%",
+                padding: 0,
+                overflow: "hidden",
+                border: "2px solid var(--border-color)",
+              }}
+              aria-label="Профиль"
+            >
+              {currentUser.avatar?.id ? (
+                <img
+                  src={imageAPI.getImageUrl(currentUser.avatar.id)}
+                  alt={currentUser.name || "Профиль"}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    backgroundColor: "var(--accent-blue)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    fontSize: "var(--font-size-sm)",
+                    fontWeight: "600",
+                  }}
+                >
+                  {currentUser.name?.[0]?.toUpperCase() || currentUser.username?.[0]?.toUpperCase() || "?"}
+                </div>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -231,6 +388,10 @@ function RoomsList({ onNavigate, currentPage }) {
             <div
               key={room.id}
               className="room-item"
+              style={{
+                opacity: room.isClosed ? 0.7 : 1,
+                borderLeft: room.isClosed ? "3px solid var(--error-color)" : "none"
+              }}
               onClick={() => {
                 const roomId = typeof room.id === "object" ? (room.id?.id || room.id?.roomId || null) : room.id
                 if (roomId) {
@@ -282,13 +443,37 @@ function RoomsList({ onNavigate, currentPage }) {
               </div>
 
               <div className="room-info">
-                <div className="room-name">{room.name || room.description || "Комната"}</div>
-                <div className="room-last-message">
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)" }}>
+                  <div className="room-name" style={{ 
+                    opacity: room.isClosed ? 0.6 : 1,
+                    flex: 1
+                  }}>
+                    {room.name || room.description || "Комната"}
+                  </div>
+                  {room.isClosed && (
+                    <span className="badge" style={{
+                      backgroundColor: "var(--error-color)",
+                      color: "white",
+                      fontWeight: "600",
+                      textTransform: "uppercase"
+                    }}>
+                      Закрыта
+                    </span>
+                  )}
+                </div>
+                <div className="room-last-message" style={{ 
+                  opacity: room.isClosed ? 0.6 : 1 
+                }}>
                   {room.description && room.description.length > 50 
                     ? room.description.substring(0, 50) + "..." 
                     : room.description || ""}
                 </div>
-                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}>
+                <div style={{ 
+                  fontSize: "var(--font-size-sm)", 
+                  color: room.isClosed ? "var(--text-muted)" : "var(--text-muted)", 
+                  marginTop: "var(--spacing-xs)",
+                  opacity: room.isClosed ? 0.6 : 1
+                }}>
                   Участников: {room.collaborators?.length || room.memberCount || 0}
                   {room.joinType === "by_application" && (
                     <span style={{ marginLeft: "var(--spacing-sm)" }}>• По заявкам</span>

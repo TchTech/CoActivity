@@ -196,13 +196,39 @@ async function request(path, { method = "GET", params, body, headers } = {}) {
   }
 
   if (!res.ok) {
-    const message =
-      (data && (data.message || data.error)) ||
-      `Request failed with status ${res.status}`
-    console.error(`[API] Request failed: ${message}`, { status: res.status, data })
+    // Try to extract error message from various sources
+    let message = `Request failed with status ${res.status}`
+    
+    if (data) {
+      // If we have parsed JSON data, try to extract message
+      if (data.message) {
+        message = data.message
+      } else if (data.error) {
+        message = data.error
+      } else if (typeof data === 'string') {
+        message = data
+      } else if (typeof data === 'object') {
+        // Try to find any string value in the object
+        const errorValues = Object.values(data).filter(v => typeof v === 'string')
+        if (errorValues.length > 0) {
+          message = errorValues[0]
+        }
+      }
+    } else if (text && text.trim().length > 0) {
+      // If no JSON data but we have text, use the text as the error message
+      // This handles plain text error responses from the backend
+      const trimmed = text.trim()
+      // Only use text if it looks like an error message (not too long, not HTML)
+      if (trimmed.length < 500 && !trimmed.startsWith('<')) {
+        message = trimmed
+      }
+    }
+    
+    console.error(`[API] Request failed: ${message}`, { status: res.status, data, text: text?.substring(0, 200) })
     const error = new Error(message)
     error.status = res.status
     error.data = data
+    error.text = text // Include raw text for debugging
     throw error
   }
 
@@ -328,6 +354,22 @@ export const userAPI = {
   async getAbout(userId) {
     // Backend: GET /users/{userId}/about
     return request(`/users/${userId}/about`, { method: "GET" })
+  },
+
+  async getNotificationSettings(userId) {
+    // Backend: GET /users/{userId}/settings/general-notifications
+    // UserController uses @RequestMapping("/users"), not "/api/users"
+    return request(`/users/${userId}/settings/general-notifications`, { method: "GET" })
+  },
+
+  async updateNotificationSettings(userId, settings) {
+    // Backend: PUT /users/{userId}/settings/general-notifications
+    // settings should contain: { emailNotifications, pushNotifications }
+    // UserController uses @RequestMapping("/users"), not "/api/users"
+    return request(`/users/${userId}/settings/general-notifications`, {
+      method: "PUT",
+      body: settings,
+    })
   },
 }
 
@@ -590,8 +632,8 @@ export const commentAPI = {
 
 export const roomAPI = {
   async create(userId, roomPayload) {
-    // Swagger: POST /rooms with description, category, maxCollaborators, meetingTime, meetingType, location
-    return request("/rooms", {
+    // Backend: POST /api/rooms with description, category, maxCollaborators, meetingTime, meetingType, location
+    return request("/api/rooms", {
       method: "POST",
       params: { userId },
       body: roomPayload,
@@ -599,8 +641,8 @@ export const roomAPI = {
   },
 
   async getAllRooms(offset = 0, limit = 50) {
-    // Backend: GET /rooms?offset=&limit=
-    return request("/rooms", {
+    // Backend: GET /api/rooms?offset=&limit=
+    return request("/api/rooms", {
       method: "GET",
       params: { offset, limit },
     })
@@ -611,16 +653,16 @@ export const roomAPI = {
   },
 
   async openChat(roomId, userId) {
-    // Backend: GET /rooms/{roomId}/chat?userId=
-    return request(`/rooms/${roomId}/chat`, {
+    // Backend: GET /api/rooms/{roomId}/chat?userId=
+    return request(`/api/rooms/${roomId}/chat`, {
       method: "GET",
       params: { userId },
     })
   },
 
   async sendMessage(roomId, senderId, content) {
-    // Swagger: POST /rooms/{roomId}/chat/messages with { senderId, content }
-    return request(`/rooms/${roomId}/chat/messages`, {
+    // Backend: POST /api/rooms/{roomId}/chat/messages with { senderId, content }
+    return request(`/api/rooms/${roomId}/chat/messages`, {
       method: "POST",
       body: {
         senderId,
@@ -630,69 +672,191 @@ export const roomAPI = {
   },
 
   async search(query) {
-    // Backend: GET /rooms/search?query=
-    return request("/rooms/search", {
+    // Backend: GET /api/rooms/search?query=
+    return request("/api/rooms/search", {
       method: "GET",
       params: { query },
     })
   },
 
   async applyToRoom(roomId, userId) {
-    // Backend: POST /rooms/{roomId}/apply
-    return request(`/rooms/${roomId}/apply`, {
+    // Backend: POST /api/rooms/{roomId}/apply
+    return request(`/api/rooms/${roomId}/apply`, {
       method: "POST",
       body: { userId },
     })
   },
 
   async getPendingJoinRequests(roomId) {
-    // Backend: GET /rooms/{roomId}/join-requests
-    return request(`/rooms/${roomId}/join-requests`, {
+    // Backend: GET /api/rooms/{roomId}/join-requests
+    return request(`/api/rooms/${roomId}/join-requests`, {
       method: "GET",
     })
   },
 
+  /**
+   * Get all pending requests for the current user (applicant view)
+   * GET /api/rooms/my-applications?userId={userId}
+   * 
+   * @param {number} userId - The user ID
+   * @returns {Promise<Array>} List of user's pending RoomJoinRequest
+   */
   async getMyPendingRequests(userId) {
-    // Backend: GET /rooms/my-applications?userId=
-    return request("/rooms/my-applications", {
+    // Backend: GET /api/rooms/my-applications?userId={userId}
+    return request("/api/rooms/my-applications", {
       method: "GET",
       params: { userId },
     })
   },
 
   async getDetails(roomId) {
-    // Backend: GET /rooms/{roomId}
-    return request(`/rooms/${roomId}`, { method: "GET" })
+    // Backend: GET /api/rooms/{roomId}
+    return request(`/api/rooms/${roomId}`, { method: "GET" })
   },
 
-  async createMembershipRequest(roomId, userId, message) {
-    // Backend: POST /rooms/{roomId}/requests?userId=
-    return request(`/rooms/${roomId}/requests`, {
+  /**
+   * Create a new room join request
+   * POST /api/rooms/{roomId}/requests?userId={userId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} userId - The user ID requesting to join
+   * @param {Object} requestBody - Optional request with message (max 500 chars)
+   * @param {string} [requestBody.message] - Optional message from requester
+   * @returns {Promise<Object>} Created RoomJoinRequest
+   * @throws {Error} If room is "open" type, user already member, cooldown active, etc.
+   */
+  async createJoinRequest(roomId, userId, requestBody = {}) {
+    // Backend: POST /api/rooms/{roomId}/requests?userId={userId}
+    return request(`/api/rooms/${roomId}/requests`, {
       method: "POST",
       params: { userId },
-      body: message ? { message } : {},
+      body: requestBody,
     })
   },
 
-  async getMembershipRequests(roomId, userId) {
-    // Backend: GET /rooms/{roomId}/requests?userId=
-    return request(`/rooms/${roomId}/requests`, {
+  /**
+   * Get all pending requests for a room (admin/creator view)
+   * GET /api/rooms/{roomId}/requests?userId={userId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} userId - The admin/creator user ID
+   * @returns {Promise<Array>} List of RoomJoinRequest
+   * @throws {Error} If user is not admin/creator (403)
+   */
+  async getPendingRequests(roomId, userId) {
+    // Backend: GET /api/rooms/{roomId}/requests?userId={userId}
+    return request(`/api/rooms/${roomId}/requests`, {
       method: "GET",
       params: { userId },
     })
   },
 
-  async cancelMembershipRequest(roomId, requestId, userId) {
-    // Backend: DELETE /rooms/{roomId}/requests/{requestId}?userId=
-    return request(`/rooms/${roomId}/requests/${requestId}`, {
+  /**
+   * Approve a room join request
+   * POST /api/rooms/{roomId}/requests/{requestId}/approve?targetUserId={targetUserId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} requestId - The request ID
+   * @param {number} targetUserId - The user ID whose request is being approved
+   * @param {Object} approveRequest - Request with adminId
+   * @param {number} approveRequest.adminId - ID of admin approving
+   * @returns {Promise<void>}
+   * @throws {Error} If not admin (403), room at capacity (409), etc.
+   */
+  async approveRequest(roomId, requestId, targetUserId, approveRequest) {
+    // Backend: POST /api/rooms/{roomId}/requests/{requestId}/approve?targetUserId={targetUserId}
+    return request(`/api/rooms/${roomId}/requests/${requestId}/approve`, {
+      method: "POST",
+      params: { targetUserId },
+      body: approveRequest,
+    })
+  },
+
+  /**
+   * Reject a room join request
+   * POST /api/rooms/{roomId}/requests/{requestId}/reject?targetUserId={targetUserId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} requestId - The request ID
+   * @param {number} targetUserId - The user ID whose request is being rejected
+   * @param {Object} rejectRequest - Request with adminId and optional reason
+   * @param {number} rejectRequest.adminId - ID of admin rejecting
+   * @param {string} [rejectRequest.reason] - Optional rejection reason (max 500 chars)
+   * @returns {Promise<void>}
+   * @throws {Error} If not admin (403), request not pending (400), etc.
+   */
+  async rejectRequest(roomId, requestId, targetUserId, rejectRequest) {
+    // Backend: POST /api/rooms/{roomId}/requests/{requestId}/reject?targetUserId={targetUserId}
+    return request(`/api/rooms/${roomId}/requests/${requestId}/reject`, {
+      method: "POST",
+      params: { targetUserId },
+      body: rejectRequest,
+    })
+  },
+
+  /**
+   * Cancel a room join request (user cancels their own request)
+   * DELETE /api/rooms/{roomId}/requests/{requestId}?userId={userId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} requestId - The request ID
+   * @param {number} userId - The user ID (must be request owner)
+   * @returns {Promise<void>}
+   * @throws {Error} If not request owner (403), request not pending (400), etc.
+   */
+  async cancelRequest(roomId, requestId, userId) {
+    // Backend: DELETE /api/rooms/{roomId}/requests/{requestId}?userId={userId}
+    return request(`/api/rooms/${roomId}/requests/${requestId}`, {
       method: "DELETE",
       params: { userId },
     })
   },
 
+  /**
+   * Manually close a room
+   * POST /api/rooms/{roomId}/close
+   * 
+   * @param {number} roomId - The room ID
+   * @param {Object} closeRequest - Request with userId
+   * @param {number} closeRequest.userId - ID of user closing (must be admin/creator)
+   * @returns {Promise<void>}
+   * @throws {Error} If not admin (403), room already closed (400), etc.
+   */
+  async closeRoom(roomId, closeRequest) {
+    // Backend: POST /api/rooms/{roomId}/close
+    return request(`/api/rooms/${roomId}/close`, {
+      method: "POST",
+      body: closeRequest,
+    })
+  },
+
+  // ========== Legacy Methods (deprecated but maintained for backward compatibility) ==========
+
+  /**
+   * @deprecated Use createJoinRequest instead
+   */
+  async createMembershipRequest(roomId, userId, message) {
+    // Backend: POST /api/rooms/{roomId}/requests?userId={userId}
+    return this.createJoinRequest(roomId, userId, message ? { message } : {})
+  },
+
+  /**
+   * @deprecated Use getPendingRequests instead
+   */
+  async getMembershipRequests(roomId, userId) {
+    return this.getPendingRequests(roomId, userId)
+  },
+
+  /**
+   * @deprecated Use cancelRequest instead
+   */
+  async cancelMembershipRequest(roomId, requestId, userId) {
+    return this.cancelRequest(roomId, requestId, userId)
+  },
+
   async pinPost(roomId, postId, userId) {
-    // Backend: POST /rooms/{roomId}/pinned-posts?userId=
-    return request(`/rooms/${roomId}/pinned-posts`, {
+    // Backend: POST /api/rooms/{roomId}/pinned-posts?userId=
+    return request(`/api/rooms/${roomId}/pinned-posts`, {
       method: "POST",
       params: { userId },
       body: { postId },
@@ -700,21 +864,21 @@ export const roomAPI = {
   },
 
   async unpinPost(roomId, postId, userId) {
-    // Backend: DELETE /rooms/{roomId}/pinned-posts/{postId}?userId=
-    return request(`/rooms/${roomId}/pinned-posts/${postId}`, {
+    // Backend: DELETE /api/rooms/{roomId}/pinned-posts/{postId}?userId=
+    return request(`/api/rooms/${roomId}/pinned-posts/${postId}`, {
       method: "DELETE",
       params: { userId },
     })
   },
 
   async getPinnedPosts(roomId) {
-    // Backend: GET /rooms/{roomId}/pinned-posts
-    return request(`/rooms/${roomId}/pinned-posts`, { method: "GET" })
+    // Backend: GET /api/rooms/{roomId}/pinned-posts
+    return request(`/api/rooms/${roomId}/pinned-posts`, { method: "GET" })
   },
 
   async joinRoom(roomId, userId) {
     // Backend: POST /rooms/{roomId}/join
-    return request(`/rooms/${roomId}/join`, {
+    return request(`/api/rooms/${roomId}/join`, {
       method: "POST",
       body: { userId },
     })
@@ -733,44 +897,44 @@ export const roomAPI = {
 
 export const notificationAPI = {
   async getAll(userId) {
-    // Backend: GET /notifications/{userId}
-    return request(`/notifications/${userId}`, {
+    // Backend: GET /api/notifications/{userId}
+    return request(`/api/notifications/${userId}`, {
       method: "GET",
     })
   },
 
   async getUnread(userId) {
-    // Backend: GET /notifications/{userId}/unread
-    return request(`/notifications/${userId}/unread`, {
+    // Backend: GET /api/notifications/{userId}/unread
+    return request(`/api/notifications/${userId}/unread`, {
       method: "GET",
     })
   },
 
   async getUnreadCount(userId) {
-    // Backend: GET /notifications/{userId}/unread-count
-    return request(`/notifications/${userId}/unread-count`, {
+    // Backend: GET /api/notifications/{userId}/unread-count
+    return request(`/api/notifications/${userId}/unread-count`, {
       method: "GET",
     })
   },
 
   async markAsRead(notificationId, userId) {
-    // Backend: POST /notifications/{notificationId}/read?userId=
-    return request(`/notifications/${notificationId}/read`, {
+    // Backend: POST /api/notifications/{notificationId}/read?userId=
+    return request(`/api/notifications/${notificationId}/read`, {
       method: "POST",
       params: { userId },
     })
   },
 
   async markAllAsRead(userId) {
-    // Backend: POST /notifications/{userId}/read-all
-    return request(`/notifications/${userId}/read-all`, {
+    // Backend: POST /api/notifications/{userId}/read-all
+    return request(`/api/notifications/${userId}/read-all`, {
       method: "POST",
     })
   },
 
   async markNotificationsAsRead(notificationIds, userId) {
-    // Backend: POST /notifications/mark-read?userId=
-    return request("/notifications/mark-read", {
+    // Backend: POST /api/notifications/mark-read?userId=
+    return request("/api/notifications/mark-read", {
       method: "POST",
       params: { userId },
       body: notificationIds,
@@ -778,8 +942,8 @@ export const notificationAPI = {
   },
 
   async dismiss(notificationId, userId) {
-    // Backend: DELETE /notifications/{notificationId}?userId=
-    return request(`/notifications/${notificationId}`, {
+    // Backend: DELETE /api/notifications/{notificationId}?userId=
+    return request(`/api/notifications/${notificationId}`, {
       method: "DELETE",
       params: { userId },
     })

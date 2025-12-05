@@ -30,6 +30,7 @@ public class RoomService {
   private final com.mipt.CoActivity.repository.RoomPostPinRepository roomPostPinRepository;
   private final com.mipt.CoActivity.repository.PostRepository postRepository;
   private final NotificationService notificationService;
+  private final RoomJoinRequestService roomJoinRequestService;
 
   @Autowired
   public RoomService(
@@ -40,7 +41,8 @@ public class RoomService {
           com.mipt.CoActivity.repository.RoomJoinRequestRepository roomJoinRequestRepository,
           com.mipt.CoActivity.repository.RoomPostPinRepository roomPostPinRepository,
           com.mipt.CoActivity.repository.PostRepository postRepository,
-          NotificationService notificationService) {
+          NotificationService notificationService,
+          RoomJoinRequestService roomJoinRequestService) {
     this.roomRepository = roomRepository;
     this.userRepository = userRepository;
     this.messageRepository = messageRepository;
@@ -49,6 +51,7 @@ public class RoomService {
     this.roomPostPinRepository = roomPostPinRepository;
     this.postRepository = postRepository;
     this.notificationService = notificationService;
+    this.roomJoinRequestService = roomJoinRequestService;
   }
 
   @Transactional
@@ -745,6 +748,7 @@ public class RoomService {
     response.setMaxCollaborators(room.getMaxCollaborators());
     response.setJoinType(room.getJoinType() != null ? room.getJoinType() : "open");
     response.setIsDefault(room.getIsDefault() != null ? room.getIsDefault() : false);
+    response.setIsClosed(room.getIsClosed() != null ? room.getIsClosed() : false);
     
     // Fill members list
     List<RoomDetailsResponse.RoomMemberInfo> membersList = new ArrayList<>();
@@ -804,140 +808,123 @@ public class RoomService {
   }
 
   /**
-   * Kick a user from a room (admin only)
-   * Cannot kick the room creator
+   * Manually close a room.
+   * 
+   * Validations:
+   * - User must be room creator or admin
+   * - Room must not already be closed
+   * 
+   * Side effects:
+   * - Sets room as closed
+   * - Auto-rejects all pending requests
+   * - Sends notifications to all applicants
+   * 
+   * @param roomId The room ID
+   * @param userId The user ID closing the room (must be creator or admin)
    */
   @Transactional
-  public void kickUserFromRoom(Long roomId, Long userIdToKick, Long adminUserId) {
+  public void closeRoom(Long roomId, Long userId) {
     Room room = roomRepository.findById(roomId)
-        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
-    
-    User admin = userRepository.findById(adminUserId)
-        .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
-    
-    User userToKick = userRepository.findById(userIdToKick)
-        .orElseThrow(() -> new ResourceNotFoundException("User to kick not found"));
-    
-    // Check if admin is actually an admin
-    if (!room.getAdmins().contains(admin)) {
-      throw new ForbiddenException("Only administrators can kick users from the room");
+            .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+
+    User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+    // Validate user is creator or admin
+    boolean isCreator = room.getCreatedBy().getId().equals(userId);
+    boolean isAdmin = room.getAdmins().contains(user);
+    if (!isCreator && !isAdmin) {
+      throw new ForbiddenException("Only room creator or administrators can close the room");
     }
-    
-    // Cannot kick the room creator
-    if (room.getCreatedBy() != null && room.getCreatedBy().getId().equals(userIdToKick)) {
-      throw new BadRequestException("Cannot kick the room creator");
+
+    // Check if already closed
+    if (Boolean.TRUE.equals(room.getIsClosed())) {
+      throw new BadRequestException("Room is already closed");
     }
-    
-    // Check if user is a member
-    if (!room.getCollaborators().contains(userToKick)) {
-      throw new BadRequestException("User is not a member of this room");
-    }
-    
-    // Remove from collaborators
-    room.getCollaborators().remove(userToKick);
-    
-    // Remove from admins if they are an admin (but not the creator)
-    if (room.getAdmins().contains(userToKick)) {
-      room.getAdmins().remove(userToKick);
-    }
-    
+
+    // Close the room
+    room.setIsClosed(true);
+    room.setClosedAt(Instant.now());
+    room.setClosedBy(user);
     roomRepository.save(room);
-    
-    // Create notification for kicked user
-    try {
-      String roomName = room.getName() != null ? room.getName() : "комнате";
-      notificationService.createNotification(
-        userIdToKick,
-        "USER_KICKED",
-        "Вас исключили из комнаты",
-        String.format("Вас исключили из комнаты \"%s\"", roomName),
-        String.format("{\"roomId\":%d}", roomId)
-      );
-    } catch (Exception e) {
-      logger.error("Failed to create kick notification: {}", e.getMessage(), e);
-    }
-    
-    logger.info("Admin {} kicked user {} from room {}", adminUserId, userIdToKick, roomId);
+
+    // Auto-reject all pending requests with ROOM_CLOSED notification type
+    roomJoinRequestService.autoRejectPendingRequests(roomId, "Room was closed by administrator", "ROOM_CLOSED");
+
+    logger.info("Room {} was closed by user {}", roomId, userId);
   }
 
   /**
-   * Delete a message from room chat (admin only)
+   * Check and auto-close rooms where the event date (meetingTime) has passed.
+   * This method should be called by a scheduled job.
+   * 
+   * Note: The database trigger also handles this, but this method provides
+   * explicit control and can be called from a scheduled job for reliability.
    */
   @Transactional
-  public void deleteMessage(Long roomId, Long messageId, Long adminUserId) {
-    Room room = roomRepository.findById(roomId)
-        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
-    
-    User admin = userRepository.findById(adminUserId)
-        .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
-    
-    Message message = messageRepository.findById(messageId)
-        .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
-    
-    // Check if message belongs to this room
-    if (message.getRoom() == null || !message.getRoom().getId().equals(roomId)) {
-      throw new BadRequestException("Message does not belong to this room");
+  public void autoCloseExpiredRooms() {
+    Instant now = Instant.now();
+    List<Room> activeRooms = roomRepository.findAll().stream()
+            .filter(room -> !Boolean.TRUE.equals(room.getIsClosed()))
+            .filter(room -> room.getMeetingTime() != null)
+            .filter(room -> room.getMeetingTime().isBefore(now))
+            .collect(Collectors.toList());
+
+    int closedCount = 0;
+    for (Room room : activeRooms) {
+      try {
+        room.setIsClosed(true);
+        room.setClosedAt(room.getMeetingTime()); // Use meetingTime as closed_at
+        roomRepository.save(room);
+
+        // Auto-reject all pending requests with ROOM_CLOSED notification type
+        roomJoinRequestService.autoRejectPendingRequests(
+                room.getId(), 
+                "Room was automatically closed because the event date has passed",
+                "ROOM_CLOSED"
+        );
+
+        closedCount++;
+        logger.info("Auto-closed room {} (event date: {})", room.getId(), room.getMeetingTime());
+      } catch (Exception e) {
+        logger.error("Error auto-closing room {}: {}", room.getId(), e.getMessage(), e);
+      }
     }
-    
-    // Check if admin is actually an admin
-    if (!room.getAdmins().contains(admin)) {
-      throw new ForbiddenException("Only administrators can delete messages");
-    }
-    
-    // Mark message as deleted
-    message.setIsDeleted(true);
-    messageRepository.save(message);
-    
-    logger.info("Admin {} deleted message {} from room {}", adminUserId, messageId, roomId);
+
+    logger.info("Auto-closed {} expired rooms", closedCount);
   }
 
   /**
-   * Promote a user to admin (admin only)
+   * Check if a room is closed or should be closed.
+   * 
+   * @param roomId The room ID
+   * @return true if room is closed, false otherwise
    */
-  @Transactional
-  public void promoteToAdmin(Long roomId, Long userIdToPromote, Long adminUserId) {
+  public boolean isRoomClosed(Long roomId) {
     Room room = roomRepository.findById(roomId)
-        .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
-    
-    User admin = userRepository.findById(adminUserId)
-        .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
-    
-    User userToPromote = userRepository.findById(userIdToPromote)
-        .orElseThrow(() -> new ResourceNotFoundException("User to promote not found"));
-    
-    // Check if admin is actually an admin
-    if (!room.getAdmins().contains(admin)) {
-      throw new ForbiddenException("Only administrators can promote users to admin");
+            .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+
+    // Check explicit closure
+    if (Boolean.TRUE.equals(room.getIsClosed())) {
+      return true;
     }
-    
-    // Check if user is a member
-    if (!room.getCollaborators().contains(userToPromote)) {
-      throw new BadRequestException("User must be a member of the room to become an admin");
+
+    // Check if event date has passed (auto-close condition)
+    if (room.getMeetingTime() != null && room.getMeetingTime().isBefore(Instant.now())) {
+      // Auto-close if not already closed
+      if (!Boolean.TRUE.equals(room.getIsClosed())) {
+        try {
+          room.setIsClosed(true);
+          room.setClosedAt(room.getMeetingTime());
+          roomRepository.save(room);
+          logger.info("Auto-closed room {} due to expired event date", roomId);
+        } catch (Exception e) {
+          logger.error("Error auto-closing room {}: {}", roomId, e.getMessage(), e);
+        }
+      }
+      return true;
     }
-    
-    // Check if already an admin
-    if (room.getAdmins().contains(userToPromote)) {
-      throw new ConflictException("User is already an admin");
-    }
-    
-    // Add to admins
-    room.getAdmins().add(userToPromote);
-    roomRepository.save(room);
-    
-    // Create notification for promoted user
-    try {
-      String roomName = room.getName() != null ? room.getName() : "комнате";
-      notificationService.createNotification(
-        userIdToPromote,
-        "USER_PROMOTED",
-        "Вас назначили администратором",
-        String.format("Вас назначили администратором комнаты \"%s\"", roomName),
-        String.format("{\"roomId\":%d}", roomId)
-      );
-    } catch (Exception e) {
-      logger.error("Failed to create promotion notification: {}", e.getMessage(), e);
-    }
-    
-    logger.info("Admin {} promoted user {} to admin in room {}", adminUserId, userIdToPromote, roomId);
+
+    return false;
   }
 }

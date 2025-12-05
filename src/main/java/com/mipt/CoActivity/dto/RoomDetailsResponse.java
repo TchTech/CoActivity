@@ -27,6 +27,7 @@ public class RoomDetailsResponse {
     private Integer maxCollaborators;
     private String joinType;
     private Boolean isDefault;
+    private Boolean isClosed;
     private List<RoomMemberInfo> members = new ArrayList<>();
     
     @Data

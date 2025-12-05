@@ -26,6 +26,9 @@ public class Notification {
   private boolean isRead;
   @Column(name = "createdAt")
   private Instant createdAt;
+  
+  @Column(name = "deduplication_hash", length = 64)
+  private String deduplicationHash; // MD5 hash of (userId + type + data) to prevent duplicate notifications
 
   public void setIsRead(boolean b) {
     this.isRead = b;

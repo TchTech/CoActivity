@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { notificationAPI } from "../lib/api"
+import { parseNotificationData, isMembershipRequestType, isMembershipDecisionType } from "../types"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 
-function NotificationsPanel({ userId, onClose, onNavigate }) {
+function NotificationsPanel({ userId, onClose, onNavigate, onNotificationUpdate }) {
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -46,6 +47,10 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
         n.id === notificationId ? { ...n, isRead: true } : n
       ))
       setUnreadCount(Math.max(0, unreadCount - 1))
+      // Notify parent to refresh badge counter
+      if (onNotificationUpdate) {
+        onNotificationUpdate()
+      }
     } catch (error) {
       console.error("Ошибка отметки уведомления:", error)
     }
@@ -53,10 +58,15 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
 
   const handleDismiss = async (notificationId) => {
     try {
+      const notification = notifications.find(n => n.id === notificationId)
       await notificationAPI.dismiss(notificationId, userId)
       setNotifications(notifications.filter(n => n.id !== notificationId))
-      if (!notifications.find(n => n.id === notificationId)?.isRead) {
+      if (notification && !notification.isRead) {
         setUnreadCount(Math.max(0, unreadCount - 1))
+      }
+      // Notify parent to refresh badge counter
+      if (onNotificationUpdate) {
+        onNotificationUpdate()
       }
     } catch (error) {
       console.error("Ошибка удаления уведомления:", error)
@@ -64,12 +74,27 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
   }
 
   const handleMarkAllAsRead = async () => {
+    if (!userId) {
+      console.error("Cannot mark all as read: userId is missing")
+      return
+    }
+    
     try {
+      console.log("[NotificationsPanel] Marking all notifications as read for user:", userId)
       await notificationAPI.markAllAsRead(userId)
+      console.log("[NotificationsPanel] Successfully marked all as read")
+      
+      // Update local state
       setNotifications(notifications.map(n => ({ ...n, isRead: true })))
       setUnreadCount(0)
+      
+      // Notify parent to refresh badge counter
+      if (onNotificationUpdate) {
+        onNotificationUpdate()
+      }
     } catch (error) {
       console.error("Ошибка отметки всех уведомлений:", error)
+      console.error("Не удалось отметить все уведомления как прочитанные:", error)
     }
   }
 
@@ -78,19 +103,33 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
       handleMarkAsRead(notification.id)
     }
 
-    // Navigate based on notification type
-    try {
-      const data = notification.data ? JSON.parse(notification.data) : {}
-      if (notification.type === "MEMBERSHIP_REQUEST" && data.roomId) {
-        onNavigate("roomInfo", data.roomId)
-      } else if (notification.type === "MEMBERSHIP_APPROVED" && data.roomId) {
-        onNavigate("roomInfo", data.roomId)
-      } else if (notification.type === "POST_PINNED" && data.roomId) {
+    // Navigate based on notification type using parseNotificationData
+    const data = parseNotificationData(notification)
+    
+    if (isMembershipRequestType(notification.type) && data?.roomId) {
+      // For membership requests, navigate to room with requests tab
+      onNavigate("roomInfo", data.roomId)
+    } else if (isMembershipDecisionType(notification.type) && data?.roomId) {
+      // For membership decisions (approved/rejected), navigate to room
+      onNavigate("roomInfo", data.roomId)
+    } else if (notification.type === "POST_PINNED" && data?.roomId) {
+      onNavigate("roomInfo", data.roomId)
+    } else if (notification.type === "COMMENT" && data?.roomId) {
+      // Navigate to post comments if available
+      if (data.postId) {
+        onNavigate("comments", data.postId)
+      } else if (data.roomId) {
         onNavigate("roomInfo", data.roomId)
       }
-    } catch (e) {
-      console.error("Error parsing notification data:", e)
+    } else if (notification.type === "MENTION" && data?.roomId) {
+      // Navigate to the mentioned post or room
+      if (data.postId) {
+        onNavigate("comments", data.postId)
+      } else if (data.roomId) {
+        onNavigate("roomInfo", data.roomId)
+      }
     }
+    
     onClose()
   }
 
@@ -112,19 +151,15 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
 
   return (
     <div
+      className="card"
       style={{
-        position: "fixed",
-        top: "60px",
-        right: "var(--spacing-md)",
-        width: "350px",
+        width: "100%",
         maxHeight: "500px",
-        backgroundColor: "var(--bg-primary)",
-        border: "1px solid var(--border-color)",
-        borderRadius: "var(--radius-lg)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-        zIndex: 1000,
         display: "flex",
         flexDirection: "column",
+        padding: 0,
+        borderRadius: "var(--radius-lg)",
+        boxShadow: "var(--shadow-lg)",
       }}
     >
       <div
@@ -134,36 +169,52 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          backgroundColor: "var(--bg-secondary)",
+          borderTopLeftRadius: "var(--radius-lg)",
+          borderTopRightRadius: "var(--radius-lg)",
         }}
       >
-        <h3 style={{ margin: 0, fontSize: "var(--font-size-lg)" }}>Уведомления</h3>
-        <div style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center" }}>
-          {unreadCount > 0 && (
-            <button
-              className="btn btn-sm"
-              onClick={handleMarkAllAsRead}
-              style={{ fontSize: "var(--font-size-sm)", padding: "4px 8px" }}
-            >
-              Отметить все прочитанными
-            </button>
-          )}
-          <button
-            className="btn-icon"
-            onClick={onClose}
-            style={{ padding: "4px" }}
-          >
-            ×
-          </button>
-        </div>
+        <h3 style={{ 
+          margin: 0, 
+          fontSize: "var(--font-size-lg)",
+          fontWeight: "600",
+          color: "var(--accent-gold)"
+        }}>
+          Уведомления
+        </h3>
+        <button
+          className="btn-icon"
+          onClick={onClose}
+          style={{ 
+            padding: "4px",
+            width: "32px",
+            height: "32px",
+            fontSize: "var(--font-size-lg)"
+          }}
+        >
+          ×
+        </button>
       </div>
 
-      <div style={{ overflowY: "auto", flex: 1 }}>
+      <div style={{ 
+        overflowY: "auto", 
+        flex: 1,
+        backgroundColor: "var(--bg-primary)"
+      }}>
         {loading ? (
-          <div style={{ padding: "var(--spacing-lg)", textAlign: "center", color: "var(--text-muted)" }}>
+          <div style={{ 
+            padding: "var(--spacing-lg)", 
+            textAlign: "center", 
+            color: "var(--text-muted)" 
+          }}>
             Загрузка...
           </div>
         ) : notifications.length === 0 ? (
-          <div style={{ padding: "var(--spacing-lg)", textAlign: "center", color: "var(--text-muted)" }}>
+          <div style={{ 
+            padding: "var(--spacing-lg)", 
+            textAlign: "center", 
+            color: "var(--text-muted)" 
+          }}>
             Нет уведомлений
           </div>
         ) : (
@@ -179,27 +230,53 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-start",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--bg-hover)"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = notification.isRead ? "var(--bg-primary)" : "var(--bg-secondary)"
               }}
             >
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: notification.isRead ? "400" : "600", marginBottom: "var(--spacing-xs)" }}>
+                <div style={{ 
+                  fontWeight: notification.isRead ? "400" : "600", 
+                  marginBottom: "var(--spacing-xs)",
+                  color: notification.isRead ? "var(--text-secondary)" : "var(--text-primary)"
+                }}>
                   {notification.title}
                 </div>
-                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", marginBottom: "var(--spacing-xs)" }}>
+                <div style={{ 
+                  fontSize: "var(--font-size-sm)", 
+                  color: "var(--text-secondary)", 
+                  marginBottom: "var(--spacing-xs)",
+                  lineHeight: "1.5"
+                }}>
                   {notification.content}
                 </div>
-                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-muted)" }}>
+                <div style={{ 
+                  fontSize: "var(--font-size-xs)", 
+                  color: "var(--text-muted)" 
+                }}>
                   {formatTime(notification.createdAt)}
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)", marginLeft: "var(--spacing-sm)" }}>
+              <div style={{ 
+                display: "flex", 
+                flexDirection: "column", 
+                gap: "var(--spacing-xs)", 
+                marginLeft: "var(--spacing-sm)",
+                alignItems: "center"
+              }}>
                 {!notification.isRead && (
                   <div
                     style={{
-                      width: "8px",
-                      height: "8px",
+                      width: "10px",
+                      height: "10px",
                       borderRadius: "50%",
-                      backgroundColor: "var(--accent-blue)",
+                      backgroundColor: "var(--accent-gold)",
+                      boxShadow: "0 0 8px rgba(212, 175, 55, 0.6)",
                     }}
                   />
                 )}
@@ -209,7 +286,21 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
                     e.stopPropagation()
                     handleDismiss(notification.id)
                   }}
-                  style={{ padding: "2px", fontSize: "var(--font-size-sm)" }}
+                  style={{ 
+                    padding: "4px", 
+                    fontSize: "var(--font-size-base)",
+                    width: "28px",
+                    height: "28px",
+                    opacity: 0.7
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.opacity = "1"
+                    e.currentTarget.style.color = "var(--error-color)"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.opacity = "0.7"
+                    e.currentTarget.style.color = "var(--text-primary)"
+                  }}
                 >
                   ×
                 </button>

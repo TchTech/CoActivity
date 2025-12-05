@@ -65,6 +65,17 @@ public class Room {
   @Column(name = "is_default")
   private Boolean isDefault = false; // True for default room containing all users
   
+  @Column(name = "is_closed")
+  private Boolean isClosed = false; // If true, room is closed and no new requests should be accepted. Auto-closed when event date passes.
+  
+  @Column(name = "closed_at")
+  private Instant closedAt; // Timestamp when room was closed (either manually or automatically).
+  
+  @ManyToOne
+  @JoinColumn(name = "closed_by")
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
+  private User closedBy; // Who closed it, if manually closed
+  
   @OneToMany(mappedBy = "room")
   @JsonIgnoreProperties({"room", "post"})
   private List<RoomPostPin> pinnedPosts = new ArrayList<>();
@@ -77,5 +88,6 @@ public class Room {
     this.createdAt = Instant.now();
     this.joinType = "open";
     this.isDefault = false;
+    this.isClosed = false;
   }
 }
