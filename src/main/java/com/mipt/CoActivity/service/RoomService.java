@@ -705,6 +705,12 @@ public class RoomService {
     response.setCreatorId(room.getCreatedBy() != null ? room.getCreatedBy().getId() : null);
     response.setCreatorName(room.getCreatedBy() != null ? 
         (room.getCreatedBy().getName() != null ? room.getCreatedBy().getName() : room.getCreatedBy().getUsername()) : null);
+    // Set creator avatar if exists
+    if (room.getCreatedBy() != null && room.getCreatedBy().getAvatar() != null) {
+      RoomDetailsResponse.CreatorAvatar creatorAvatar = new RoomDetailsResponse.CreatorAvatar();
+      creatorAvatar.setId(room.getCreatedBy().getAvatar().getId());
+      response.setCreatorAvatar(creatorAvatar);
+    }
     response.setLocation(room.getLocation());
     response.setMemberCount(room.getCollaborators() != null ? room.getCollaborators().size() : 0);
     response.setPinnedPostCount(room.getPinnedPosts() != null ? room.getPinnedPosts().size() : 0);

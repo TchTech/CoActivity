@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { userAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import AuthAlert from "../components/AuthAlert"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -21,9 +22,71 @@ function Register({ onNavigate }) {
     interests: [],
     about: "",
   })
-  const [error, setError] = useState("")
+  const [alert, setAlert] = useState({ visible: false, message: "", type: "error" })
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  
+  // Функция для парсинга ошибок и преобразования в понятные сообщения
+  const parseError = (error) => {
+    const errorMessage = error?.message || error?.toString() || ""
+    const errorStatus = error?.status
+    const errorData = error?.data
+    
+    // Проверяем сообщение об ошибке от бэкенда
+    if (errorData?.message) {
+      const backendMessage = errorData.message.toLowerCase()
+      
+      if (backendMessage.includes("email") && (backendMessage.includes("already") || backendMessage.includes("exists") || backendMessage.includes("уже"))) {
+        return "Эта почта уже используется другим пользователем. Попробуйте войти или используйте другую почту."
+      }
+      if (backendMessage.includes("username") && (backendMessage.includes("already") || backendMessage.includes("exists") || backendMessage.includes("уже"))) {
+        return "Этот никнейм уже занят. Выберите другой никнейм."
+      }
+      if (backendMessage.includes("nickname") && (backendMessage.includes("already") || backendMessage.includes("exists") || backendMessage.includes("уже"))) {
+        return "Этот никнейм уже занят. Выберите другой никнейм."
+      }
+      if (backendMessage.includes("invalid") && backendMessage.includes("email")) {
+        return "Неверный формат email адреса. Проверьте правильность введенных данных."
+      }
+      if (backendMessage.includes("password") && backendMessage.includes("short")) {
+        return "Пароль должен содержать минимум 8 символов."
+      }
+      
+      return errorData.message
+    }
+    
+    // Проверяем статус HTTP
+    if (errorStatus === 400) {
+      const lowerMessage = errorMessage.toLowerCase()
+      if (lowerMessage.includes("email") && (lowerMessage.includes("already") || lowerMessage.includes("exists"))) {
+        return "Эта почта уже используется другим пользователем. Попробуйте войти или используйте другую почту."
+      }
+      if (lowerMessage.includes("username") && (lowerMessage.includes("already") || lowerMessage.includes("exists"))) {
+        return "Этот никнейм уже занят. Выберите другой никнейм."
+      }
+      return "Неверный формат данных. Проверьте правильность введенных данных."
+    }
+    if (errorStatus === 409) {
+      return "Эта почта или никнейм уже используются другим пользователем. Попробуйте войти или используйте другие данные."
+    }
+    if (errorStatus >= 500) {
+      return "Произошла ошибка на сервере. Пожалуйста, попробуйте позже."
+    }
+    
+    // Проверяем текст ошибки
+    const lowerMessage = errorMessage.toLowerCase()
+    if (lowerMessage.includes("email") && (lowerMessage.includes("already") || lowerMessage.includes("exists") || lowerMessage.includes("уже"))) {
+      return "Эта почта уже используется другим пользователем. Попробуйте войти или используйте другую почту."
+    }
+    if (lowerMessage.includes("username") && (lowerMessage.includes("already") || lowerMessage.includes("exists") || lowerMessage.includes("уже"))) {
+      return "Этот никнейм уже занят. Выберите другой никнейм."
+    }
+    if (lowerMessage.includes("nickname") && (lowerMessage.includes("already") || lowerMessage.includes("exists") || lowerMessage.includes("уже"))) {
+      return "Этот никнейм уже занят. Выберите другой никнейм."
+    }
+    
+    return errorMessage || "Произошла ошибка при регистрации. Попробуйте еще раз."
+  }
 
   const handleChange = (e) => {
     setFormData({
@@ -36,21 +99,28 @@ function Register({ onNavigate }) {
     e.preventDefault()
 
     if (!formData.email || !formData.password || !formData.confirmPassword) {
-      setError("Пожалуйста, заполните все поля")
+      setAlert({ visible: true, message: "Пожалуйста, заполните все поля", type: "error" })
+      return
+    }
+    
+    // Проверка формата email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(formData.email)) {
+      setAlert({ visible: true, message: "Неверный формат email адреса. Проверьте правильность введенных данных.", type: "error" })
       return
     }
 
     if (formData.password.length < 8) {
-      setError("Пароль должен содержать минимум 8 символов")
+      setAlert({ visible: true, message: "Пароль должен содержать минимум 8 символов", type: "error" })
       return
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Пароли не совпадают")
+      setAlert({ visible: true, message: "Пароли не совпадают. Пожалуйста, введите одинаковые пароли в оба поля.", type: "error" })
       return
     }
 
-    setError("")
+    setAlert({ visible: false, message: "", type: "error" })
     setStep(2)
   }
 
@@ -58,17 +128,17 @@ function Register({ onNavigate }) {
     e.preventDefault()
 
     if (!formData.firstName || !formData.lastName || !formData.city || !formData.nickname) {
-      setError("Пожалуйста, заполните все обязательные поля")
+      setAlert({ visible: true, message: "Пожалуйста, заполните все обязательные поля", type: "error" })
       return
     }
 
     if (formData.about.length > 500) {
-      setError("Описание не должно превышать 500 символов")
+      setAlert({ visible: true, message: "Описание не должно превышать 500 символов", type: "error" })
       return
     }
 
     setLoading(true)
-    setError("")
+    setAlert({ visible: false, message: "", type: "error" })
 
     try {
       // Регистрация пользователя (шаг 1 - создание аккаунта)
@@ -88,7 +158,8 @@ function Register({ onNavigate }) {
       onNavigate("home")
     } catch (err) {
       console.error("Ошибка регистрации:", err)
-      setError(err.message || "Ошибка при регистрации. Попробуйте еще раз.")
+      const errorMessage = parseError(err)
+      setAlert({ visible: true, message: errorMessage, type: "error" })
     } finally {
       setLoading(false)
     }
@@ -102,7 +173,12 @@ function Register({ onNavigate }) {
           <p>Регистрация {step === 1 ? "(Шаг 1/2)" : "(Шаг 2/2)"}</p>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
+        <AuthAlert 
+          type={alert.type} 
+          message={alert.message} 
+          visible={alert.visible} 
+          onClose={() => setAlert({ visible: false, message: "", type: "error" })} 
+        />
 
         {step === 1 ? (
           <form className="auth-form" onSubmit={handleSubmitStep1}>

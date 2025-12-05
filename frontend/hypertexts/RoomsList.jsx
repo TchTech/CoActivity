@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import BottomNavigation from "./BottomNavigation"
-import { roomAPI } from "../lib/api"
+import { roomAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
@@ -43,6 +43,13 @@ function RoomsList({ onNavigate, currentPage }) {
         // Ensure we have an array
         const roomsArray = Array.isArray(data) ? data : (data ? [data] : [])
         console.log("[RoomsList] Rooms array after normalization:", roomsArray.length)
+        
+        // Log first room's creator data for debugging
+        if (roomsArray.length > 0 && roomsArray[0]) {
+          console.log("[RoomsList] First room sample:", roomsArray[0])
+          console.log("[RoomsList] First room createdBy:", roomsArray[0].createdBy)
+          console.log("[RoomsList] First room createdBy.avatar:", roomsArray[0].createdBy?.avatar)
+        }
         
         // Sort rooms by creation date (newest first)
         const sortedRooms = roomsArray.length > 0
@@ -153,8 +160,20 @@ function RoomsList({ onNavigate, currentPage }) {
       <div className="top-nav">
         <div className="top-nav-title">Комнаты</div>
         <div className="top-nav-actions">
-          <button className="btn-icon" onClick={() => onNavigate("createRoom")}>
-            +
+          <button className="btn-icon" onClick={() => onNavigate("notifications")}>
+            <svg 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2"
+              style={{ 
+                width: "24px", 
+                height: "24px"
+              }}
+            >
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
           </button>
         </div>
       </div>
@@ -222,7 +241,44 @@ function RoomsList({ onNavigate, currentPage }) {
               }}
             >
               <div className="room-avatar">
-                <img src={"/placeholder.svg"} alt={room.description || room.name} className="avatar avatar-md" />
+                {(() => {
+                  // Получаем аватарку создателя комнаты
+                  const creatorAvatarId = room.createdBy?.avatar?.id
+                  const hasCreatorAvatar = creatorAvatarId != null && creatorAvatarId !== undefined && creatorAvatarId !== 0
+                  const roomId = typeof room.id === "object" ? (room.id?.id || room.id?.roomId || null) : room.id
+                  
+                  if (hasCreatorAvatar) {
+                    return (
+                      <img 
+                        src={imageAPI.getImageUrl(creatorAvatarId)} 
+                        alt={room.createdBy?.name || room.createdBy?.username || room.name} 
+                        className="avatar avatar-md avatar-clickable"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (roomId) {
+                            onNavigate("roomInfo", roomId)
+                          }
+                        }}
+                        onError={(e) => {
+                          console.error("[RoomsList] Failed to load creator avatar:", creatorAvatarId)
+                          e.target.style.display = 'none'
+                        }}
+                      />
+                    )
+                  } else {
+                    return (
+                      <div
+                        className="avatar avatar-md"
+                        style={{
+                          backgroundColor: "transparent",
+                          border: "none",
+                          width: "40px",
+                          height: "40px"
+                        }}
+                      />
+                    )
+                  }
+                })()}
               </div>
 
               <div className="room-info">
