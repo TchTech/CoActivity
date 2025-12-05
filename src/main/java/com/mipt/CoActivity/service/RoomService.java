@@ -30,6 +30,7 @@ public class RoomService {
   private final com.mipt.CoActivity.repository.RoomPostPinRepository roomPostPinRepository;
   private final com.mipt.CoActivity.repository.PostRepository postRepository;
   private final NotificationService notificationService;
+  private final RoomJoinRequestService roomJoinRequestService;
 
   @Autowired
   public RoomService(
@@ -40,7 +41,8 @@ public class RoomService {
           com.mipt.CoActivity.repository.RoomJoinRequestRepository roomJoinRequestRepository,
           com.mipt.CoActivity.repository.RoomPostPinRepository roomPostPinRepository,
           com.mipt.CoActivity.repository.PostRepository postRepository,
-          NotificationService notificationService) {
+          NotificationService notificationService,
+          RoomJoinRequestService roomJoinRequestService) {
     this.roomRepository = roomRepository;
     this.userRepository = userRepository;
     this.messageRepository = messageRepository;
@@ -49,6 +51,7 @@ public class RoomService {
     this.roomPostPinRepository = roomPostPinRepository;
     this.postRepository = postRepository;
     this.notificationService = notificationService;
+    this.roomJoinRequestService = roomJoinRequestService;
   }
 
   @Transactional
@@ -771,5 +774,125 @@ public class RoomService {
     Pageable pageable = PageRequest.of(
         page, limit, Sort.by("createdAt").descending());
     return roomRepository.findAll(pageable).getContent();
+  }
+
+  /**
+   * Manually close a room.
+   * 
+   * Validations:
+   * - User must be room creator or admin
+   * - Room must not already be closed
+   * 
+   * Side effects:
+   * - Sets room as closed
+   * - Auto-rejects all pending requests
+   * - Sends notifications to all applicants
+   * 
+   * @param roomId The room ID
+   * @param userId The user ID closing the room (must be creator or admin)
+   */
+  @Transactional
+  public void closeRoom(Long roomId, Long userId) {
+    Room room = roomRepository.findById(roomId)
+            .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+
+    User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+    // Validate user is creator or admin
+    boolean isCreator = room.getCreatedBy().getId().equals(userId);
+    boolean isAdmin = room.getAdmins().contains(user);
+    if (!isCreator && !isAdmin) {
+      throw new ForbiddenException("Only room creator or administrators can close the room");
+    }
+
+    // Check if already closed
+    if (Boolean.TRUE.equals(room.getIsClosed())) {
+      throw new BadRequestException("Room is already closed");
+    }
+
+    // Close the room
+    room.setIsClosed(true);
+    room.setClosedAt(Instant.now());
+    room.setClosedBy(user);
+    roomRepository.save(room);
+
+    // Auto-reject all pending requests
+    roomJoinRequestService.autoRejectPendingRequests(roomId, "Room was closed by administrator");
+
+    logger.info("Room {} was closed by user {}", roomId, userId);
+  }
+
+  /**
+   * Check and auto-close rooms where the event date (meetingTime) has passed.
+   * This method should be called by a scheduled job.
+   * 
+   * Note: The database trigger also handles this, but this method provides
+   * explicit control and can be called from a scheduled job for reliability.
+   */
+  @Transactional
+  public void autoCloseExpiredRooms() {
+    Instant now = Instant.now();
+    List<Room> activeRooms = roomRepository.findAll().stream()
+            .filter(room -> !Boolean.TRUE.equals(room.getIsClosed()))
+            .filter(room -> room.getMeetingTime() != null)
+            .filter(room -> room.getMeetingTime().isBefore(now))
+            .collect(Collectors.toList());
+
+    int closedCount = 0;
+    for (Room room : activeRooms) {
+      try {
+        room.setIsClosed(true);
+        room.setClosedAt(room.getMeetingTime()); // Use meetingTime as closed_at
+        roomRepository.save(room);
+
+        // Auto-reject all pending requests
+        roomJoinRequestService.autoRejectPendingRequests(
+                room.getId(), 
+                "Room was automatically closed because the event date has passed"
+        );
+
+        closedCount++;
+        logger.info("Auto-closed room {} (event date: {})", room.getId(), room.getMeetingTime());
+      } catch (Exception e) {
+        logger.error("Error auto-closing room {}: {}", room.getId(), e.getMessage(), e);
+      }
+    }
+
+    logger.info("Auto-closed {} expired rooms", closedCount);
+  }
+
+  /**
+   * Check if a room is closed or should be closed.
+   * 
+   * @param roomId The room ID
+   * @return true if room is closed, false otherwise
+   */
+  public boolean isRoomClosed(Long roomId) {
+    Room room = roomRepository.findById(roomId)
+            .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+
+    // Check explicit closure
+    if (Boolean.TRUE.equals(room.getIsClosed())) {
+      return true;
+    }
+
+    // Check if event date has passed (auto-close condition)
+    if (room.getMeetingTime() != null && room.getMeetingTime().isBefore(Instant.now())) {
+      // Auto-close if not already closed
+      if (!Boolean.TRUE.equals(room.getIsClosed())) {
+        try {
+          room.setIsClosed(true);
+          room.setClosedAt(room.getMeetingTime());
+          roomRepository.save(room);
+          logger.info("Auto-closed room {} due to expired event date", roomId);
+        } catch (Exception e) {
+          logger.error("Error auto-closing room {}: {}", roomId, e.getMessage(), e);
+        }
+      }
+      return true;
+    }
+
+    return false;
   }
 }
