@@ -1,5 +1,6 @@
 package com.mipt.CoActivity.controller;
 
+import com.mipt.CoActivity.exception.ResourceNotFoundException;
 import com.mipt.CoActivity.model.Comment;
 import com.mipt.CoActivity.service.CommentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,7 +57,22 @@ public class CommentController {
   }
 
   @DeleteMapping("/{commentId}")
-  public void deleteComment(@PathVariable Long postId, @PathVariable Long commentId) {
-    commentService.deleteComment(commentId);
+  public ResponseEntity<?> deleteComment(
+      @PathVariable Long postId, 
+      @PathVariable Long commentId,
+      @RequestParam Long userId) {
+    try {
+      commentService.deleteComment(commentId, userId);
+      return ResponseEntity.noContent().build();
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN)
+          .body(java.util.Map.of("error", e.getMessage()));
+    } catch (ResourceNotFoundException e) {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body(java.util.Map.of("error", "Comment not found"));
+    } catch (Exception e) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body(java.util.Map.of("error", "Failed to delete comment: " + e.getMessage()));
+    }
   }
 }

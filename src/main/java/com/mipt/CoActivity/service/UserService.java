@@ -177,6 +177,22 @@ public class UserService {
     userRepository.save(user);
     userRepository.save(userToSubscribe);
     logger.info("User {} subscribed to user {}", userId, userToSubscribeId);
+    
+    // Create notification for the user being followed
+    try {
+      String subscriberName = user.getName() != null ? user.getName() : user.getUsername();
+      notificationService.createNotification(
+        userToSubscribeId,
+        "FOLLOW",
+        "Новая подписка",
+        subscriberName + " подписался на вас",
+        "{\"subscriberId\":" + userId + ",\"subscriberName\":\"" + subscriberName + "\"}"
+      );
+      logger.info("Created follow notification for user {}", userToSubscribeId);
+    } catch (Exception e) {
+      logger.error("Failed to create follow notification: {}", e.getMessage(), e);
+      // Don't fail the subscription if notification creation fails
+    }
   }
 
   public void unsubscribe(Long userId, Long userToUnsubscribeId) {
@@ -563,6 +579,8 @@ public class UserService {
     }
     if (request.getPushNotifications() != null) {
       settings.setPushNotifications(request.getPushNotifications());
+      // Synchronize notificationsEnabled with pushNotifications
+      settings.setNotificationsEnabled(request.getPushNotifications());
     }
     return userSettingsRepository.save(settings);
   }

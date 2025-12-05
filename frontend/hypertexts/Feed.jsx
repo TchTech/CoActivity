@@ -347,12 +347,7 @@ function Feed({ onNavigate, currentPage }) {
     <div>
       <div className="top-nav">
         <div className="top-nav-title">CoActivity</div>
-        <button className="btn-icon" onClick={() => onNavigate("settings")}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 1v6m0 6v6m-6-6h6m6 0h-6m-5.6-5.6l4.2 4.2m4.2 4.2l4.2 4.2m-4.2 0l4.2-4.2M5.6 5.6l4.2 4.2" />
-          </svg>
-        </button>
+        <div style={{ width: "40px" }}></div>
       </div>
 
       {/* Вкладки */}

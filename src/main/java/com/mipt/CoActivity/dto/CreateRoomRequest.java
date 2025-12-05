@@ -9,6 +9,7 @@ public class CreateRoomRequest {
     private String category;
     private Integer maxCollaborators;
     private Instant meetingTime;
+    private Instant endTime;
     private String meetingType; // "online" or "offline"
     private String location;
     private String joinType; // "open" or "application"

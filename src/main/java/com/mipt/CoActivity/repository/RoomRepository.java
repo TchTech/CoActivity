@@ -1,7 +1,9 @@
 package com.mipt.CoActivity.repository;
 
 import com.mipt.CoActivity.model.Room;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,7 +20,11 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
   List<Room> findByDescriptionContainingIgnoreCase(String description);
   java.util.Optional<Room> findByIsDefaultTrue();
   
-  // Найти комнаты, события которых прошли в указанный день (от начала до конца дня)
-  @Query("SELECT r FROM Room r WHERE r.meetingTime >= :startOfDay AND r.meetingTime < :endOfDay AND r.meetingTime IS NOT NULL")
-  List<Room> findRoomsWithMeetingTimeBetween(@Param("startOfDay") Instant startOfDay, @Param("endOfDay") Instant endOfDay);
+  /**
+   * Find room by ID with pessimistic write lock for concurrency control.
+   * Used when checking and updating room capacity to prevent race conditions.
+   */
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("SELECT r FROM Room r WHERE r.id = :roomId")
+  Optional<Room> findByIdWithLock(@Param("roomId") Long roomId);
 }

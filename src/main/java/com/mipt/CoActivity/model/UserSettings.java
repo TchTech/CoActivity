@@ -50,6 +50,12 @@ public class UserSettings {
     @Column(name = "dataLinksAccess")
     private String dataLinksAccess = "public";
 
+    @Column(name = "membership_request_notifications")
+    private Boolean membershipRequestNotifications = true; // User-level preference for receiving notifications about new membership requests (as room owner/admin)
+
+    @Column(name = "membership_decision_notifications")
+    private Boolean membershipDecisionNotifications = true; // User-level preference for receiving notifications about membership request decisions (as applicant)
+
     public UserSettings(User user) {
         this.user = user;
     }

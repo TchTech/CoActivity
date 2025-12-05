@@ -17,6 +17,7 @@ function Chat({ onNavigate, roomId }) {
   const [roomCreator, setRoomCreator] = useState(null) // Информация о создателе комнаты
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [isAdmin, setIsAdmin] = useState(false)
 
   // Polling for messages (fallback instead of websockets)
   useEffect(() => {
@@ -35,10 +36,13 @@ function Chat({ onNavigate, roomId }) {
         setRoomInfo({ id: data.roomId })
         setMessages(
           Array.isArray(data.messages)
-            ? data.messages.map((m, index) => {
+            ? data.messages.map((m) => {
                 console.log("[Chat] Mapping message:", m, "senderAvatar:", m.senderAvatar)
+                if (!m.id) {
+                  console.warn("[Chat] Message missing ID:", m)
+                }
                 return {
-                  id: m.id || index,
+                  id: m.id,
                   senderId: m.senderId,
                   senderName: m.senderName,
                   senderAvatar: m.senderAvatar,
@@ -117,6 +121,23 @@ function Chat({ onNavigate, roomId }) {
     return () => {
       if (intervalId) clearInterval(intervalId)
     }
+  }, [roomId, currentUser])
+
+  // Load room details to check admin status
+  useEffect(() => {
+    const loadRoomDetails = async () => {
+      if (!roomId || !currentUser?.id) return
+
+      try {
+        const roomData = await roomAPI.getDetails(roomId)
+        const currentUserMember = roomData.members?.find(m => m.id === currentUser.id)
+        setIsAdmin(currentUserMember?.isAdmin || false)
+      } catch (err) {
+        console.error("Ошибка загрузки информации о комнате:", err)
+      }
+    }
+
+    loadRoomDetails()
   }, [roomId, currentUser])
 
   const handleSendMessage = async () => {
@@ -346,17 +367,50 @@ function Chat({ onNavigate, roomId }) {
                   />
                 )}
                 <div className="message-content">
-                  {!isOwn && <div className="message-sender">{senderName}</div>}
-                  <div className="message-text">
-                    {parseMessageWithMentions(message.content, roomMembers, onNavigate)}
-                  </div>
-                  <div className="message-time">
-                    {message.timestamp
-                      ? new Date(message.timestamp).toLocaleTimeString("ru-RU", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : ""}
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", justifyContent: "space-between" }}>
+                    <div style={{ flex: 1 }}>
+                      {!isOwn && <div className="message-sender">{senderName}</div>}
+                      <div className="message-text">{message.content}</div>
+                      <div className="message-time">
+                        {message.timestamp
+                          ? new Date(message.timestamp).toLocaleTimeString("ru-RU", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                      </div>
+                    </div>
+                    {isAdmin && message.id && (
+                      <button
+                        className="btn-icon"
+                        style={{ 
+                          fontSize: "var(--font-size-xs)",
+                          padding: "var(--spacing-xs)",
+                          color: "var(--error)",
+                          opacity: 0.7
+                        }}
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (confirm("Удалить это сообщение?")) {
+                            try {
+                              if (!message.id) {
+                                alert("Не удалось удалить сообщение: отсутствует ID сообщения")
+                                return
+                              }
+                              await roomAPI.deleteMessage(roomId, message.id, currentUser.id)
+                              // Remove message from local state
+                              setMessages((prev) => prev.filter((m) => m.id !== message.id))
+                            } catch (err) {
+                              console.error("Ошибка удаления сообщения:", err)
+                              alert("Не удалось удалить сообщение: " + (err.message || "Неизвестная ошибка"))
+                            }
+                          }
+                        }}
+                        title="Удалить сообщение"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

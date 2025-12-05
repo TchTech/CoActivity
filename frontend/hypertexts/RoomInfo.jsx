@@ -8,8 +8,12 @@ import "../styles/navigation.css"
 import { roomAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import BottomNavigation from "./BottomNavigation"
+import { JoinRequestButton, PendingRequestsList } from "../components/rooms"
+import { handleApiError } from "../types"
+import { ConfirmDialog } from "../components/ui/ConfirmDialog"
+import { AlertDialog } from "../components/ui/AlertDialog"
 
-function RoomInfo({ onNavigate, roomId, currentPage }) {
+function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
   const { currentUser } = useUser()
   const [roomData, setRoomData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -17,7 +21,12 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
   const [isMember, setIsMember] = useState(false)
   const [hasPendingRequest, setHasPendingRequest] = useState(false)
   const [pendingRequestId, setPendingRequestId] = useState(null)
+  const [pendingRequest, setPendingRequest] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [activeTab, setActiveTab] = useState("info") // "info" or "posts"
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [showAlert, setShowAlert] = useState(false)
+  const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })
 
   useEffect(() => {
     const loadRoomData = async () => {
@@ -34,23 +43,41 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
         console.log("[RoomInfo] Members:", data.members)
         setRoomData(data)
         
-        // Check if user is a member
+        // Check if user is a member and admin
         if (currentUser?.id) {
+          // Check if current user is admin
+          const currentUserMember = data.members?.find(m => m.id === currentUser.id)
+          setIsAdmin(currentUserMember?.isAdmin || false)
           try {
             const userRooms = await roomAPI.getUserRooms(currentUser.id)
             const isInRoom = Array.isArray(userRooms) && userRooms.some(r => r.id === roomId)
             setIsMember(isInRoom)
+            
+            // Check if user is admin/creator
+            const isUserAdmin = data.creatorId === currentUser.id || 
+              (data.members && Array.isArray(data.members) && 
+               data.members.some(m => m.id === currentUser.id && m.isAdmin))
+            setIsAdmin(isUserAdmin)
             
             // Check for pending request
             if (!isInRoom && data.joinType === "by_application") {
               try {
                 const myRequests = await roomAPI.getMyPendingRequests(currentUser.id)
                 const pending = Array.isArray(myRequests) && myRequests.find(r => 
-                  r.room?.id === roomId && r.status === "pending"
+                  r.roomId === roomId && r.status === "pending"
                 )
                 if (pending) {
                   setHasPendingRequest(true)
                   setPendingRequestId(pending.id)
+                  setPendingRequest(pending)
+                } else {
+                  // Check for rejected request (for cooldown display)
+                  const rejected = Array.isArray(myRequests) && myRequests.find(r => 
+                    r.roomId === roomId && r.status === "rejected"
+                  )
+                  if (rejected) {
+                    setPendingRequest(rejected)
+                  }
                 }
               } catch (err) {
                 console.error("Error checking pending requests:", err)
@@ -71,30 +98,81 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
     loadRoomData()
   }, [roomId, currentUser])
 
-  const handleApply = async () => {
-    if (!currentUser?.id || !roomId) return
-
-    try {
-      const request = await roomAPI.createMembershipRequest(roomId, currentUser.id, "")
-      setHasPendingRequest(true)
-      setPendingRequestId(request.id)
-    } catch (err) {
-      console.error("Ошибка подачи заявки:", err)
-      alert("Не удалось подать заявку: " + (err.message || "Неизвестная ошибка"))
+  const handleRequestCreated = async (request) => {
+    setHasPendingRequest(true)
+    setPendingRequestId(request.id)
+    setPendingRequest(request)
+    // Reload room data to update member count if approved
+    if (request.status === "approved") {
+      const data = await roomAPI.getDetails(roomId)
+      setRoomData(data)
+      setIsMember(true)
     }
   }
 
-  const handleCancelRequest = async () => {
-    if (!currentUser?.id || !roomId || !pendingRequestId) return
+  const handleRequestCancelled = async () => {
+    setHasPendingRequest(false)
+    setPendingRequestId(null)
+    setPendingRequest(null)
+  }
 
+  const handleRequestApproved = async () => {
+    // Reload room data to update member count
+    const data = await roomAPI.getDetails(roomId)
+    setRoomData(data)
+  }
+
+  const handleRequestRejected = async () => {
+    // Refresh pending requests list
+    // The PendingRequestsList component will handle its own refresh
+  }
+
+  const handleCloseRoom = async () => {
+    if (!currentUser?.id || !roomId) return
+    setShowCloseConfirm(true)
+  }
+
+  const confirmCloseRoom = async () => {
+    setShowCloseConfirm(false)
+    
     try {
-      await roomAPI.cancelMembershipRequest(roomId, pendingRequestId, currentUser.id)
-      setHasPendingRequest(false)
-      setPendingRequestId(null)
+      await roomAPI.closeRoom(roomId, { userId: currentUser.id })
+      // Reload room data
+      const data = await roomAPI.getDetails(roomId)
+      setRoomData(data)
+      
+      // Dispatch custom event to notify RoomsList to refresh
+      window.dispatchEvent(new CustomEvent('roomUpdated', { detail: { roomId } }))
+      
+      // Also call callback if provided
+      if (onRoomUpdated) {
+        onRoomUpdated()
+      }
+      
+      setAlertData({
+        title: "Успешно",
+        message: "Комната успешно закрыта",
+        variant: "success"
+      })
+      setShowAlert(true)
     } catch (err) {
-      console.error("Ошибка отмены заявки:", err)
-      alert("Не удалось отменить заявку: " + (err.message || "Неизвестная ошибка"))
+      const errorMessage = handleApiError(err)
+      setAlertData({
+        title: "Ошибка",
+        message: "Не удалось закрыть комнату: " + errorMessage,
+        variant: "error"
+      })
+      setShowAlert(true)
     }
+  }
+
+  const showErrorAlert = (message) => {
+    setAlertData({
+      title: "Ошибка",
+      message: message,
+      variant: "error"
+    })
+    setShowAlert(true)
   }
 
   if (loading) {
@@ -195,6 +273,19 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
                 <div className="room-info-label">Дата и время проведения</div>
                 <div className="room-info-value">
                   {new Date(roomData.meetingTime).toLocaleString("ru-RU")}
+                </div>
+              </div>
+            )}
+
+            {/* End time */}
+            {roomData.endTime && (
+              <div className="room-info-section">
+                <div className="room-info-label">Дата окончания существования</div>
+                <div className="room-info-value">
+                  {new Date(roomData.endTime).toLocaleString("ru-RU")}
+                </div>
+                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}>
+                  Комната будет удалена через сутки после этой даты
                 </div>
               </div>
             )}
@@ -365,6 +456,62 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
                             </div>
                           )}
                         </div>
+                        {isAdmin && currentUser?.id && member.id !== currentUser.id && roomData.creatorId !== member.id && (
+                          <div style={{ display: "flex", gap: "var(--spacing-xs)", flexShrink: 0 }}>
+                            {!member.isAdmin && (
+                              <button
+                                className="btn btn-secondary"
+                                style={{ 
+                                  fontSize: "var(--font-size-xs)",
+                                  padding: "var(--spacing-xs) var(--spacing-sm)"
+                                }}
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  if (confirm(`Назначить ${member.name || member.username} администратором?`)) {
+                                    try {
+                                      await roomAPI.promoteToAdmin(roomId, member.id, currentUser.id)
+                                      // Reload room data
+                                      const updatedData = await roomAPI.getDetails(roomId)
+                                      setRoomData(updatedData)
+                                      alert("Пользователь назначен администратором")
+                                    } catch (err) {
+                                      console.error("Ошибка назначения администратора:", err)
+                                      alert("Не удалось назначить администратора: " + (err.message || "Неизвестная ошибка"))
+                                    }
+                                  }
+                                }}
+                              >
+                                Сделать админом
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-secondary"
+                              style={{ 
+                                fontSize: "var(--font-size-xs)",
+                                padding: "var(--spacing-xs) var(--spacing-sm)",
+                                backgroundColor: "var(--error)",
+                                color: "white"
+                              }}
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (confirm(`Выгнать ${member.name || member.username} из комнаты?`)) {
+                                  try {
+                                    await roomAPI.kickUserFromRoom(roomId, member.id, currentUser.id)
+                                    // Reload room data
+                                    const updatedData = await roomAPI.getDetails(roomId)
+                                    setRoomData(updatedData)
+                                    alert("Пользователь исключен из комнаты")
+                                  } catch (err) {
+                                    console.error("Ошибка выгона пользователя:", err)
+                                    alert("Не удалось выгнать пользователя: " + (err.message || "Неизвестная ошибка"))
+                                  }
+                                }
+                              }}
+                            >
+                              Выгнать
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -421,8 +568,32 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
 
             {/* Actions */}
             {currentUser && (
-              <div style={{ display: "flex", gap: "var(--spacing-md)", marginTop: "var(--spacing-lg)" }}>
-                {isMember ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)", marginTop: "var(--spacing-lg)" }}>
+                {roomData.isClosed ? (
+                  <div style={{
+                    padding: "var(--spacing-md)",
+                    backgroundColor: "var(--bg-secondary)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--error-color)",
+                    textAlign: "center"
+                  }}>
+                    <div style={{ 
+                      color: "var(--error-color)", 
+                      fontWeight: "600",
+                      marginBottom: "var(--spacing-xs)"
+                    }}>
+                      Комната закрыта
+                    </div>
+                    <div style={{ 
+                      fontSize: "var(--font-size-sm)", 
+                      color: "var(--text-muted)" 
+                    }}>
+                      {isAdmin || isMember 
+                        ? "Вы можете просматривать информацию о комнате, но новые участники не принимаются."
+                        : "Эта комната больше не принимает новых участников."}
+                    </div>
+                  </div>
+                ) : isMember ? (
                   <button 
                     className="btn btn-primary" 
                     style={{ flex: 1 }}
@@ -431,38 +602,67 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
                     Открыть чат
                   </button>
                 ) : (
-                  <>
-                    {(roomData.joinType === "by_application" || roomData.joinType === "REQUEST_ONLY") ? (
-                      hasPendingRequest ? (
-                        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={handleCancelRequest}>
-                          Заявка отправлена (отменить)
+                  <JoinRequestButton
+                    roomId={roomId}
+                    roomJoinType={
+                      roomData.joinType === "by_application" || roomData.joinType === "REQUEST_ONLY"
+                        ? "by_application"
+                        : "open"
+                    }
+                    isMember={isMember}
+                    hasPendingRequest={hasPendingRequest}
+                    pendingRequestId={pendingRequestId}
+                    pendingRequest={pendingRequest}
+                    userId={currentUser.id}
+                    onRequestCreated={handleRequestCreated}
+                    onRequestCancelled={handleRequestCancelled}
+                    onError={showErrorAlert}
+                  />
+                )}
+
+                {/* Admin Section */}
+                {isAdmin && (
+                  <div style={{ 
+                    marginTop: "var(--spacing-lg)",
+                    paddingTop: "var(--spacing-lg)",
+                    borderTop: "1px solid var(--border-color)"
+                  }}>
+                    <div style={{ 
+                      display: "flex", 
+                      justifyContent: "space-between", 
+                      alignItems: "center",
+                      marginBottom: "var(--spacing-md)"
+                    }}>
+                      <h3 style={{ margin: 0, fontSize: "var(--font-size-lg)" }}>Управление комнатой</h3>
+                      {!roomData.isClosed && (
+                        <button
+                          className="btn btn-outline"
+                          onClick={handleCloseRoom}
+                          style={{ fontSize: "var(--font-size-sm)" }}
+                        >
+                          Закрыть комнату
                         </button>
-                      ) : (
-                        <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleApply}>
-                          Подать заявку
-                        </button>
-                      )
-                    ) : (
-                      <button 
-                        className="btn btn-primary" 
-                        style={{ flex: 1 }}
-                        onClick={async () => {
-                          try {
-                            await roomAPI.joinRoom(roomId, currentUser.id)
-                            setIsMember(true)
-                            // Reload room data to update member count
-                            const data = await roomAPI.getDetails(roomId)
-                            setRoomData(data)
-                          } catch (err) {
-                            console.error("Ошибка присоединения к комнате:", err)
-                            alert("Не удалось присоединиться к комнате: " + (err.message || "Неизвестная ошибка"))
-                          }
-                        }}
-                      >
-                        Присоединиться к комнате
-                      </button>
-                    )}
-                  </>
+                      )}
+                      {roomData.isClosed && (
+                        <span style={{ 
+                          fontSize: "var(--font-size-sm)",
+                          color: "var(--error-color)",
+                          fontWeight: "600"
+                        }}>
+                          Комната закрыта
+                        </span>
+                      )}
+                    </div>
+                    <PendingRequestsList
+                      roomId={roomId}
+                      userId={currentUser.id}
+                      isAdmin={isAdmin}
+                      isRoomClosed={roomData.isClosed || false}
+                      onRequestApproved={handleRequestApproved}
+                      onRequestRejected={handleRequestRejected}
+                      onError={showErrorAlert}
+                    />
+                  </div>
                 )}
               </div>
             )}
@@ -473,6 +673,27 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
       )}
 
       <BottomNavigation currentPage={currentPage || "rooms"} onNavigate={onNavigate} />
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={showCloseConfirm}
+        title="Закрыть комнату"
+        message="Вы уверены, что хотите закрыть эту комнату? Все pending заявки будут автоматически отклонены."
+        confirmText="Закрыть"
+        cancelText="Отмена"
+        confirmVariant="destructive"
+        onConfirm={confirmCloseRoom}
+        onCancel={() => setShowCloseConfirm(false)}
+      />
+
+      {/* Alert Dialog */}
+      <AlertDialog
+        open={showAlert}
+        title={alertData.title}
+        message={alertData.message}
+        variant={alertData.variant}
+        onClose={() => setShowAlert(false)}
+      />
     </div>
   )
 }

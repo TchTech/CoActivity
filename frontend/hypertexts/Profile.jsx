@@ -7,12 +7,25 @@ import { userAPI, postAPI, profileAPI, imageAPI, externalLinksAPI } from "../lib
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog"
+import { MyApplicationsList } from "../components/rooms"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/profile.css"
 
-function ProfilePostCard({ post, userData, userRating, onNavigate, currentUser, onDeletePost }) {
+// Function to get rating color based on score (0-10 scale)
+function getRatingColor(rating) {
+  if (rating === null || rating === undefined || isNaN(rating)) {
+    return "var(--text-muted)"
+  }
+  if (rating >= 8.5) return "#22c55e" // green
+  if (rating >= 7.0) return "#84cc16" // lime
+  if (rating >= 5.5) return "#eab308" // yellow
+  if (rating >= 4.0) return "#f97316" // orange
+  return "#ef4444" // red
+}
+
+function ProfilePostCard({ post, userData, ratingSummary, onNavigate, currentUser, onDeletePost }) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   
@@ -99,8 +112,16 @@ function ProfilePostCard({ post, userData, userRating, onNavigate, currentUser, 
         <div className="post-user-info">
           <div className="post-username">
             {userData.name}
-            {userRating !== null && (
-              <span className="badge badge-rating">{userRating.toFixed(1)}</span>
+            {ratingSummary?.average != null && typeof ratingSummary.average === 'number' && !isNaN(ratingSummary.average) && (
+              <span 
+                className="badge badge-rating"
+                style={{
+                  backgroundColor: getRatingColor(ratingSummary.average),
+                  color: "white"
+                }}
+              >
+                {ratingSummary.average.toFixed(1)}
+              </span>
             )}
           </div>
           <div className="post-time">
@@ -279,7 +300,7 @@ function Profile({ onNavigate, userId, currentPage }) {
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [roomCount, setRoomCount] = useState(0)
   const [externalLinks, setExternalLinks] = useState([])
-  const [activeTab, setActiveTab] = useState("posts") // "posts", "about"
+  const [activeTab, setActiveTab] = useState("posts") // "posts", "about", "applications"
   const [ratingSummary, setRatingSummary] = useState({ average: null, count: 0 })
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [ratingValue, setRatingValue] = useState(5)
@@ -336,13 +357,7 @@ function Profile({ onNavigate, userId, currentPage }) {
           }
         }
 
-        // Загрузка рейтинга пользователя
-        try {
-          const ratingData = await userAPI.getRating(profileUserId)
-          setUserRating(ratingData.rating || null)
-        } catch (error) {
-          console.error("Ошибка загрузки рейтинга:", error)
-        }
+        // Рейтинг загружается через getRatingSummary ниже
 
         // Загрузка постов пользователя
         try {
@@ -627,8 +642,8 @@ function Profile({ onNavigate, userId, currentPage }) {
                 style={{
                   position: "absolute",
                   bottom: "-10px",
-                  right: "-10px",
-                  backgroundColor: "var(--accent-blue)",
+                  left: "-10px",
+                  backgroundColor: getRatingColor(ratingSummary.average),
                   color: "white",
                   borderRadius: "50%",
                   width: "40px",
@@ -691,6 +706,14 @@ function Profile({ onNavigate, userId, currentPage }) {
           >
             О себе
           </button>
+          {isOwnProfile && (
+            <button
+              className={`tab ${activeTab === "applications" ? "active" : ""}`} 
+              onClick={() => setActiveTab("applications")}
+            >
+              Мои заявки
+            </button>
+          )}
         </div>
 
         {activeTab === "posts" ? (
@@ -707,7 +730,7 @@ function Profile({ onNavigate, userId, currentPage }) {
                   key={post.id}
                   post={post}
                   userData={userData}
-                  userRating={userRating}
+                  ratingSummary={ratingSummary}
                   onNavigate={onNavigate}
                   currentUser={currentUser}
                   onDeletePost={(postId) => {
@@ -721,7 +744,7 @@ function Profile({ onNavigate, userId, currentPage }) {
               ))
             )}
           </div>
-        ) : (
+        ) : activeTab === "about" ? (
           <div className="profile-about">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-md)" }}>
               <h2>О человеке</h2>
@@ -793,7 +816,26 @@ function Profile({ onNavigate, userId, currentPage }) {
               )}
             </div>
           </div>
-        )}
+        ) : activeTab === "applications" && isOwnProfile ? (
+          <div style={{ padding: "var(--spacing-md)", paddingBottom: "80px" }}>
+            <MyApplicationsList
+              userId={profileUserId}
+              onRequestCancelled={() => {
+                // Component handles its own refresh
+              }}
+              onError={(error) => {
+                alert(error)
+              }}
+              onNavigate={(path) => {
+                // Handle navigation - path format: "rooms/{roomId}"
+                const parts = path.split("/")
+                if (parts[0] === "rooms" && parts[1]) {
+                  onNavigate("roomInfo", parseInt(parts[1]))
+                }
+              }}
+            />
+          </div>
+        ) : null}
       </div>
 
       {isOwnProfile && <BottomNavigation currentPage={currentPage || "profile"} onNavigate={onNavigate} />}

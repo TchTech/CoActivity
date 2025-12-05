@@ -43,6 +43,12 @@ public class RoomJoinRequest {
   @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
   private User responder; // Who approved/rejected
 
+  @Column(name = "rejection_reason", columnDefinition = "TEXT")
+  private String rejectionReason; // Optional reason for rejection, provided by admin
+
+  @Column(name = "last_rejected_at")
+  private Instant lastRejectedAt; // Timestamp of last rejection. Used to enforce 5-minute cooldown before user can reapply.
+
   public RoomJoinRequest(Room room, User user) {
     this.room = room;
     this.user = user;
