@@ -4,6 +4,7 @@ import { useState } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { roomAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import AuthAlert from "../components/AuthAlert"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -20,51 +21,103 @@ function CreateRoom({ onNavigate, currentPage }) {
     type: "open",
     date: "",
     time: "",
-    city: "Саратов",
+    city: "",
     address: "",
     maxMembers: 20,
   })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [alert, setAlert] = useState({ visible: false, message: "", type: "error" })
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     })
+    // Сбрасываем кастомное сообщение валидации при изменении поля
+    if (e.target.setCustomValidity) {
+      e.target.setCustomValidity("")
+    }
+  }
+  
+  // Обработчик для кастомных сообщений валидации
+  const handleInvalid = (e) => {
+    e.preventDefault()
+    const field = e.target
+    if (field.validity.valueMissing) {
+      setAlert({ visible: true, message: "Заполните поля", type: "error" })
+      field.setCustomValidity("Заполните поля")
+    } else {
+      field.setCustomValidity("")
+    }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
 
     if (!currentUser?.id) {
-      setError("Необходимо войти в систему")
+      setAlert({ visible: true, message: "Необходимо войти в систему", type: "error" })
       return
     }
 
-    // Валидация обязательных полей
-    if (!formData.name || !formData.category || !formData.description || !formData.date || !formData.time) {
-      setError("Пожалуйста, заполните все обязательные поля")
+    // Валидация обязательных полей - проверяем каждое поле отдельно
+    if (!formData.name || formData.name.trim() === "") {
+      setAlert({ visible: true, message: "Заполните поля", type: "error" })
+      return
+    }
+    
+    if (!formData.category || formData.category.trim() === "") {
+      setAlert({ visible: true, message: "Заполните поля", type: "error" })
+      return
+    }
+    
+    if (!formData.description || formData.description.trim() === "") {
+      setAlert({ visible: true, message: "Заполните поля", type: "error" })
+      return
+    }
+    
+    if (!formData.date) {
+      setAlert({ visible: true, message: "Заполните поля", type: "error" })
+      return
+    }
+    
+    if (!formData.time) {
+      setAlert({ visible: true, message: "Заполните поля", type: "error" })
+      return
+    }
+    
+    if (!formData.maxMembers || formData.maxMembers < 2) {
+      setAlert({ visible: true, message: "Заполните поля", type: "error" })
       return
     }
 
     if (formData.name.length > 50) {
-      setError("Название не должно превышать 50 символов")
+      setAlert({ visible: true, message: "Название не должно превышать 50 символов", type: "error" })
       return
     }
 
     if (formData.description.length > 500) {
-      setError("Описание не должно превышать 500 символов")
+      setAlert({ visible: true, message: "Описание не должно превышать 500 символов", type: "error" })
+      return
+    }
+    
+    if (formData.format === "online" && formData.maxMembers > 20) {
+      setAlert({ visible: true, message: "Для онлайн формата максимум 20 участников", type: "error" })
       return
     }
 
-    if (formData.format === "offline" && !formData.address) {
-      setError("Укажите адрес для очного формата")
-      return
+    if (formData.format === "offline") {
+      if (!formData.city || formData.city.trim() === "") {
+        setAlert({ visible: true, message: "Заполните поля", type: "error" })
+        return
+      }
+      if (!formData.address || formData.address.trim() === "") {
+        setAlert({ visible: true, message: "Заполните поля", type: "error" })
+        return
+      }
     }
 
     setLoading(true)
-    setError("")
+    setAlert({ visible: false, message: "", type: "error" })
 
     try {
       const meetingDateTime = new Date(
@@ -89,7 +142,7 @@ function CreateRoom({ onNavigate, currentPage }) {
       onNavigate("rooms")
     } catch (err) {
       console.error("Ошибка создания комнаты:", err)
-      setError(err.message || "Ошибка при создании комнаты")
+      setAlert({ visible: true, message: err.message || "Ошибка при создании комнаты", type: "error" })
     } finally {
       setLoading(false)
     }
@@ -107,7 +160,12 @@ function CreateRoom({ onNavigate, currentPage }) {
       </div>
 
       <div className="create-container">
-        {error && <div className="error-message" style={{ marginBottom: "var(--spacing-md)" }}>{error}</div>}
+        <AuthAlert 
+          type={alert.type} 
+          message={alert.message} 
+          visible={alert.visible} 
+          onClose={() => setAlert({ visible: false, message: "", type: "error" })} 
+        />
         <form className="create-form" onSubmit={handleSubmit}>
           {/* Основная информация */}
           <div className="form-section">
@@ -122,14 +180,16 @@ function CreateRoom({ onNavigate, currentPage }) {
                 placeholder="Например: Физика-механика в Саратове"
                 value={formData.name}
                 onChange={handleChange}
+                onInvalid={handleInvalid}
                 maxLength="50"
+                required
               />
               <div className="char-counter">{formData.name.length}/50</div>
             </div>
 
             <div className="input-group">
               <label className="input-label">Категория (увлечение) *</label>
-              <select name="category" className="input" value={formData.category} onChange={handleChange}>
+              <select name="category" className="input" value={formData.category} onChange={handleChange} onInvalid={handleInvalid} required>
                 <option value="">Выберите категорию</option>
                 <option value="science">Наука</option>
                 <option value="it">Программирование</option>
@@ -152,8 +212,10 @@ function CreateRoom({ onNavigate, currentPage }) {
                 placeholder="Расскажите о вашей комнате... (до 500 символов)"
                 value={formData.description}
                 onChange={handleChange}
+                onInvalid={handleInvalid}
                 maxLength="500"
                 rows="5"
+                required
               />
               <div className="char-counter">{formData.description.length}/500</div>
             </div>
@@ -165,12 +227,12 @@ function CreateRoom({ onNavigate, currentPage }) {
 
             <div className="input-group">
               <label className="input-label">Дата проведения *</label>
-              <input type="date" name="date" className="input" value={formData.date} onChange={handleChange} />
+              <input type="date" name="date" className="input" value={formData.date} onChange={handleChange} onInvalid={handleInvalid} required />
             </div>
 
             <div className="input-group">
               <label className="input-label">Время проведения *</label>
-              <input type="time" name="time" className="input" value={formData.time} onChange={handleChange} />
+              <input type="time" name="time" className="input" value={formData.time} onChange={handleChange} onInvalid={handleInvalid} required />
             </div>
           </div>
 
@@ -210,7 +272,7 @@ function CreateRoom({ onNavigate, currentPage }) {
             {formData.format === "offline" ? (
               <>
                 <div className="input-group">
-                  <label className="input-label">Город</label>
+                  <label className="input-label">Город *</label>
                   <input
                     type="text"
                     name="city"
@@ -218,6 +280,8 @@ function CreateRoom({ onNavigate, currentPage }) {
                     placeholder="Ваш город"
                     value={formData.city}
                     onChange={handleChange}
+                    onInvalid={handleInvalid}
+                    required
                   />
                 </div>
                 <div className="input-group">
@@ -229,20 +293,37 @@ function CreateRoom({ onNavigate, currentPage }) {
                     placeholder="Укажите точный адрес"
                     value={formData.address}
                     onChange={handleChange}
+                    onInvalid={handleInvalid}
+                    required
+                  />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Максимальное количество участников *</label>
+                  <input
+                    type="number"
+                    name="maxMembers"
+                    className="input"
+                    value={formData.maxMembers}
+                    onChange={handleChange}
+                    onInvalid={handleInvalid}
+                    min="2"
+                    required
                   />
                 </div>
               </>
             ) : (
               <div className="input-group">
-                <label className="input-label">Максимальное количество участников</label>
+                <label className="input-label">Максимальное количество участников *</label>
                 <input
                   type="number"
                   name="maxMembers"
                   className="input"
                   value={formData.maxMembers}
                   onChange={handleChange}
+                  onInvalid={handleInvalid}
                   min="2"
                   max="20"
+                  required
                 />
                 <div
                   style={{

@@ -22,6 +22,20 @@ function Register({ onNavigate }) {
     interests: [],
     about: "",
   })
+  
+  // Список доступных категорий (те же, что и в CreateRoom)
+  const availableCategories = [
+    { value: "science", label: "Наука" },
+    { value: "it", label: "Программирование" },
+    { value: "sport", label: "Спорт" },
+    { value: "art", label: "Искусство" },
+    { value: "music", label: "Музыка" },
+    { value: "books", label: "Книги" },
+    { value: "travel", label: "Путешествия" },
+    { value: "cooking", label: "Кулинария" },
+    { value: "photo", label: "Фотография" },
+    { value: "games", label: "Игры" },
+  ]
   const [alert, setAlert] = useState({ visible: false, message: "", type: "error" })
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -94,6 +108,27 @@ function Register({ onNavigate }) {
       [e.target.name]: e.target.value,
     })
   }
+  
+  const handleInterestToggle = (categoryValue) => {
+    setFormData((prev) => {
+      const currentInterests = prev.interests || []
+      const isSelected = currentInterests.includes(categoryValue)
+      
+      if (isSelected) {
+        // Удаляем категорию из списка
+        return {
+          ...prev,
+          interests: currentInterests.filter((item) => item !== categoryValue),
+        }
+      } else {
+        // Добавляем категорию в список
+        return {
+          ...prev,
+          interests: [...currentInterests, categoryValue],
+        }
+      }
+    })
+  }
 
   const handleSubmitStep1 = (e) => {
     e.preventDefault()
@@ -132,6 +167,12 @@ function Register({ onNavigate }) {
       return
     }
 
+    // Валидация: минимум 3 категории должны быть выбраны
+    if (!formData.interests || formData.interests.length < 3) {
+      setAlert({ visible: true, message: "Пожалуйста, выберите минимум 3 категории интересов", type: "error" })
+      return
+    }
+
     if (formData.about.length > 500) {
       setAlert({ visible: true, message: "Описание не должно превышать 500 символов", type: "error" })
       return
@@ -141,14 +182,63 @@ function Register({ onNavigate }) {
     setAlert({ visible: false, message: "", type: "error" })
 
     try {
+      // Проверяем, что все обязательные поля заполнены перед отправкой
+      if (!formData.nickname || formData.nickname.trim() === "") {
+        setAlert({ visible: true, message: "Поле 'Никнейм' обязательно для заполнения", type: "error" })
+        setLoading(false)
+        return
+      }
+      
+      if (!formData.email || formData.email.trim() === "") {
+        setAlert({ visible: true, message: "Поле 'Email' обязательно для заполнения", type: "error" })
+        setLoading(false)
+        return
+      }
+      
+      if (!formData.password || formData.password.length < 8) {
+        setAlert({ visible: true, message: "Пароль должен содержать минимум 8 символов", type: "error" })
+        setLoading(false)
+        return
+      }
+      
+      console.log("Начинаем регистрацию с данными:", {
+        nickname: formData.nickname,
+        email: formData.email,
+        passwordLength: formData.password?.length,
+        interests: formData.interests
+      })
+      
       // Регистрация пользователя (шаг 1 - создание аккаунта)
       const user = await userAPI.register(formData.nickname, formData.email, formData.password)
       
       console.log("Пользователь зарегистрирован:", user)
       
+      if (!user) {
+        setAlert({ visible: true, message: "Ошибка: пользователь не был создан", type: "error" })
+        setLoading(false)
+        return
+      }
+      
       // Сохраняем пользователя в контекст
-      if (user) {
-        login(user)
+      login(user)
+      
+      // Получаем ID пользователя (может быть как id, так и userId)
+      const userId = user?.id || user?.userId
+      
+      console.log("ID пользователя для сохранения интересов:", userId)
+      
+      // Сохраняем выбранные категории интересов (важно для рекомендаций)
+      // Делаем это асинхронно и не блокируем регистрацию при ошибке
+      if (userId && formData.interests && formData.interests.length >= 3) {
+        try {
+          console.log("Сохраняем интересы для пользователя:", userId, formData.interests)
+          await userAPI.updateInterests(userId, formData.interests)
+          console.log("Интересы пользователя сохранены:", formData.interests)
+        } catch (interestError) {
+          console.error("Ошибка при сохранении интересов (не критично):", interestError)
+          // Не блокируем регистрацию, если не удалось сохранить интересы
+          // Пользователь сможет обновить их позже в настройках профиля
+        }
       }
       
       // TODO: После регистрации нужно заполнить профиль (имя, фамилия, город, о себе)
@@ -158,6 +248,11 @@ function Register({ onNavigate }) {
       onNavigate("home")
     } catch (err) {
       console.error("Ошибка регистрации:", err)
+      console.error("Детали ошибки:", {
+        message: err?.message,
+        status: err?.status,
+        data: err?.data
+      })
       const errorMessage = parseError(err)
       setAlert({ visible: true, message: errorMessage, type: "error" })
     } finally {
@@ -270,6 +365,128 @@ function Register({ onNavigate }) {
                 value={formData.city}
                 onChange={handleChange}
               />
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Категории интересов * (минимум 3)</label>
+              
+              {/* Список выбранных категорий */}
+              {formData.interests && formData.interests.length > 0 && (
+                <div style={{
+                  marginBottom: "var(--spacing-md)",
+                  padding: "var(--spacing-sm) var(--spacing-md)",
+                  backgroundColor: "var(--bg-tertiary)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--accent-gold)",
+                }}>
+                  <div style={{
+                    fontSize: "var(--font-size-xs)",
+                    color: "var(--accent-gold)",
+                    marginBottom: "var(--spacing-xs)",
+                    fontWeight: "500"
+                  }}>
+                    Выбранные категории:
+                  </div>
+                  <div style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "var(--spacing-xs)",
+                  }}>
+                    {formData.interests.map((interestValue) => {
+                      const category = availableCategories.find(c => c.value === interestValue)
+                      return category ? (
+                        <span
+                          key={interestValue}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "var(--spacing-xs)",
+                            padding: "4px 8px",
+                            backgroundColor: "var(--accent-gold)",
+                            color: "var(--bg-primary)",
+                            borderRadius: "var(--radius-sm)",
+                            fontSize: "var(--font-size-xs)",
+                            fontWeight: "500",
+                          }}
+                        >
+                          <span>✓</span>
+                          {category.label}
+                        </span>
+                      ) : null
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "repeat(2, 1fr)", 
+                gap: "var(--spacing-sm)",
+                marginTop: "var(--spacing-xs)"
+              }}>
+                {availableCategories.map((category) => {
+                  const isSelected = formData.interests?.includes(category.value) || false
+                  return (
+                    <button
+                      key={category.value}
+                      type="button"
+                      onClick={() => handleInterestToggle(category.value)}
+                      style={{
+                        padding: "var(--spacing-sm) var(--spacing-md)",
+                        border: `2px solid ${isSelected ? "var(--accent-gold)" : "var(--border-primary)"}`,
+                        borderRadius: "var(--radius-md)",
+                        backgroundColor: isSelected ? "var(--accent-gold)" : "transparent",
+                        color: isSelected ? "var(--bg-primary)" : "var(--text-secondary)",
+                        cursor: "pointer",
+                        fontSize: "var(--font-size-sm)",
+                        transition: "all 0.2s ease",
+                        textAlign: "center",
+                        fontWeight: isSelected ? "600" : "400",
+                        position: "relative",
+                        boxShadow: isSelected ? "0 2px 8px rgba(212, 175, 55, 0.3)" : "none",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.target.style.backgroundColor = "var(--bg-tertiary)"
+                          e.target.style.borderColor = "var(--accent-gold)"
+                        } else {
+                          e.target.style.boxShadow = "0 4px 12px rgba(212, 175, 55, 0.5)"
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.target.style.backgroundColor = "transparent"
+                          e.target.style.borderColor = "var(--border-primary)"
+                        } else {
+                          e.target.style.boxShadow = "0 2px 8px rgba(212, 175, 55, 0.3)"
+                        }
+                      }}
+                    >
+                      {isSelected && (
+                        <span style={{
+                          position: "absolute",
+                          top: "4px",
+                          right: "4px",
+                          fontSize: "12px",
+                          color: "var(--bg-primary)",
+                        }}>✓</span>
+                      )}
+                      {category.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ 
+                marginTop: "var(--spacing-sm)", 
+                fontSize: "var(--font-size-xs)", 
+                color: formData.interests && formData.interests.length >= 3 ? "var(--success-color)" : "var(--text-tertiary)",
+                fontWeight: formData.interests && formData.interests.length >= 3 ? "500" : "400",
+              }}>
+                Выбрано: {formData.interests?.length || 0} / 3 (минимум)
+                {formData.interests && formData.interests.length >= 3 && (
+                  <span style={{ marginLeft: "var(--spacing-xs)", color: "var(--success-color)" }}>✓</span>
+                )}
+              </div>
             </div>
 
             <div className="input-group">
