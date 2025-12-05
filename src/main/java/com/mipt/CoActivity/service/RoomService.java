@@ -62,6 +62,27 @@ public class RoomService {
       throw new BadRequestException("Max collaborators must be greater than 0");
     }
 
+    // Validate dates
+    Instant now = Instant.now();
+    if (request.getMeetingTime() != null) {
+      if (request.getMeetingTime().isBefore(now)) {
+        throw new BadRequestException("Meeting time must be in the future");
+      }
+      
+      if (request.getEndTime() != null) {
+        if (request.getEndTime().isBefore(now)) {
+          throw new BadRequestException("End time must be in the future");
+        }
+        if (!request.getEndTime().isAfter(request.getMeetingTime())) {
+          throw new BadRequestException("End time must be after meeting time");
+        }
+      }
+    } else if (request.getEndTime() != null) {
+      if (request.getEndTime().isBefore(now)) {
+        throw new BadRequestException("End time must be in the future");
+      }
+    }
+
     String roomName = request.getDescription() != null && !request.getDescription().isEmpty()
             ? request.getDescription().substring(0, Math.min(50, request.getDescription().length()))
             : "New Room";
@@ -70,6 +91,7 @@ public class RoomService {
     room.setCategory(request.getCategory());
     room.setMaxCollaborators(request.getMaxCollaborators());
     room.setMeetingTime(request.getMeetingTime());
+    room.setEndTime(request.getEndTime());
     room.setMeetingType(request.getMeetingType());
     room.setLocation(request.getLocation());
     room.setJoinType(request.getJoinType() != null ? request.getJoinType() : "open");
@@ -718,6 +740,7 @@ public class RoomService {
     response.setCreatedAt(room.getCreatedAt());
     response.setMeetingType(room.getMeetingType());
     response.setMeetingTime(room.getMeetingTime());
+    response.setEndTime(room.getEndTime());
     response.setMaxCollaborators(room.getMaxCollaborators());
     response.setJoinType(room.getJoinType() != null ? room.getJoinType() : "open");
     response.setIsDefault(room.getIsDefault() != null ? room.getIsDefault() : false);
