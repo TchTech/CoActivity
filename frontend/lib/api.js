@@ -671,11 +671,18 @@ export const roomAPI = {
     })
   },
 
-  async search(query) {
-    // Backend: GET /api/rooms/search?query=
+  async search(query, filters = {}) {
+    // Backend: GET /api/rooms/search?query=&category=&startDate=&endDate=&location=
+    const params = {}
+    if (query) params.query = query
+    if (filters.category) params.category = filters.category
+    if (filters.startDate) params.startDate = filters.startDate
+    if (filters.endDate) params.endDate = filters.endDate
+    if (filters.location) params.location = filters.location
+    
     return request("/api/rooms/search", {
       method: "GET",
-      params: { query },
+      params,
     })
   },
 
