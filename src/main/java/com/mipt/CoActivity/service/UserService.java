@@ -16,6 +16,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,7 +30,8 @@ public class UserService {
   private final BCryptPasswordEncoder passwordEncoder;
   private final ExternalLinkRepository externalLinkRepository;
   private final ImageService imageService;
-  private final NotificationService notificationService;
+  private final InterestRepository interestRepository;
+  private final InterestCategoryRepository interestCategoryRepository;
 
   @Autowired
   UserService(UserRepository userRepository,
@@ -38,7 +41,8 @@ public class UserService {
               BCryptPasswordEncoder passwordEncoder,
               ExternalLinkRepository externalLinkRepository,
               ImageService imageService,
-              NotificationService notificationService) {
+              InterestRepository interestRepository,
+              InterestCategoryRepository interestCategoryRepository) {
     this.userRepository = userRepository;
     this.userSettingsRepository = userSettingsRepository;
     this.roomRepository = roomRepository;
@@ -46,7 +50,8 @@ public class UserService {
     this.passwordEncoder = passwordEncoder;
     this.externalLinkRepository = externalLinkRepository;
     this.imageService = imageService;
-    this.notificationService = notificationService;
+    this.interestRepository = interestRepository;
+    this.interestCategoryRepository = interestCategoryRepository;
   }
 
   public User getUserByUsername(String username) {
@@ -615,6 +620,68 @@ public class UserService {
       settings.setDataLinksAccess(request.getDataLinksAccess());
     }
     return userSettingsRepository.save(settings);
+  }
+
+  @Transactional
+  public void updateInterests(Long userId, UpdateInterestsRequest request) {
+    User user = getUserProfile(userId);
+    
+    if (request.getInterests() == null || request.getInterests().isEmpty()) {
+      // Если список пуст, очищаем интересы пользователя
+      user.getInterests().clear();
+      userRepository.save(user);
+      return;
+    }
+    
+    // Маппинг категорий на русские названия для поиска Interest
+    Map<String, String> categoryMap = new HashMap<>();
+    categoryMap.put("science", "Наука");
+    categoryMap.put("it", "Программирование");
+    categoryMap.put("sport", "Спорт");
+    categoryMap.put("art", "Искусство");
+    categoryMap.put("music", "Музыка");
+    categoryMap.put("books", "Книги");
+    categoryMap.put("travel", "Путешествия");
+    categoryMap.put("cooking", "Кулинария");
+    categoryMap.put("photo", "Фотография");
+    categoryMap.put("games", "Игры");
+    
+    // Очищаем текущие интересы
+    user.getInterests().clear();
+    
+    // Для каждой категории находим или создаем Interest
+    for (String categoryValue : request.getInterests()) {
+      String categoryName = categoryMap.getOrDefault(categoryValue, categoryValue);
+      
+      // Ищем Interest по имени
+      Interest interest = interestRepository.findByName(categoryName)
+        .orElseGet(() -> {
+          // Если Interest не найден, создаем новый
+          Interest newInterest = new Interest();
+          newInterest.setName(categoryName);
+          
+          // Ищем или создаем InterestCategory
+          InterestCategory category = interestCategoryRepository.findByName(categoryName)
+            .orElseGet(() -> {
+              InterestCategory newCategory = new InterestCategory();
+              newCategory.setName(categoryName);
+              newCategory.setDescription("Категория: " + categoryName);
+              return interestCategoryRepository.save(newCategory);
+            });
+          
+          newInterest.setCategory(category);
+          newInterest.setDescription("Интерес: " + categoryName);
+          return interestRepository.save(newInterest);
+        });
+      
+      // Добавляем Interest к пользователю, если его еще нет
+      if (!user.getInterests().contains(interest)) {
+        user.getInterests().add(interest);
+      }
+    }
+    
+    userRepository.save(user);
+    logger.info("Updated interests for user {}: {}", userId, request.getInterests());
   }
 
   public List<Room> getCommonRooms(Long userId, Long targetUserId) {

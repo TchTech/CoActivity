@@ -307,4 +307,11 @@ public class UserController {
     String about = userService.getAbout(userId);
     return ResponseEntity.ok(Map.of("about", about != null ? about : ""));
   }
+
+  @PutMapping("/{userId}/interests")
+  public ResponseEntity<Void> updateInterests(
+      @PathVariable Long userId, @RequestBody UpdateInterestsRequest request) {
+    userService.updateInterests(userId, request);
+    return ResponseEntity.ok().build();
+  }
 }

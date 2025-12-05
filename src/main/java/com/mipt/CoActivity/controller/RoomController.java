@@ -449,4 +449,37 @@ public class RoomController {
     roomService.promoteToAdmin(roomId, userIdToPromote, adminUserId);
     return ResponseEntity.ok().build();
   }
+
+  @PostMapping("/{roomId}/admin/demote")
+  public ResponseEntity<Void> demoteFromAdmin(
+      @PathVariable Long roomId,
+      @RequestParam Long userIdToDemote,
+      @RequestParam Long adminUserId) {
+    roomService.demoteFromAdmin(roomId, userIdToDemote, adminUserId);
+    return ResponseEntity.ok().build();
+  }
+
+  /**
+   * Request rating from room participants for a specific user.
+   * 
+   * Only room creator or admin can request ratings.
+   * 
+   * @param roomId The room ID
+   * @param requestedUserId The user ID to be rated
+   * @param requesterUserId The user ID requesting the rating (must be creator or admin)
+   * @return 200 OK
+   * 
+   * @apiNote POST /api/rooms/{roomId}/rating-requests?requestedUserId={requestedUserId}&requesterUserId={requesterUserId}
+   * @response 200 OK - Rating requests sent successfully
+   * @response 403 Forbidden - User is not creator or admin
+   * @response 404 Not Found - Room or user not found
+   */
+  @PostMapping("/{roomId}/rating-requests")
+  public ResponseEntity<Void> requestRating(
+      @PathVariable Long roomId,
+      @RequestParam Long requestedUserId,
+      @RequestParam Long requesterUserId) {
+    roomService.requestRating(roomId, requestedUserId, requesterUserId);
+    return ResponseEntity.ok().build();
+  }
 }

@@ -178,7 +178,73 @@ function RoomsList({ onNavigate, currentPage }) {
       {/* Верхняя навигация */}
       <div className="top-nav">
         <div className="top-nav-title">Комнаты</div>
+<<<<<<< HEAD
         <div className="top-nav-actions">
+=======
+        <div className="top-nav-actions" style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center" }}>
+          {/* Notification Bell - единственный колокольчик для всех уведомлений */}
+          {currentUser?.id && (
+            <Popover open={notificationPanelOpen} onOpenChange={setNotificationPanelOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  className="btn-icon"
+                  style={{ 
+                    position: "relative",
+                    width: "40px",
+                    height: "40px"
+                  }}
+                  aria-label="Уведомления"
+                >
+                  <Bell size={20} style={{ color: "var(--text-primary)" }} />
+                  {unreadCount > 0 && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: "-4px",
+                        right: "-4px",
+                        backgroundColor: "var(--accent-gold)",
+                        color: "var(--bg-primary)",
+                        borderRadius: "50%",
+                        width: "20px",
+                        height: "20px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        border: "2px solid var(--bg-primary)",
+                        boxShadow: "0 0 8px rgba(212, 175, 55, 0.6)",
+                      }}
+                    >
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="bottom"
+                align="end"
+                style={{
+                  padding: 0,
+                  width: "380px",
+                  maxHeight: "600px",
+                  overflow: "hidden",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  boxShadow: "none",
+                }}
+              >
+                <NotificationsPanel
+                  userId={currentUser.id}
+                  onClose={() => setNotificationPanelOpen(false)}
+                  onNavigate={onNavigate}
+                  onNotificationUpdate={refreshUnreadCount}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
+
+>>>>>>> 305e5262decac7b131cfbe42f251a1a2dafda719
           {/* Profile Avatar - Navigate to profile */}
           {currentUser?.id && (
             <button
@@ -296,38 +362,68 @@ function RoomsList({ onNavigate, currentPage }) {
                 {(() => {
                   // Получаем аватарку создателя комнаты
                   const creatorAvatarId = room.createdBy?.avatar?.id
-                  const hasCreatorAvatar = creatorAvatarId != null && creatorAvatarId !== undefined && creatorAvatarId !== 0
+                  const hasCreatorAvatar = creatorAvatarId != null && creatorAvatarId !== undefined && creatorAvatarId !== 0 && creatorAvatarId !== ""
                   const roomId = typeof room.id === "object" ? (room.id?.id || room.id?.roomId || null) : room.id
                   
                   if (hasCreatorAvatar) {
-                    return (
-                      <img 
-                        src={imageAPI.getImageUrl(creatorAvatarId)} 
-                        alt={room.createdBy?.name || room.createdBy?.username || room.name} 
-                        className="avatar avatar-md avatar-clickable"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (roomId) {
-                            onNavigate("roomInfo", roomId)
-                          }
-                        }}
-                        onError={(e) => {
-                          console.error("[RoomsList] Failed to load creator avatar:", creatorAvatarId)
-                          e.target.style.display = 'none'
-                        }}
-                      />
-                    )
+                    try {
+                      const avatarUrl = imageAPI.getImageUrl(creatorAvatarId)
+                      return (
+                        <img 
+                          src={avatarUrl} 
+                          alt={room.createdBy?.name || room.createdBy?.username || room.name || "Создатель"} 
+                          className="avatar avatar-md avatar-clickable"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (roomId) {
+                              onNavigate("roomInfo", roomId)
+                            }
+                          }}
+                          onError={(e) => {
+                            // Silently hide broken images
+                            e.target.style.display = 'none'
+                          }}
+                        />
+                      )
+                    } catch (err) {
+                      // If getImageUrl fails, show placeholder
+                      return (
+                        <div
+                          className="avatar avatar-md"
+                          style={{
+                            backgroundColor: "var(--bg-tertiary)",
+                            border: "1px solid var(--border-color)",
+                            width: "40px",
+                            height: "40px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "var(--text-muted)",
+                            fontSize: "var(--font-size-xs)"
+                          }}
+                        >
+                          {room.createdBy?.name?.[0]?.toUpperCase() || room.createdBy?.username?.[0]?.toUpperCase() || "?"}
+                        </div>
+                      )
+                    }
                   } else {
                     return (
                       <div
                         className="avatar avatar-md"
                         style={{
-                          backgroundColor: "transparent",
-                          border: "none",
+                          backgroundColor: "var(--bg-tertiary)",
+                          border: "1px solid var(--border-color)",
                           width: "40px",
-                          height: "40px"
+                          height: "40px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "var(--text-muted)",
+                          fontSize: "var(--font-size-xs)"
                         }}
-                      />
+                      >
+                        {room.createdBy?.name?.[0]?.toUpperCase() || room.createdBy?.username?.[0]?.toUpperCase() || "?"}
+                      </div>
                     )
                   }
                 })()}
