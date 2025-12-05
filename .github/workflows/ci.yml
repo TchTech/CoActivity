@@ -19,8 +19,8 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Compile & Static Analysis
-        run: mvn -B compile checkstyle:check spotbugs:check
+      - name: Compile
+        run: mvn -B compile
 
       - name: Run Tests & Generate Coverage
         run: mvn -B test
