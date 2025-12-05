@@ -41,8 +41,28 @@ function Notifications({ onNavigate, currentPage }) {
     }
 
     loadNotifications()
-    const interval = setInterval(loadNotifications, 30000) // Poll every 30s
-    return () => clearInterval(interval)
+    
+    // Poll every 5 seconds for real-time updates
+    const interval = setInterval(loadNotifications, 5000)
+    
+    // Also reload when window gains focus (user switches back to tab)
+    const handleFocus = () => {
+      loadNotifications()
+    }
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadNotifications()
+      }
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [currentUser])
 
   const handleMarkAsRead = async (notificationId) => {
@@ -83,6 +103,19 @@ function Notifications({ onNavigate, currentPage }) {
         onNavigate("roomInfo", data.roomId)
       } else if (notification.type === "POST_PINNED" && data.roomId) {
         onNavigate("roomInfo", data.roomId)
+      } else if (notification.type === "NEW_POST" && data.postId) {
+        onNavigate("comments", data.postId)
+      } else if ((notification.type === "POST_LIKED" || notification.type === "POST_DISLIKED" || notification.type === "POST_COMMENTED") && data.postId) {
+        onNavigate("comments", data.postId)
+      } else if (notification.type === "MENTION" && data.postId) {
+        onNavigate("comments", data.postId)
+      } else if (notification.type === "MENTION" && data.commentId) {
+        // For mentions in comments, navigate to the post
+        if (data.postId) {
+          onNavigate("comments", data.postId)
+        }
+      } else if (notification.type === "COMMENT_REPLY" && data.postId) {
+        onNavigate("comments", data.postId)
       }
     } catch (e) {
       console.error("Error parsing notification data:", e)
