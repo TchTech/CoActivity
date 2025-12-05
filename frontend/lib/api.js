@@ -991,4 +991,103 @@ export const imageAPI = {
   },
 }
 
+// --- PASSWORD RESET API ---
+
+export const passwordResetAPI = {
+  async request(email) {
+    // Backend: POST /password-reset/request
+    return request("/password-reset/request", {
+      method: "POST",
+      body: { email },
+    })
+  },
+
+  async confirm(token, newPassword) {
+    // Backend: POST /password-reset/confirm
+    return request("/password-reset/confirm", {
+      method: "POST",
+      body: { token, newPassword },
+    })
+  },
+
+  async validateToken(token) {
+    // Backend: GET /password-reset/validate-token?token=
+    return request("/password-reset/validate-token", {
+      method: "GET",
+      params: { token },
+    })
+  },
+}
+
+// --- EMAIL VERIFICATION API ---
+
+export const emailVerificationAPI = {
+  async verify(token) {
+    // Backend: POST /email-verification/verify?token=
+    return request("/email-verification/verify", {
+      method: "POST",
+      params: { token },
+    })
+  },
+
+  async validateToken(token) {
+    // Backend: GET /email-verification/validate-token?token=
+    return request("/email-verification/validate-token", {
+      method: "GET",
+      params: { token },
+    })
+  },
+
+  async resend(email) {
+    // Backend: POST /email-verification/resend?email=
+    return request("/email-verification/resend", {
+      method: "POST",
+      params: { email },
+    })
+  },
+}
+
+// --- TWO FACTOR AUTHENTICATION API ---
+
+export const twoFactorAPI = {
+  async enable(userId) {
+    // Backend: POST /auth/2fa/enable/{userId}
+    return request(`/auth/2fa/enable/${userId}`, {
+      method: "POST",
+    })
+  },
+
+  async verifySetup(userId, code, secret) {
+    // Backend: POST /auth/2fa/verify-setup/{userId}?secret=
+    return request(`/auth/2fa/verify-setup/${userId}`, {
+      method: "POST",
+      params: { secret },
+      body: { code },
+    })
+  },
+
+  async disable(userId) {
+    // Backend: POST /auth/2fa/disable/{userId}
+    return request(`/auth/2fa/disable/${userId}`, {
+      method: "POST",
+    })
+  },
+
+  async getStatus(userId) {
+    // Backend: GET /auth/2fa/status/{userId}
+    return request(`/auth/2fa/status/${userId}`, {
+      method: "GET",
+    })
+  },
+
+  async loginWithTwoFactor(email, password, code) {
+    // Backend: POST /auth/login with 2FA code in body
+    // This is called after initial login returns requiresTwoFactor: true
+    return request("/auth/login", {
+      method: "POST",
+      body: { email, password, twoFactorCode: code },
+    })
+  },
+}
+
 

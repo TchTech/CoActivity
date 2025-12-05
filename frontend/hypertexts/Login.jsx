@@ -3,8 +3,6 @@
 import { useState } from "react"
 import { userAPI, twoFactorAPI, emailVerificationAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
-import { userAPI } from "../lib/api"
-import { useUser } from "../context/UserContext"
 import AuthAlert from "../components/AuthAlert"
 import "../styles/variables.css"
 import "../styles/global.css"
@@ -92,12 +90,12 @@ function Login({ onNavigate }) {
     // Если требуется 2FA, обрабатываем код
     if (requiresTwoFactor) {
       if (!formData.twoFactorCode || formData.twoFactorCode.length !== 6) {
-        setError("Введите 6-значный код из приложения аутентификатора")
+        setAlert({ visible: true, message: "Введите 6-значный код из приложения аутентификатора", type: "error" })
         return
       }
 
       setLoading(true)
-      setError("")
+      setAlert({ visible: false, message: "", type: "error" })
 
       try {
         const user = await twoFactorAPI.loginWithTwoFactor(
@@ -114,7 +112,8 @@ function Login({ onNavigate }) {
         }
       } catch (err) {
         console.error("Ошибка входа с 2FA:", err)
-        setError(err.message || "Неверный код. Попробуйте еще раз.")
+        const errorMessage = err.message || "Неверный код. Попробуйте еще раз."
+        setAlert({ visible: true, message: errorMessage, type: "error" })
       } finally {
         setLoading(false)
       }
@@ -144,7 +143,7 @@ function Login({ onNavigate }) {
         setRequiresTwoFactor(true)
         setPendingEmail(formData.login)
         setPendingPassword(formData.password)
-        setError("")
+        setAlert({ visible: false, message: "", type: "error" })
         return
       }
       
@@ -156,32 +155,19 @@ function Login({ onNavigate }) {
       }
       
       // Переход на главную страницу
-      // Вызов API для аутентификации
-      const user = await userAPI.login(formData.login, formData.password)
-      
-      console.log("Успешный вход:", user)
-      
-      // Сохраняем пользователя в контекст
-      if (user) {
-        loginUser(user)
-      }
-      
-      // Переход на главную страницу
       onNavigate("home")
     } catch (err) {
       console.error("Ошибка входа:", err)
-      const errorMessage = err.message || "Неверный логин или пароль"
+      const errorMessage = parseError(err)
       
       // Проверяем, является ли ошибка связанной с неподтвержденным email
       if (errorMessage.includes("Email not verified") || errorMessage.includes("не подтвержден")) {
         setEmailNotVerified(true)
         setPendingEmail(formData.login)
-        setError("")
+        setAlert({ visible: false, message: "", type: "error" })
       } else {
-        setError(errorMessage)
+        setAlert({ visible: true, message: errorMessage, type: "error" })
       }
-      const errorMessage = parseError(err)
-      setAlert({ visible: true, message: errorMessage, type: "error" })
     } finally {
       setLoading(false)
     }
@@ -189,12 +175,12 @@ function Login({ onNavigate }) {
 
   const handleResendVerificationEmail = async () => {
     if (!pendingEmail) {
-      setError("Email не указан")
+      setAlert({ visible: true, message: "Email не указан", type: "error" })
       return
     }
 
     setResendingEmail(true)
-    setError("")
+    setAlert({ visible: false, message: "", type: "error" })
     setResendSuccess("")
 
     try {
@@ -206,7 +192,7 @@ function Login({ onNavigate }) {
       }, 5000)
     } catch (err) {
       console.error("Ошибка повторной отправки письма:", err)
-      setError(err.message || "Не удалось отправить письмо. Попробуйте еще раз.")
+      setAlert({ visible: true, message: err.message || "Не удалось отправить письмо. Попробуйте еще раз.", type: "error" })
     } finally {
       setResendingEmail(false)
     }
@@ -220,7 +206,13 @@ function Login({ onNavigate }) {
           <p>Вход в аккаунт</p>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
+        <AuthAlert 
+          type={alert.type} 
+          message={alert.message} 
+          visible={alert.visible} 
+          onClose={() => setAlert({ visible: false, message: "", type: "error" })} 
+        />
+
         {resendSuccess && (
           <div className="success-message" style={{
             padding: "1rem",
@@ -260,7 +252,7 @@ function Login({ onNavigate }) {
                 style={{ width: "100%" }}
                 onClick={() => {
                   setEmailNotVerified(false)
-                  setError("")
+                  setAlert({ visible: false, message: "", type: "error" })
                   setResendSuccess("")
                 }}
                 disabled={resendingEmail}
@@ -286,25 +278,6 @@ function Login({ onNavigate }) {
                       disabled={loading}
                     />
                   </div>
-        <AuthAlert 
-          type={alert.type} 
-          message={alert.message} 
-          visible={alert.visible} 
-          onClose={() => setAlert({ visible: false, message: "", type: "error" })} 
-        />
-
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <div className="input-group">
-            <label className="input-label">Логин или Email</label>
-            <input
-              type="text"
-              name="login"
-              className="input"
-              placeholder="Введите никнейм или email"
-              value={formData.login}
-              onChange={handleChange}
-            />
-          </div>
 
                   <div className="input-group">
                     <label className="input-label">Пароль</label>
@@ -345,7 +318,7 @@ function Login({ onNavigate }) {
                     onClick={() => {
                       setRequiresTwoFactor(false)
                       setFormData({ ...formData, twoFactorCode: "" })
-                      setError("")
+                      setAlert({ visible: false, message: "", type: "error" })
                     }}
                     disabled={loading}
                   >

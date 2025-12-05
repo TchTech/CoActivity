@@ -15,8 +15,12 @@ function Settings({ onNavigate, currentPage }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState({
-    notificationsEnabled: true, // pushNotifications
+    notificationsEnabled: true,
     emailNotifications: true,
+    newFollowers: true,
+    newComments: true,
+    roomInvites: true,
+    roomReminders: true,
   })
   const [showAlert, setShowAlert] = useState(false)
   const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })
@@ -33,8 +37,12 @@ function Settings({ onNavigate, currentPage }) {
         setLoading(true)
         const data = await userAPI.getNotificationSettings(currentUser.id)
         setSettings({
-          notificationsEnabled: data.pushNotifications !== false, // Default to true if null
-          emailNotifications: data.emailNotifications !== false, // Default to true if null
+          notificationsEnabled: data.pushNotifications !== false,
+          emailNotifications: data.emailNotifications !== false,
+          newFollowers: data.newFollowers !== false,
+          newComments: data.newComments !== false,
+          roomInvites: data.roomInvites !== false,
+          roomReminders: data.roomReminders !== false,
         })
       } catch (error) {
         console.error("Ошибка загрузки настроек:", error)
@@ -75,6 +83,10 @@ function Settings({ onNavigate, currentPage }) {
       await userAPI.updateNotificationSettings(currentUser.id, {
         pushNotifications: settings.notificationsEnabled,
         emailNotifications: settings.emailNotifications,
+        newFollowers: settings.newFollowers,
+        newComments: settings.newComments,
+        roomInvites: settings.roomInvites,
+        roomReminders: settings.roomReminders,
       })
       
       setAlertData({
@@ -153,122 +165,94 @@ function Settings({ onNavigate, currentPage }) {
               </div>
             </div>
 
-<<<<<<< HEAD
-        {/* Типы уведомлений */}
-        <div className="settings-section">
-          <h3 className="settings-section-title">Типы уведомлений</h3>
+            {/* Типы уведомлений */}
+            <div className="settings-section">
+              <h3 className="settings-section-title">Типы уведомлений</h3>
 
-          <div className="settings-item">
-            <div className="settings-item-info">
-              <div className="settings-item-label">Email уведомления</div>
-              <div className="settings-item-description">Получать уведомления на электронную почту</div>
+              <div className="settings-item">
+                <div className="settings-item-info">
+                  <div className="settings-item-label">Новые подписчики</div>
+                  <div className="settings-item-description">Когда кто-то подписывается на вас</div>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.newFollowers}
+                    onChange={() => handleToggle("newFollowers")}
+                    disabled={!settings.notificationsEnabled}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item-info">
+                  <div className="settings-item-label">Комментарии</div>
+                  <div className="settings-item-description">Когда кто-то комментирует ваши посты</div>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.newComments}
+                    onChange={() => handleToggle("newComments")}
+                    disabled={!settings.notificationsEnabled}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item-info">
+                  <div className="settings-item-label">Приглашения в комнаты</div>
+                  <div className="settings-item-description">Когда вас приглашают в комнату</div>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.roomInvites}
+                    onChange={() => handleToggle("roomInvites")}
+                    disabled={!settings.notificationsEnabled}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item-info">
+                  <div className="settings-item-label">Напоминания о мероприятиях</div>
+                  <div className="settings-item-description">За час до начала мероприятия</div>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.roomReminders}
+                    onChange={() => handleToggle("roomReminders")}
+                    disabled={!settings.notificationsEnabled}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
             </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.emailNotifications}
-                onChange={() => handleToggle("emailNotifications")}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-          </div>
 
-          <div className="settings-item">
-            <div className="settings-item-info">
-              <div className="settings-item-label">Новые подписчики</div>
-              <div className="settings-item-description">Когда кто-то подписывается на вас</div>
+            {/* Безопасность */}
+            <div className="settings-section">
+              <h3 className="settings-section-title">Безопасность</h3>
+
+              <div className="settings-item">
+                <div className="settings-item-info">
+                  <div className="settings-item-label">Двухфакторная аутентификация</div>
+                  <div className="settings-item-description">Дополнительная защита вашего аккаунта</div>
+                </div>
+                <button
+                  className="btn btn-secondary"
+                  style={{ padding: "0.5rem 1rem" }}
+                  onClick={() => onNavigate("two-factor-settings")}
+                >
+                  Настроить
+                </button>
+              </div>
             </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.newFollowers}
-                onChange={() => handleToggle("newFollowers")}
-                disabled={!settings.notificationsEnabled}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-          </div>
 
-          <div className="settings-item">
-            <div className="settings-item-info">
-              <div className="settings-item-label">Комментарии</div>
-              <div className="settings-item-description">Когда кто-то комментирует ваши посты</div>
-            </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.newComments}
-                onChange={() => handleToggle("newComments")}
-                disabled={!settings.notificationsEnabled}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-item">
-            <div className="settings-item-info">
-              <div className="settings-item-label">Приглашения в комнаты</div>
-              <div className="settings-item-description">Когда вас приглашают в комнату</div>
-            </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.roomInvites}
-                onChange={() => handleToggle("roomInvites")}
-                disabled={!settings.notificationsEnabled}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-          </div>
-
-          <div className="settings-item">
-            <div className="settings-item-info">
-              <div className="settings-item-label">Напоминания о мероприятиях</div>
-              <div className="settings-item-description">За час до начала мероприятия</div>
-            </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.roomReminders}
-                onChange={() => handleToggle("roomReminders")}
-                disabled={!settings.notificationsEnabled}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-          </div>
-        </div>
-
-        {/* Безопасность */}
-        <div className="settings-section">
-          <h3 className="settings-section-title">Безопасность</h3>
-
-          <div className="settings-item">
-            <div className="settings-item-info">
-              <div className="settings-item-label">Двухфакторная аутентификация</div>
-              <div className="settings-item-description">Дополнительная защита вашего аккаунта</div>
-            </div>
-            <button
-              className="btn btn-secondary"
-              style={{ padding: "0.5rem 1rem" }}
-              onClick={() => onNavigate("two-factor-settings")}
-            >
-              Настроить
-            </button>
-          </div>
-        </div>
-
-        {/* Кнопка сохранения */}
-        <button
-          className="btn btn-primary"
-          style={{ width: "100%", marginTop: "var(--spacing-xl)" }}
-          onClick={() => {
-            console.log("Настройки сохранены:", settings)
-            onNavigate("profile")
-          }}
-        >
-          Сохранить настройки
-        </button>
-=======
             {/* Кнопка сохранения */}
             <button
               className="btn btn-primary"
@@ -280,7 +264,6 @@ function Settings({ onNavigate, currentPage }) {
             </button>
           </>
         )}
->>>>>>> 1b0a3d75a995fe828bc4439138d7c9d130132b51
       </div>
 
       <BottomNavigation currentPage={currentPage || "profile"} onNavigate={onNavigate} />

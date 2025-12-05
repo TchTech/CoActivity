@@ -6,6 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  transpilePackages: [],
   // Проксирование API запросов для обхода CORS
   async rewrites() {
     return [

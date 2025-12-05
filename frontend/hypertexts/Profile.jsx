@@ -577,6 +577,40 @@ function Profile({ onNavigate, userId, currentPage }) {
             <div style={{ width: "40px" }}></div>
           </div>
         )}
+        {isOwnProfile && (
+          <div className="top-nav">
+            <div style={{ width: "40px" }}></div>
+            <div className="top-nav-title">Профиль</div>
+            <div className="top-nav-actions">
+              <button 
+                className="btn-icon" 
+                onClick={() => onNavigate("settings")}
+                aria-label="Настройки"
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                <svg 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2"
+                  style={{ 
+                    width: "24px", 
+                    height: "24px"
+                  }}
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="profile-header">
           <div className="profile-avatar-section">

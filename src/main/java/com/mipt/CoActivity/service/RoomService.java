@@ -927,4 +927,31 @@ public class RoomService {
 
     return false;
   }
+
+  /**
+   * Удаляет пользователя из комнаты (kick)
+   */
+  @Transactional
+  public void kickUserFromRoom(Long roomId, Long userIdToKick, Long adminUserId) {
+    // TODO: Implement kick user from room functionality
+    throw new UnsupportedOperationException("kickUserFromRoom not yet implemented");
+  }
+
+  /**
+   * Удаляет сообщение из чата комнаты
+   */
+  @Transactional
+  public void deleteMessage(Long roomId, Long messageId, Long adminUserId) {
+    // TODO: Implement delete message functionality
+    throw new UnsupportedOperationException("deleteMessage not yet implemented");
+  }
+
+  /**
+   * Повышает пользователя до админа комнаты
+   */
+  @Transactional
+  public void promoteToAdmin(Long roomId, Long userIdToPromote, Long adminUserId) {
+    // TODO: Implement promote to admin functionality
+    throw new UnsupportedOperationException("promoteToAdmin not yet implemented");
+  }
 }

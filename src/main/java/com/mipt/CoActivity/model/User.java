@@ -37,6 +37,16 @@ public class User {
   @JsonIgnore
   private String passwordHash;
 
+  @Column(name = "twoFactorEnabled")
+  private Boolean twoFactorEnabled = false;
+
+  @Column(name = "twoFactorSecret")
+  @JsonIgnore
+  private String twoFactorSecret;
+
+  @Column(name = "emailVerified")
+  private Boolean emailVerified = false;
+
   @ManyToMany(mappedBy = "collaborators")
   @JsonIgnore
   private List<Room> rooms = new ArrayList<>();
@@ -95,5 +105,8 @@ public class User {
     this.createdAt = Instant.now();
     this.subscriptions = new ArrayList<>();
     this.followers = new ArrayList<>();
+    this.twoFactorEnabled = false;
+    this.twoFactorSecret = null;
+    this.emailVerified = false;
   }
 }

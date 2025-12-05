@@ -1,11 +1,8 @@
 "use client"
 import { useEffect, useState } from "react"
-import { Bell } from "lucide-react"
 import BottomNavigation from "./BottomNavigation"
-import { roomAPI, notificationAPI, imageAPI } from "../lib/api"
+import { roomAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
-import NotificationsPanel from "../components/NotificationsPanel"
-import { Popover, PopoverTrigger, PopoverContent } from "../components/ui/popover"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -20,8 +17,6 @@ function RoomsList({ onNavigate, currentPage }) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [activeTab, setActiveTab] = useState("all") // "all" or "mine"
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   // Function to refresh room list (can be called from child components)
@@ -177,32 +172,6 @@ function RoomsList({ onNavigate, currentPage }) {
     }
   }, [searchQuery, currentUser, refreshKey])
 
-  // Load unread notification count
-  const refreshUnreadCount = async () => {
-    if (!currentUser?.id) {
-      setUnreadCount(0)
-      return
-    }
-
-    try {
-      const countData = await notificationAPI.getUnreadCount(currentUser.id)
-      setUnreadCount(countData?.count || 0)
-    } catch (error) {
-      console.error("Ошибка загрузки количества уведомлений:", error)
-      setUnreadCount(0)
-    }
-  }
-
-  useEffect(() => {
-    if (!currentUser?.id) {
-      setUnreadCount(0)
-      return
-    }
-
-    refreshUnreadCount()
-    const interval = setInterval(refreshUnreadCount, 30000) // Poll every 30s
-    return () => clearInterval(interval)
-  }, [currentUser])
 
   return (
     <div>
@@ -210,84 +179,6 @@ function RoomsList({ onNavigate, currentPage }) {
       <div className="top-nav">
         <div className="top-nav-title">Комнаты</div>
         <div className="top-nav-actions">
-          <button className="btn-icon" onClick={() => onNavigate("notifications")}>
-            <svg 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2"
-              style={{ 
-                width: "24px", 
-                height: "24px"
-              }}
-            >
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-          </button>
-          
-          {/* Notification Bell */}
-          {currentUser?.id && (
-            <Popover open={notificationPanelOpen} onOpenChange={setNotificationPanelOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  className="btn-icon"
-                  style={{ 
-                    position: "relative",
-                    width: "40px",
-                    height: "40px"
-                  }}
-                  aria-label="Уведомления"
-                >
-                  <Bell size={20} style={{ color: "var(--text-primary)" }} />
-                  {unreadCount > 0 && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: "-4px",
-                        right: "-4px",
-                        backgroundColor: "var(--accent-gold)",
-                        color: "var(--bg-primary)",
-                        borderRadius: "50%",
-                        width: "20px",
-                        height: "20px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "11px",
-                        fontWeight: "700",
-                        border: "2px solid var(--bg-primary)",
-                        boxShadow: "0 0 8px rgba(212, 175, 55, 0.6)",
-                      }}
-                    >
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  )}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="bottom"
-                align="end"
-                style={{
-                  padding: 0,
-                  width: "380px",
-                  maxHeight: "600px",
-                  overflow: "hidden",
-                  backgroundColor: "transparent",
-                  border: "none",
-                  boxShadow: "none",
-                }}
-              >
-                <NotificationsPanel
-                  userId={currentUser.id}
-                  onClose={() => setNotificationPanelOpen(false)}
-                  onNavigate={onNavigate}
-                  onNotificationUpdate={refreshUnreadCount}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-
           {/* Profile Avatar - Navigate to profile */}
           {currentUser?.id && (
             <button
