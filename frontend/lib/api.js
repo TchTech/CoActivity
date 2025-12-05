@@ -567,6 +567,23 @@ export const commentAPI = {
       body: comment,
     })
   },
+
+  async delete(postId, commentId, userId) {
+    // Ensure all IDs are primitive values
+    const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+    const commentIdValue = typeof commentId === "object" ? (commentId?.id || commentId?.commentId || null) : commentId
+    const userIdValue = typeof userId === "object" ? (userId?.id || userId?.userId || null) : userId
+    
+    if (!postIdValue || !commentIdValue || !userIdValue) {
+      throw new Error(`Invalid IDs: postId=${postId}, commentId=${commentId}, userId=${userId}`)
+    }
+    
+    // Backend: DELETE /posts/{postId}/comments/{commentId}?userId=
+    return request(`/posts/${postIdValue}/comments/${commentIdValue}`, {
+      method: "DELETE",
+      params: { userId: userIdValue },
+    })
+  },
 }
 
 // --- ROOMS / CHAT API ---
@@ -700,6 +717,30 @@ export const roomAPI = {
     return request(`/rooms/${roomId}/join`, {
       method: "POST",
       body: { userId },
+    })
+  },
+
+  async kickUserFromRoom(roomId, userIdToKick, adminUserId) {
+    // Backend: POST /rooms/{roomId}/admin/kick
+    return request(`/rooms/${roomId}/admin/kick`, {
+      method: "POST",
+      params: { userIdToKick, adminUserId },
+    })
+  },
+
+  async deleteMessage(roomId, messageId, adminUserId) {
+    // Backend: DELETE /rooms/{roomId}/chat/messages/{messageId}
+    return request(`/rooms/${roomId}/chat/messages/${messageId}`, {
+      method: "DELETE",
+      params: { adminUserId },
+    })
+  },
+
+  async promoteToAdmin(roomId, userIdToPromote, adminUserId) {
+    // Backend: POST /rooms/{roomId}/admin/promote
+    return request(`/rooms/${roomId}/admin/promote`, {
+      method: "POST",
+      params: { userIdToPromote, adminUserId },
     })
   },
 }
