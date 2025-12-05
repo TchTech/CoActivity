@@ -144,8 +144,27 @@ public class RoomController {
   }
 
   @GetMapping("/search")
-  public ResponseEntity<List<Room>> searchRooms(@RequestParam String query) {
-    return ResponseEntity.ok(roomService.searchRooms(query));
+  public ResponseEntity<List<Room>> searchRooms(
+      @RequestParam(required = false) String query,
+      @RequestParam(required = false) String category,
+      @RequestParam(required = false) String startDate,
+      @RequestParam(required = false) String endDate,
+      @RequestParam(required = false) String location) {
+    java.time.Instant startDateInstant = null;
+    java.time.Instant endDateInstant = null;
+    
+    try {
+      if (startDate != null && !startDate.trim().isEmpty()) {
+        startDateInstant = java.time.Instant.parse(startDate);
+      }
+      if (endDate != null && !endDate.trim().isEmpty()) {
+        endDateInstant = java.time.Instant.parse(endDate);
+      }
+    } catch (Exception e) {
+      return ResponseEntity.badRequest().build();
+    }
+    
+    return ResponseEntity.ok(roomService.searchRoomsWithFilters(query, category, startDateInstant, endDateInstant, location));
   }
 
   // ========== Room Join Request Endpoints ==========

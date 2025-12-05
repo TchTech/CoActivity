@@ -418,11 +418,98 @@ public class RoomService {
     String searchQuery = query.trim();
     List<Room> byName = roomRepository.findByNameContainingIgnoreCase(searchQuery);
     List<Room> byDescription = roomRepository.findByDescriptionContainingIgnoreCase(searchQuery);
+    List<Room> byLocation = roomRepository.findByLocationContainingIgnoreCase(searchQuery);
     
     // Combine results and remove duplicates
     java.util.Set<Room> combined = new java.util.HashSet<>(byName);
     combined.addAll(byDescription);
+    combined.addAll(byLocation);
     return new java.util.ArrayList<>(combined);
+  }
+
+  /**
+   * Search rooms with filters: category, start date, end date, location
+   * @param query Optional text query for name/description/location search
+   * @param category Optional category filter
+   * @param startDate Optional start date filter (rooms with meetingTime >= startDate)
+   * @param endDate Optional end date filter (rooms with endTime <= endDate or meetingTime <= endDate if endTime is null)
+   * @param location Optional location filter (city, address)
+   * @return List of matching rooms
+   */
+  public List<Room> searchRoomsWithFilters(String query, String category, java.time.Instant startDate, java.time.Instant endDate, String location) {
+    List<Room> results = new java.util.ArrayList<>();
+    boolean hasCategory = category != null && !category.trim().isEmpty();
+    boolean hasStartDate = startDate != null;
+    boolean hasEndDate = endDate != null;
+    boolean hasLocation = location != null && !location.trim().isEmpty();
+    
+    // If we have category, date, or location filters, use them
+    if (hasCategory || hasStartDate || hasEndDate || hasLocation) {
+      // Start with base results based on filters
+      if (hasCategory && hasStartDate && hasEndDate) {
+        // Filter by category, start date and end date
+        results = roomRepository.findByCategoryAndDateRange(
+            category.trim(),
+            startDate,
+            endDate
+        );
+      } else if (hasCategory && hasStartDate) {
+        // Filter by category and start date
+        results = roomRepository.findByCategoryAndStartDate(category.trim(), startDate);
+      } else if (hasCategory && hasEndDate) {
+        // Filter by category and end date
+        results = roomRepository.findByCategoryAndEndDate(category.trim(), endDate);
+      } else if (hasCategory) {
+        // Filter by category only
+        results = roomRepository.findByCategoryIgnoreCase(category.trim());
+      } else if (hasStartDate && hasEndDate) {
+        // Filter by start date and end date
+        results = roomRepository.findByDateRange(startDate, endDate);
+      } else if (hasStartDate) {
+        // Filter by start date only
+        results = roomRepository.findByStartDate(startDate);
+      } else if (hasEndDate) {
+        // Filter by end date only
+        results = roomRepository.findByEndDate(endDate);
+      } else {
+        // No category or date filters, start with all rooms
+        results = roomRepository.findAll();
+      }
+      
+      // Apply location filter if specified
+      if (hasLocation) {
+        String locationQuery = location.trim().toLowerCase();
+        results = results.stream()
+            .filter(room -> 
+                room.getLocation() != null && 
+                room.getLocation().toLowerCase().contains(locationQuery)
+            )
+            .collect(java.util.stream.Collectors.toList());
+      }
+    } else {
+      // No filters, use text search or return all
+      if (query != null && !query.trim().isEmpty()) {
+        return searchRooms(query);
+      } else {
+        return roomRepository.findAll();
+      }
+    }
+    
+    // If we have a text query, filter results by name/description/location
+    if (query != null && !query.trim().isEmpty()) {
+      String searchQuery = query.trim().toLowerCase();
+      results = results.stream()
+          .filter(room -> 
+              (room.getName() != null && room.getName().toLowerCase().contains(searchQuery)) ||
+              (room.getDescription() != null && room.getDescription().toLowerCase().contains(searchQuery)) ||
+              (room.getLocation() != null && room.getLocation().toLowerCase().contains(searchQuery))
+          )
+          .collect(java.util.stream.Collectors.toList());
+    }
+    
+    // Remove duplicates
+    java.util.Set<Room> uniqueResults = new java.util.HashSet<>(results);
+    return new java.util.ArrayList<>(uniqueResults);
   }
 
   @Transactional
