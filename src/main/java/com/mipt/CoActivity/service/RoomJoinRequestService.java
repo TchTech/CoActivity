@@ -2,6 +2,7 @@ package com.mipt.CoActivity.service;
 
 import com.mipt.CoActivity.dto.ApproveJoinRequestRequest;
 import com.mipt.CoActivity.dto.MembershipRequestRequest;
+import com.mipt.CoActivity.dto.NotificationData;
 import com.mipt.CoActivity.dto.RejectJoinRequestRequest;
 import com.mipt.CoActivity.exception.*;
 import com.mipt.CoActivity.model.*;
@@ -228,7 +229,7 @@ public class RoomJoinRequestService {
 
         // If capacity reached, auto-reject all other pending requests
         if (reachedCapacity) {
-            autoRejectPendingRequests(roomId, "Room has reached maximum capacity");
+            autoRejectPendingRequests(roomId, "Room has reached maximum capacity", "ROOM_CAPACITY_REACHED");
         }
 
         // Send notification to applicant
@@ -389,10 +390,28 @@ public class RoomJoinRequestService {
 
     /**
      * Auto-reject all pending requests for a room (used when room closes or reaches capacity).
+     * 
+     * @param roomId The room ID
+     * @param reason The reason for auto-rejection
+     * @param notificationType Optional notification type override (defaults to MEMBERSHIP_REJECTED)
      */
     @Transactional
     public void autoRejectPendingRequests(Long roomId, String reason) {
+        autoRejectPendingRequests(roomId, reason, "MEMBERSHIP_REJECTED");
+    }
+
+    /**
+     * Auto-reject all pending requests for a room with custom notification type.
+     * 
+     * @param roomId The room ID
+     * @param reason The reason for auto-rejection
+     * @param notificationType The notification type (e.g., "ROOM_CLOSED", "ROOM_CAPACITY_REACHED")
+     */
+    @Transactional
+    public void autoRejectPendingRequests(Long roomId, String reason, String notificationType) {
         List<RoomJoinRequest> pendingRequests = roomJoinRequestRepository.findPendingRequestsByRoom(roomId);
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
         
         for (RoomJoinRequest request : pendingRequests) {
             String previousStatus = request.getStatus();
@@ -405,12 +424,52 @@ public class RoomJoinRequestService {
             // Create history entry (system action, no user)
             createHistoryEntry(request, previousStatus, "rejected", null, reason);
 
-            // Send notification to applicant
-            sendRejectionNotification(request.getRoom(), request, request.getUser());
+            // Send notification with appropriate type
+            sendAutoRejectionNotification(room, request, request.getUser(), notificationType, reason);
         }
 
         logger.info("Auto-rejected {} pending requests for room {} with reason: {}", 
                 pendingRequests.size(), roomId, reason);
+    }
+
+    private void sendAutoRejectionNotification(Room room, RoomJoinRequest request, User applicant, 
+                                                String notificationType, String reason) {
+        // Build standardized notification data
+        NotificationData notificationData = NotificationData.builder()
+                .roomId(room.getId())
+                .requestId(request.getId())
+                .reason(reason)
+                .build();
+
+        String title;
+        String content;
+        
+        switch (notificationType) {
+            case "ROOM_CLOSED":
+                title = "Комната закрыта";
+                content = String.format("Комната \"%s\" была закрыта. Ваша заявка была отклонена.",
+                        room.getName() != null ? room.getName() : room.getDescription());
+                break;
+            case "ROOM_CAPACITY_REACHED":
+                title = "Комната заполнена";
+                content = String.format("Комната \"%s\" достигла максимальной вместимости. Ваша заявка была отклонена.",
+                        room.getName() != null ? room.getName() : room.getDescription());
+                break;
+            default:
+                title = "Заявка отклонена";
+                content = String.format("Ваша заявка на вступление в комнату \"%s\" была отклонена. %s",
+                        room.getName() != null ? room.getName() : room.getDescription(),
+                        reason != null ? "Причина: " + reason : "");
+        }
+
+        notificationService.createNotification(
+                applicant.getId(),
+                notificationType,
+                title,
+                content,
+                notificationData,
+                room.getId()
+        );
     }
 
     // ========== Private Helper Methods ==========
@@ -423,31 +482,36 @@ public class RoomJoinRequestService {
     }
 
     private void sendNewRequestNotifications(Room room, RoomJoinRequest request, User requester) {
+        // Build standardized notification data
+        NotificationData notificationData = NotificationData.builder()
+                .roomId(room.getId())
+                .requestId(request.getId())
+                .requesterId(requester.getId())
+                .build();
+
+        String content = String.format("Пользователь %s подал заявку на вступление в комнату \"%s\"",
+                requester.getName() != null ? requester.getName() : requester.getUsername(),
+                room.getName() != null ? room.getName() : room.getDescription());
+
         // Send to room creator
-        sendNotificationToUser(
+        notificationService.createNotification(
                 room.getCreatedBy().getId(),
                 "MEMBERSHIP_REQUEST",
                 "Новая заявка на вступление в комнату",
-                String.format("Пользователь %s подал заявку на вступление в комнату \"%s\"",
-                        requester.getName() != null ? requester.getName() : requester.getUsername(),
-                        room.getName() != null ? room.getName() : room.getDescription()),
-                String.format("{\"roomId\":%d,\"requestId\":%d,\"requesterId\":%d}",
-                        room.getId(), request.getId(), requester.getId()),
+                content,
+                notificationData,
                 room.getId()
         );
 
         // Send to all room admins (excluding creator to avoid duplicate)
         for (User admin : room.getAdmins()) {
             if (!admin.getId().equals(room.getCreatedBy().getId())) {
-                sendNotificationToUser(
+                notificationService.createNotification(
                         admin.getId(),
                         "MEMBERSHIP_REQUEST",
                         "Новая заявка на вступление в комнату",
-                        String.format("Пользователь %s подал заявку на вступление в комнату \"%s\"",
-                                requester.getName() != null ? requester.getName() : requester.getUsername(),
-                                room.getName() != null ? room.getName() : room.getDescription()),
-                        String.format("{\"roomId\":%d,\"requestId\":%d,\"requesterId\":%d}",
-                                room.getId(), request.getId(), requester.getId()),
+                        content,
+                        notificationData,
                         room.getId()
                 );
             }
@@ -455,39 +519,46 @@ public class RoomJoinRequestService {
     }
 
     private void sendApprovalNotification(Room room, RoomJoinRequest request, User applicant) {
-        sendNotificationToUser(
+        // Build standardized notification data
+        NotificationData notificationData = NotificationData.builder()
+                .roomId(room.getId())
+                .requestId(request.getId())
+                .responderId(request.getResponder() != null ? request.getResponder().getId() : null)
+                .build();
+
+        notificationService.createNotification(
                 applicant.getId(),
                 "MEMBERSHIP_APPROVED",
                 "Заявка одобрена",
                 String.format("Ваша заявка на вступление в комнату \"%s\" была одобрена",
                         room.getName() != null ? room.getName() : room.getDescription()),
-                String.format("{\"roomId\":%d,\"requestId\":%d}", room.getId(), request.getId()),
+                notificationData,
                 room.getId()
         );
     }
 
     private void sendRejectionNotification(Room room, RoomJoinRequest request, User applicant) {
+        // Build standardized notification data
+        NotificationData notificationData = NotificationData.builder()
+                .roomId(room.getId())
+                .requestId(request.getId())
+                .responderId(request.getResponder() != null ? request.getResponder().getId() : null)
+                .reason(request.getRejectionReason())
+                .build();
+
         String reasonText = request.getRejectionReason() != null 
                 ? " Причина: " + request.getRejectionReason() 
                 : "";
-        sendNotificationToUser(
+
+        notificationService.createNotification(
                 applicant.getId(),
                 "MEMBERSHIP_REJECTED",
                 "Заявка отклонена",
                 String.format("Ваша заявка на вступление в комнату \"%s\" была отклонена.%s",
                         room.getName() != null ? room.getName() : room.getDescription(), reasonText),
-                String.format("{\"roomId\":%d,\"requestId\":%d,\"reason\":%s}",
-                        room.getId(), request.getId(),
-                        request.getRejectionReason() != null ? "\"" + request.getRejectionReason() + "\"" : "null"),
+                notificationData,
                 room.getId()
         );
-    }
-
-    private void sendNotificationToUser(Long userId, String type, String title, String content, 
-                                        String data, Long roomId) {
-        // Note: This will be enhanced in Phase 3 with preference checking and deduplication
-        // For now, we just create the notification
-        notificationService.createNotification(userId, type, title, content, data);
     }
 }
 

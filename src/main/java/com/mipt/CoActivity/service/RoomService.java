@@ -817,8 +817,8 @@ public class RoomService {
     room.setClosedBy(user);
     roomRepository.save(room);
 
-    // Auto-reject all pending requests
-    roomJoinRequestService.autoRejectPendingRequests(roomId, "Room was closed by administrator");
+    // Auto-reject all pending requests with ROOM_CLOSED notification type
+    roomJoinRequestService.autoRejectPendingRequests(roomId, "Room was closed by administrator", "ROOM_CLOSED");
 
     logger.info("Room {} was closed by user {}", roomId, userId);
   }
@@ -846,10 +846,11 @@ public class RoomService {
         room.setClosedAt(room.getMeetingTime()); // Use meetingTime as closed_at
         roomRepository.save(room);
 
-        // Auto-reject all pending requests
+        // Auto-reject all pending requests with ROOM_CLOSED notification type
         roomJoinRequestService.autoRejectPendingRequests(
                 room.getId(), 
-                "Room was automatically closed because the event date has passed"
+                "Room was automatically closed because the event date has passed",
+                "ROOM_CLOSED"
         );
 
         closedCount++;
