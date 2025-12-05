@@ -87,8 +87,45 @@ public class CommentService {
     return rootComments;
   }
 
-  public void deleteComment(Long commentId) {
-    commentRepository.deleteById(commentId);
+  @Transactional
+  public void deleteComment(Long commentId, Long userId) {
+    Comment comment = commentRepository.findById(commentId)
+        .orElseThrow(() -> new ResourceNotFoundException("Comment not found"));
+    
+    // Проверяем, что пользователь является автором комментария
+    if (comment.getAuthor() == null || !comment.getAuthor().getId().equals(userId)) {
+      throw new IllegalArgumentException("Only the comment author can delete the comment");
+    }
+    
+    // Удаляем дочерние комментарии (replies) сначала
+    if (comment.getReplies() != null && !comment.getReplies().isEmpty()) {
+      for (Comment reply : comment.getReplies()) {
+        // Очищаем связи ManyToMany для каждого ответа
+        if (reply.getLikedUsers() != null) {
+          reply.getLikedUsers().clear();
+        }
+        if (reply.getDislikedUsers() != null) {
+          reply.getDislikedUsers().clear();
+        }
+        commentRepository.save(reply);
+      }
+      // Удаляем дочерние комментарии
+      commentRepository.deleteAll(comment.getReplies());
+    }
+    
+    // Очищаем связи ManyToMany перед удалением
+    if (comment.getLikedUsers() != null) {
+      comment.getLikedUsers().clear();
+    }
+    if (comment.getDislikedUsers() != null) {
+      comment.getDislikedUsers().clear();
+    }
+    
+    // Сохраняем изменения для очистки связей
+    commentRepository.save(comment);
+    
+    // Удаляем комментарий
+    commentRepository.delete(comment);
   }
 
   @Transactional
