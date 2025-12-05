@@ -422,4 +422,31 @@ public class RoomController {
       @RequestParam(required = false, defaultValue = "50") Integer limit) {
     return ResponseEntity.ok(roomService.getAllRooms(offset, limit));
   }
+
+  @PostMapping("/{roomId}/admin/kick")
+  public ResponseEntity<Void> kickUserFromRoom(
+      @PathVariable Long roomId,
+      @RequestParam Long userIdToKick,
+      @RequestParam Long adminUserId) {
+    roomService.kickUserFromRoom(roomId, userIdToKick, adminUserId);
+    return ResponseEntity.ok().build();
+  }
+
+  @DeleteMapping("/{roomId}/chat/messages/{messageId}")
+  public ResponseEntity<Void> deleteMessage(
+      @PathVariable Long roomId,
+      @PathVariable Long messageId,
+      @RequestParam Long adminUserId) {
+    roomService.deleteMessage(roomId, messageId, adminUserId);
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/{roomId}/admin/promote")
+  public ResponseEntity<Void> promoteToAdmin(
+      @PathVariable Long roomId,
+      @RequestParam Long userIdToPromote,
+      @RequestParam Long adminUserId) {
+    roomService.promoteToAdmin(roomId, userIdToPromote, adminUserId);
+    return ResponseEntity.ok().build();
+  }
 }

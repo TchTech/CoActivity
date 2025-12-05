@@ -28,6 +28,7 @@ public class UserService {
   private final BCryptPasswordEncoder passwordEncoder;
   private final ExternalLinkRepository externalLinkRepository;
   private final ImageService imageService;
+  private final NotificationService notificationService;
 
   @Autowired
   UserService(UserRepository userRepository,
@@ -36,7 +37,8 @@ public class UserService {
               RoomFolderRepository roomFolderRepository,
               BCryptPasswordEncoder passwordEncoder,
               ExternalLinkRepository externalLinkRepository,
-              ImageService imageService) {
+              ImageService imageService,
+              NotificationService notificationService) {
     this.userRepository = userRepository;
     this.userSettingsRepository = userSettingsRepository;
     this.roomRepository = roomRepository;
@@ -44,6 +46,7 @@ public class UserService {
     this.passwordEncoder = passwordEncoder;
     this.externalLinkRepository = externalLinkRepository;
     this.imageService = imageService;
+    this.notificationService = notificationService;
   }
 
   public User getUserByUsername(String username) {
@@ -169,6 +172,22 @@ public class UserService {
     userRepository.save(user);
     userRepository.save(userToSubscribe);
     logger.info("User {} subscribed to user {}", userId, userToSubscribeId);
+    
+    // Create notification for the user being followed
+    try {
+      String subscriberName = user.getName() != null ? user.getName() : user.getUsername();
+      notificationService.createNotification(
+        userToSubscribeId,
+        "FOLLOW",
+        "Новая подписка",
+        subscriberName + " подписался на вас",
+        "{\"subscriberId\":" + userId + ",\"subscriberName\":\"" + subscriberName + "\"}"
+      );
+      logger.info("Created follow notification for user {}", userToSubscribeId);
+    } catch (Exception e) {
+      logger.error("Failed to create follow notification: {}", e.getMessage(), e);
+      // Don't fail the subscription if notification creation fails
+    }
   }
 
   public void unsubscribe(Long userId, Long userToUnsubscribeId) {

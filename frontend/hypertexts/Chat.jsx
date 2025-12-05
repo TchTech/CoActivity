@@ -13,8 +13,11 @@ function Chat({ onNavigate, roomId }) {
   const [messages, setMessages] = useState([])
   const [messageText, setMessageText] = useState("")
   const [roomInfo, setRoomInfo] = useState(null)
+  const [roomMembers, setRoomMembers] = useState([]) // Список участников для упоминаний
+  const [roomCreator, setRoomCreator] = useState(null) // Информация о создателе комнаты
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [isAdmin, setIsAdmin] = useState(false)
 
   // Polling for messages (fallback instead of websockets)
   useEffect(() => {
@@ -33,10 +36,13 @@ function Chat({ onNavigate, roomId }) {
         setRoomInfo({ id: data.roomId })
         setMessages(
           Array.isArray(data.messages)
-            ? data.messages.map((m, index) => {
+            ? data.messages.map((m) => {
                 console.log("[Chat] Mapping message:", m, "senderAvatar:", m.senderAvatar)
+                if (!m.id) {
+                  console.warn("[Chat] Message missing ID:", m)
+                }
                 return {
-                  id: m.id || index,
+                  id: m.id,
                   senderId: m.senderId,
                   senderName: m.senderName,
                   senderAvatar: m.senderAvatar,
@@ -46,6 +52,55 @@ function Chat({ onNavigate, roomId }) {
               })
             : []
         )
+        
+        // Загружаем детали комнаты для участников и создателя
+        try {
+          const roomDetails = await roomAPI.getDetails(roomId)
+          console.log("[Chat] Room details:", roomDetails)
+          console.log("[Chat] Creator ID:", roomDetails.creatorId)
+          console.log("[Chat] Creator name:", roomDetails.creatorName)
+          console.log("[Chat] Creator avatar:", roomDetails.creatorAvatar)
+          console.log("[Chat] Members:", roomDetails.members)
+          
+          if (roomDetails.members && Array.isArray(roomDetails.members)) {
+            setRoomMembers(roomDetails.members)
+          }
+          // Сохраняем информацию о создателе
+          if (roomDetails.creatorId) {
+            // Находим создателя в списке участников (сравниваем как числа)
+            const creator = roomDetails.members?.find(m => {
+              if (!m || !m.id) return false
+              // Сравниваем ID как числа, учитывая возможные различия в типах
+              const memberId = Number(m.id)
+              const creatorId = Number(roomDetails.creatorId)
+              return memberId === creatorId
+            })
+            console.log("[Chat] Found creator in members:", creator)
+            
+            if (creator) {
+              console.log("[Chat] Setting creator from members:", creator)
+              setRoomCreator(creator)
+            } else {
+              // Если создателя нет в списке участников, создаем объект из данных комнаты
+              // Важно: creatorAvatar имеет структуру { id: Integer }
+              const creatorData = {
+                id: roomDetails.creatorId,
+                name: roomDetails.creatorName,
+                username: roomDetails.creatorName,
+                avatar: roomDetails.creatorAvatar || null
+              }
+              console.log("[Chat] Creator not found in members, using room details")
+              console.log("[Chat] Setting creator from room details:", creatorData)
+              console.log("[Chat] creatorAvatar structure:", roomDetails.creatorAvatar)
+              setRoomCreator(creatorData)
+            }
+          } else {
+            console.log("[Chat] No creatorId in room details")
+          }
+        } catch (err) {
+          console.error("[Chat] Error loading room details:", err)
+        }
+        
         setError("")
       } catch (err) {
         console.error("Ошибка загрузки чата:", err)
@@ -66,6 +121,23 @@ function Chat({ onNavigate, roomId }) {
     return () => {
       if (intervalId) clearInterval(intervalId)
     }
+  }, [roomId, currentUser])
+
+  // Load room details to check admin status
+  useEffect(() => {
+    const loadRoomDetails = async () => {
+      if (!roomId || !currentUser?.id) return
+
+      try {
+        const roomData = await roomAPI.getDetails(roomId)
+        const currentUserMember = roomData.members?.find(m => m.id === currentUser.id)
+        setIsAdmin(currentUserMember?.isAdmin || false)
+      } catch (err) {
+        console.error("Ошибка загрузки информации о комнате:", err)
+      }
+    }
+
+    loadRoomDetails()
   }, [roomId, currentUser])
 
   const handleSendMessage = async () => {
@@ -103,6 +175,77 @@ function Chat({ onNavigate, roomId }) {
 
   const headerTitle = roomInfo?.description || `Комната #${roomId || ""}`
 
+  // Функция для парсинга упоминаний в тексте сообщения
+  const parseMessageWithMentions = (text, members, navigate) => {
+    if (!text || !members || members.length === 0) {
+      return text
+    }
+
+    // Регулярное выражение для поиска упоминаний @username
+    const mentionRegex = /@(\w+)/g
+    const parts = []
+    let lastIndex = 0
+    let match
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+      // Добавляем текст до упоминания
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index))
+      }
+
+      const mentionedUsername = match[1]
+      // Ищем пользователя в списке участников
+      const mentionedUser = members.find(
+        (member) =>
+          member.username?.toLowerCase() === mentionedUsername.toLowerCase() ||
+          member.name?.toLowerCase() === mentionedUsername.toLowerCase()
+      )
+
+      if (mentionedUser) {
+        // Создаем кликабельную ссылку на профиль
+        parts.push(
+          <span
+            key={match.index}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (mentionedUser.id) {
+                navigate("profile", mentionedUser.id)
+              }
+            }}
+            style={{
+              color: "var(--accent-gold)",
+              cursor: "pointer",
+              fontWeight: "600",
+              textDecoration: "underline",
+              textDecorationColor: "var(--accent-gold)",
+              textUnderlineOffset: "2px"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = "0.8"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = "1"
+            }}
+          >
+            @{mentionedUser.name || mentionedUser.username}
+          </span>
+        )
+      } else {
+        // Если пользователь не найден, оставляем как обычный текст
+        parts.push(`@${mentionedUsername}`)
+      }
+
+      lastIndex = match.index + match[0].length
+    }
+
+    // Добавляем оставшийся текст
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex))
+    }
+
+    return parts.length > 0 ? parts : text
+  }
+
   return (
     <div className="chat-container">
       {/* Шапка чата - кликабельна */}
@@ -116,7 +259,52 @@ function Chat({ onNavigate, roomId }) {
         >
           ←
         </button>
-        <img src="/placeholder.svg" alt={headerTitle} className="avatar avatar-md" />
+        {(() => {
+          // Детальная проверка наличия аватарки
+          const avatarId = roomCreator?.avatar?.id
+          const hasAvatar = avatarId != null && avatarId !== undefined && avatarId !== 0
+          
+          console.log("[Chat] Rendering header avatar")
+          console.log("[Chat] roomCreator:", roomCreator)
+          console.log("[Chat] roomCreator?.avatar:", roomCreator?.avatar)
+          console.log("[Chat] avatarId:", avatarId)
+          console.log("[Chat] hasAvatar:", hasAvatar)
+          
+          if (hasAvatar) {
+            const imageUrl = imageAPI.getImageUrl(avatarId)
+            console.log("[Chat] Avatar image URL:", imageUrl)
+            return (
+              <img 
+                src={imageUrl} 
+                alt={roomCreator.name || roomCreator.username || headerTitle} 
+                className="avatar avatar-md avatar-clickable"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (roomCreator.id) {
+                    onNavigate("profile", roomCreator.id)
+                  }
+                }}
+                onError={(e) => {
+                  console.error("[Chat] Failed to load avatar image:", imageUrl)
+                  e.target.style.display = 'none'
+                }}
+              />
+            )
+          } else {
+            console.log("[Chat] No avatar, rendering empty div")
+            return (
+              <div
+                className="avatar avatar-md"
+                style={{
+                  backgroundColor: "transparent",
+                  border: "none",
+                  width: "40px",
+                  height: "40px"
+                }}
+              />
+            )
+          }
+        })()}
         <div className="chat-header-info">
           <div className="chat-header-title">{headerTitle}</div>
         </div>
@@ -179,15 +367,50 @@ function Chat({ onNavigate, roomId }) {
                   />
                 )}
                 <div className="message-content">
-                  {!isOwn && <div className="message-sender">{senderName}</div>}
-                  <div className="message-text">{message.content}</div>
-                  <div className="message-time">
-                    {message.timestamp
-                      ? new Date(message.timestamp).toLocaleTimeString("ru-RU", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : ""}
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", justifyContent: "space-between" }}>
+                    <div style={{ flex: 1 }}>
+                      {!isOwn && <div className="message-sender">{senderName}</div>}
+                      <div className="message-text">{message.content}</div>
+                      <div className="message-time">
+                        {message.timestamp
+                          ? new Date(message.timestamp).toLocaleTimeString("ru-RU", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                      </div>
+                    </div>
+                    {isAdmin && message.id && (
+                      <button
+                        className="btn-icon"
+                        style={{ 
+                          fontSize: "var(--font-size-xs)",
+                          padding: "var(--spacing-xs)",
+                          color: "var(--error)",
+                          opacity: 0.7
+                        }}
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (confirm("Удалить это сообщение?")) {
+                            try {
+                              if (!message.id) {
+                                alert("Не удалось удалить сообщение: отсутствует ID сообщения")
+                                return
+                              }
+                              await roomAPI.deleteMessage(roomId, message.id, currentUser.id)
+                              // Remove message from local state
+                              setMessages((prev) => prev.filter((m) => m.id !== message.id))
+                            } catch (err) {
+                              console.error("Ошибка удаления сообщения:", err)
+                              alert("Не удалось удалить сообщение: " + (err.message || "Неизвестная ошибка"))
+                            }
+                          }
+                        }}
+                        title="Удалить сообщение"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

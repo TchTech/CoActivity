@@ -609,6 +609,23 @@ export const commentAPI = {
       body: comment,
     })
   },
+
+  async delete(postId, commentId, userId) {
+    // Ensure all IDs are primitive values
+    const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+    const commentIdValue = typeof commentId === "object" ? (commentId?.id || commentId?.commentId || null) : commentId
+    const userIdValue = typeof userId === "object" ? (userId?.id || userId?.userId || null) : userId
+    
+    if (!postIdValue || !commentIdValue || !userIdValue) {
+      throw new Error(`Invalid IDs: postId=${postId}, commentId=${commentId}, userId=${userId}`)
+    }
+    
+    // Backend: DELETE /posts/{postId}/comments/{commentId}?userId=
+    return request(`/posts/${postIdValue}/comments/${commentIdValue}`, {
+      method: "DELETE",
+      params: { userId: userIdValue },
+    })
+  },
 }
 
 // --- ROOMS / CHAT API ---
@@ -864,6 +881,14 @@ export const roomAPI = {
     return request(`/api/rooms/${roomId}/join`, {
       method: "POST",
       body: { userId },
+    })
+  },
+
+  async createRatingRequest(roomId, requestedUserId) {
+    // Backend: POST /rating-requests?roomId=&requestedUserId=
+    return request("/rating-requests", {
+      method: "POST",
+      params: { roomId, requestedUserId },
     })
   },
 }

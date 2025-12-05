@@ -65,6 +65,27 @@ public class RoomService {
       throw new BadRequestException("Max collaborators must be greater than 0");
     }
 
+    // Validate dates
+    Instant now = Instant.now();
+    if (request.getMeetingTime() != null) {
+      if (request.getMeetingTime().isBefore(now)) {
+        throw new BadRequestException("Meeting time must be in the future");
+      }
+      
+      if (request.getEndTime() != null) {
+        if (request.getEndTime().isBefore(now)) {
+          throw new BadRequestException("End time must be in the future");
+        }
+        if (!request.getEndTime().isAfter(request.getMeetingTime())) {
+          throw new BadRequestException("End time must be after meeting time");
+        }
+      }
+    } else if (request.getEndTime() != null) {
+      if (request.getEndTime().isBefore(now)) {
+        throw new BadRequestException("End time must be in the future");
+      }
+    }
+
     String roomName = request.getDescription() != null && !request.getDescription().isEmpty()
             ? request.getDescription().substring(0, Math.min(50, request.getDescription().length()))
             : "New Room";
@@ -73,6 +94,7 @@ public class RoomService {
     room.setCategory(request.getCategory());
     room.setMaxCollaborators(request.getMaxCollaborators());
     room.setMeetingTime(request.getMeetingTime());
+    room.setEndTime(request.getEndTime());
     room.setMeetingType(request.getMeetingType());
     room.setLocation(request.getLocation());
     room.setJoinType(request.getJoinType() != null ? request.getJoinType() : "open");
@@ -138,6 +160,7 @@ public class RoomService {
                     .map(
                             msg -> {
                               ChatMessageResponse chatMsg = new ChatMessageResponse();
+                              chatMsg.setId(msg.getId());
                               chatMsg.setSenderId(msg.getAuthor().getId());
                               chatMsg.setContent(msg.getText());
                               chatMsg.setTimestamp(msg.getDateCreated());
@@ -708,6 +731,12 @@ public class RoomService {
     response.setCreatorId(room.getCreatedBy() != null ? room.getCreatedBy().getId() : null);
     response.setCreatorName(room.getCreatedBy() != null ? 
         (room.getCreatedBy().getName() != null ? room.getCreatedBy().getName() : room.getCreatedBy().getUsername()) : null);
+    // Set creator avatar if exists
+    if (room.getCreatedBy() != null && room.getCreatedBy().getAvatar() != null) {
+      RoomDetailsResponse.CreatorAvatar creatorAvatar = new RoomDetailsResponse.CreatorAvatar();
+      creatorAvatar.setId(room.getCreatedBy().getAvatar().getId());
+      response.setCreatorAvatar(creatorAvatar);
+    }
     response.setLocation(room.getLocation());
     response.setMemberCount(room.getCollaborators() != null ? room.getCollaborators().size() : 0);
     response.setPinnedPostCount(room.getPinnedPosts() != null ? room.getPinnedPosts().size() : 0);
@@ -715,6 +744,7 @@ public class RoomService {
     response.setCreatedAt(room.getCreatedAt());
     response.setMeetingType(room.getMeetingType());
     response.setMeetingTime(room.getMeetingTime());
+    response.setEndTime(room.getEndTime());
     response.setMaxCollaborators(room.getMaxCollaborators());
     response.setJoinType(room.getJoinType() != null ? room.getJoinType() : "open");
     response.setIsDefault(room.getIsDefault() != null ? room.getIsDefault() : false);

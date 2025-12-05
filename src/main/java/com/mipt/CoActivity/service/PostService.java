@@ -4,6 +4,7 @@ import com.mipt.CoActivity.exception.ResourceNotFoundException;
 import com.mipt.CoActivity.model.Image;
 import com.mipt.CoActivity.model.Post;
 import com.mipt.CoActivity.model.Room;
+import com.mipt.CoActivity.model.RoomPostPin;
 import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.repository.CommentRepository;
 import com.mipt.CoActivity.repository.ImageRepository;
@@ -77,6 +78,26 @@ public class PostService {
 
     Post savedPost = postRepository.save(post);
     logger.info("Post {} created by user {}", savedPost.getId(), author.getId());
+    
+    // If room is specified, automatically pin the post to that room
+    if (post.getRoom() != null && post.getRoom().getId() != null) {
+      Room room = roomRepository.findById(post.getRoom().getId())
+          .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
+      
+      // Check if user is a member of the room
+      if (!room.getCollaborators().contains(author)) {
+        logger.warn("User {} is not a member of room {}, cannot pin post", author.getId(), room.getId());
+      } else {
+        // Check if already pinned
+        java.util.Optional<RoomPostPin> existingPin = roomPostPinRepository.findByRoomIdAndPostId(room.getId(), savedPost.getId());
+        if (!existingPin.isPresent()) {
+          RoomPostPin pin = new RoomPostPin(room, savedPost, author);
+          roomPostPinRepository.save(pin);
+          logger.info("Post {} automatically pinned to room {} by author {}", savedPost.getId(), room.getId(), author.getId());
+        }
+      }
+    }
+    
     return savedPost;
   }
 

@@ -46,6 +46,8 @@ public class Room {
   private String location;
   @Column(name = "meetingTime")
   private Instant meetingTime;
+  @Column(name = "endTime")
+  private Instant endTime;
   @Column(name = "meetingType")
   private String meetingType;
   @ManyToOne

@@ -45,6 +45,9 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
         
         // Check if user is a member and admin
         if (currentUser?.id) {
+          // Check if current user is admin
+          const currentUserMember = data.members?.find(m => m.id === currentUser.id)
+          setIsAdmin(currentUserMember?.isAdmin || false)
           try {
             const userRooms = await roomAPI.getUserRooms(currentUser.id)
             const isInRoom = Array.isArray(userRooms) && userRooms.some(r => r.id === roomId)
@@ -274,6 +277,19 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
               </div>
             )}
 
+            {/* End time */}
+            {roomData.endTime && (
+              <div className="room-info-section">
+                <div className="room-info-label">Дата окончания существования</div>
+                <div className="room-info-value">
+                  {new Date(roomData.endTime).toLocaleString("ru-RU")}
+                </div>
+                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}>
+                  Комната будет удалена через сутки после этой даты
+                </div>
+              </div>
+            )}
+
             {/* Meeting type */}
             {roomData.meetingType && (
               <div className="room-info-section">
@@ -440,6 +456,62 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                             </div>
                           )}
                         </div>
+                        {isAdmin && currentUser?.id && member.id !== currentUser.id && roomData.creatorId !== member.id && (
+                          <div style={{ display: "flex", gap: "var(--spacing-xs)", flexShrink: 0 }}>
+                            {!member.isAdmin && (
+                              <button
+                                className="btn btn-secondary"
+                                style={{ 
+                                  fontSize: "var(--font-size-xs)",
+                                  padding: "var(--spacing-xs) var(--spacing-sm)"
+                                }}
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  if (confirm(`Назначить ${member.name || member.username} администратором?`)) {
+                                    try {
+                                      await roomAPI.promoteToAdmin(roomId, member.id, currentUser.id)
+                                      // Reload room data
+                                      const updatedData = await roomAPI.getDetails(roomId)
+                                      setRoomData(updatedData)
+                                      alert("Пользователь назначен администратором")
+                                    } catch (err) {
+                                      console.error("Ошибка назначения администратора:", err)
+                                      alert("Не удалось назначить администратора: " + (err.message || "Неизвестная ошибка"))
+                                    }
+                                  }
+                                }}
+                              >
+                                Сделать админом
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-secondary"
+                              style={{ 
+                                fontSize: "var(--font-size-xs)",
+                                padding: "var(--spacing-xs) var(--spacing-sm)",
+                                backgroundColor: "var(--error)",
+                                color: "white"
+                              }}
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (confirm(`Выгнать ${member.name || member.username} из комнаты?`)) {
+                                  try {
+                                    await roomAPI.kickUserFromRoom(roomId, member.id, currentUser.id)
+                                    // Reload room data
+                                    const updatedData = await roomAPI.getDetails(roomId)
+                                    setRoomData(updatedData)
+                                    alert("Пользователь исключен из комнаты")
+                                  } catch (err) {
+                                    console.error("Ошибка выгона пользователя:", err)
+                                    alert("Не удалось выгнать пользователя: " + (err.message || "Неизвестная ошибка"))
+                                  }
+                                }
+                              }}
+                            >
+                              Выгнать
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
