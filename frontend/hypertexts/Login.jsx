@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { userAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import AuthAlert from "../components/AuthAlert"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -14,8 +15,60 @@ function Login({ onNavigate }) {
     login: "",
     password: "",
   })
-  const [error, setError] = useState("")
+  const [alert, setAlert] = useState({ visible: false, message: "", type: "error" })
   const [loading, setLoading] = useState(false)
+  
+  // Функция для парсинга ошибок и преобразования в понятные сообщения
+  const parseError = (error) => {
+    const errorMessage = error?.message || error?.toString() || ""
+    const errorStatus = error?.status
+    const errorData = error?.data
+    
+    // Проверяем сообщение об ошибке от бэкенда
+    if (errorData?.message) {
+      const backendMessage = errorData.message.toLowerCase()
+      
+      if (backendMessage.includes("invalid") && backendMessage.includes("password")) {
+        return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+      }
+      if (backendMessage.includes("invalid") && (backendMessage.includes("email") || backendMessage.includes("login"))) {
+        return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+      }
+      if (backendMessage.includes("not found") || backendMessage.includes("user not found")) {
+        return "Пользователь с таким email/логином не найден. Проверьте правильность введенных данных."
+      }
+      if (backendMessage.includes("unauthorized")) {
+        return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+      }
+      
+      return errorData.message
+    }
+    
+    // Проверяем статус HTTP
+    if (errorStatus === 401 || errorStatus === 403) {
+      return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+    }
+    if (errorStatus === 404) {
+      return "Пользователь с таким email/логином не найден. Проверьте правильность введенных данных."
+    }
+    if (errorStatus === 400) {
+      return "Неверный формат данных. Проверьте правильность введенных данных."
+    }
+    if (errorStatus >= 500) {
+      return "Произошла ошибка на сервере. Пожалуйста, попробуйте позже."
+    }
+    
+    // Проверяем текст ошибки
+    const lowerMessage = errorMessage.toLowerCase()
+    if (lowerMessage.includes("invalid") || lowerMessage.includes("неверный")) {
+      return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+    }
+    if (lowerMessage.includes("not found") || lowerMessage.includes("не найден")) {
+      return "Пользователь с таким email/логином не найден. Проверьте правильность введенных данных."
+    }
+    
+    return errorMessage || "Произошла ошибка при входе. Попробуйте еще раз."
+  }
 
   const handleChange = (e) => {
     setFormData({
@@ -29,17 +82,17 @@ function Login({ onNavigate }) {
 
     // Валидация
     if (!formData.login || !formData.password) {
-      setError("Пожалуйста, заполните все поля")
+      setAlert({ visible: true, message: "Пожалуйста, заполните все поля", type: "error" })
       return
     }
 
     if (formData.password.length < 8) {
-      setError("Пароль должен содержать минимум 8 символов")
+      setAlert({ visible: true, message: "Пароль должен содержать минимум 8 символов", type: "error" })
       return
     }
 
     setLoading(true)
-    setError("")
+    setAlert({ visible: false, message: "", type: "error" })
 
     try {
       // Вызов API для аутентификации
@@ -56,7 +109,8 @@ function Login({ onNavigate }) {
       onNavigate("home")
     } catch (err) {
       console.error("Ошибка входа:", err)
-      setError(err.message || "Неверный логин или пароль")
+      const errorMessage = parseError(err)
+      setAlert({ visible: true, message: errorMessage, type: "error" })
     } finally {
       setLoading(false)
     }
@@ -70,7 +124,12 @@ function Login({ onNavigate }) {
           <p>Вход в аккаунт</p>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
+        <AuthAlert 
+          type={alert.type} 
+          message={alert.message} 
+          visible={alert.visible} 
+          onClose={() => setAlert({ visible: false, message: "", type: "error" })} 
+        />
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="input-group">
