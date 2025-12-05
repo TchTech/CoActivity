@@ -199,6 +199,19 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
               </div>
             )}
 
+            {/* End time */}
+            {roomData.endTime && (
+              <div className="room-info-section">
+                <div className="room-info-label">Дата окончания существования</div>
+                <div className="room-info-value">
+                  {new Date(roomData.endTime).toLocaleString("ru-RU")}
+                </div>
+                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}>
+                  Комната будет удалена через сутки после этой даты
+                </div>
+              </div>
+            )}
+
             {/* Meeting type */}
             {roomData.meetingType && (
               <div className="room-info-section">
@@ -421,15 +434,36 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
 
             {/* Actions */}
             {currentUser && (
-              <div style={{ display: "flex", gap: "var(--spacing-md)", marginTop: "var(--spacing-lg)" }}>
+              <div style={{ display: "flex", gap: "var(--spacing-md)", marginTop: "var(--spacing-lg)", flexDirection: "column" }}>
                 {isMember ? (
-                  <button 
-                    className="btn btn-primary" 
-                    style={{ flex: 1 }}
-                    onClick={() => onNavigate("chat", roomId)}
-                  >
-                    Открыть чат
-                  </button>
+                  <>
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ flex: 1 }}
+                      onClick={() => onNavigate("chat", roomId)}
+                    >
+                      Открыть чат
+                    </button>
+                    <button 
+                      className="btn btn-secondary" 
+                      style={{ flex: 1 }}
+                      onClick={async () => {
+                        try {
+                          await roomAPI.createRatingRequest(roomId, currentUser.id)
+                          alert("Запрос на оценку отправлен участникам комнаты")
+                        } catch (err) {
+                          console.error("Ошибка создания запроса на оценку:", err)
+                          if (err.message && err.message.includes("already exists")) {
+                            alert("Вы уже отправили запрос на оценку в этой комнате")
+                          } else {
+                            alert("Не удалось создать запрос на оценку: " + (err.message || "Неизвестная ошибка"))
+                          }
+                        }
+                      }}
+                    >
+                      Запросить оценку
+                    </button>
+                  </>
                 ) : (
                   <>
                     {(roomData.joinType === "by_application" || roomData.joinType === "REQUEST_ONLY") ? (

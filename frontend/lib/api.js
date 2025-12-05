@@ -702,6 +702,14 @@ export const roomAPI = {
       body: { userId },
     })
   },
+
+  async createRatingRequest(roomId, requestedUserId) {
+    // Backend: POST /rating-requests?roomId=&requestedUserId=
+    return request("/rating-requests", {
+      method: "POST",
+      params: { roomId, requestedUserId },
+    })
+  },
 }
 
 // --- NOTIFICATIONS API ---
