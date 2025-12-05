@@ -26,6 +26,9 @@ public class RoomNotificationSettings {
     @Column(name = "removalNotifications")
     private Boolean removalNotifications = true;
 
+    @Column(name = "membership_request_notifications")
+    private Boolean membershipRequestNotifications = true; // Room-level preference for membership request notifications (overrides user-level settings)
+
     public RoomNotificationSettings(Room room) {
         this.room = room;
     }
