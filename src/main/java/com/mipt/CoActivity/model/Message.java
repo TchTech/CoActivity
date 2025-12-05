@@ -1,5 +1,6 @@
 package com.mipt.CoActivity.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,6 +16,7 @@ public class Message {
   private Long id;
   @ManyToOne
   @JoinColumn(name = "roomId")
+  @JsonIgnoreProperties({"collaborators", "admins", "createdBy", "messages"})
   private Room room;
   private String text;
   private Instant date;
@@ -22,6 +24,7 @@ public class Message {
   private Boolean isDeleted;
   @ManyToOne
   @JoinColumn(name = "authorId")
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
   private User author;
   public Message(Room room, User author, String text) {
     this.room = room;

@@ -1,17 +1,24 @@
 package com.mipt.CoActivity.controller;
 
+import com.mipt.CoActivity.exception.ResourceNotFoundException;
 import com.mipt.CoActivity.model.Image;
 import com.mipt.CoActivity.model.Post;
 import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.service.PostService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/posts")
+@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"}, allowCredentials = "true")
 public class PostController {
+  private static final Logger logger = LoggerFactory.getLogger(PostController.class);
   @Autowired private PostService postService;
 
   @PostMapping
@@ -37,5 +44,35 @@ public class PostController {
   @PostMapping("/{postId}/dislike")
   public void dislike(@RequestParam Long userId, @PathVariable Long postId) {
     postService.addOrRemoveDislike(userId, postId);
+  }
+
+  @GetMapping
+  public ResponseEntity<List<Post>> getAllPosts() {
+    return ResponseEntity.ok(postService.getAllPosts());
+  }
+
+  @GetMapping("/{postId}")
+  public ResponseEntity<Post> getPostById(@PathVariable Long postId) {
+    return ResponseEntity.ok(postService.getPostById(postId));
+  }
+
+  @DeleteMapping("/{postId}")
+  public ResponseEntity<?> deletePost(@PathVariable Long postId, @RequestParam Long userId) {
+    try {
+      postService.deletePost(postId, userId);
+      return ResponseEntity.noContent().build();
+    } catch (IllegalArgumentException e) {
+      logger.warn("Delete post forbidden: {}", e.getMessage());
+      return ResponseEntity.status(HttpStatus.FORBIDDEN)
+          .body(java.util.Map.of("error", e.getMessage()));
+    } catch (ResourceNotFoundException e) {
+      logger.warn("Post not found: {}", postId);
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body(java.util.Map.of("error", "Post not found"));
+    } catch (Exception e) {
+      logger.error("Error deleting post {}: {}", postId, e.getMessage(), e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body(java.util.Map.of("error", "Failed to delete post: " + e.getMessage()));
+    }
   }
 }

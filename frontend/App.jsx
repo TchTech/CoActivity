@@ -51,6 +51,7 @@ function App() {
   const [viewingUserId, setViewingUserId] = useState(null)
   const [viewingPostId, setViewingPostId] = useState(null)
   const [viewingRoomId, setViewingRoomId] = useState(null)
+  const [viewingRoomId, setViewingRoomId] = useState(null)
 
   const handleNavigate = (page, param) => {
     // Ensure page is always a string
@@ -71,7 +72,37 @@ function App() {
     
     console.log("[App] Setting currentPage to:", pageStr, "with param:", paramValue)
     setCurrentPage(pageStr)
+    // Ensure page is always a string
+    console.log("[App] Navigation:", pageStr, "param:", param, "param type:", typeof param)
+    
+    // Ensure param is a primitive value, not an object
+    if (param !== null && param !== undefined) {
+      if (typeof param === "object") {
+        // If param is an object, try to extract an ID
+        paramValue = param.id || param.userId || param.postId || param.roomId || null
+        console.warn("[App] Navigation param was an object, extracted:", paramValue)
+      } else {
+        paramValue = param
+      }
+    }
+    
+    console.log("[App] Setting currentPage to:", pageStr, "with param:", paramValue)
+    setCurrentPage(pageStr)
 
+    if (pageStr === "profile") {
+      setViewingUserId(paramValue)
+      console.log("[App] Set viewingUserId to:", paramValue)
+    } else if (pageStr === "comments") {
+      setViewingPostId(paramValue)
+      console.log("[App] Set viewingPostId to:", paramValue)
+    } else if (pageStr === "chat" || pageStr === "roomInfo") {
+      setViewingRoomId(paramValue)
+      console.log("[App] Set viewingRoomId to:", paramValue)
+    } else {
+      // Clear all params for other pages
+      setViewingUserId(null)
+      setViewingPostId(null)
+      setViewingRoomId(null)
     if (pageStr === "profile") {
       setViewingUserId(paramValue)
       console.log("[App] Set viewingUserId to:", paramValue)
@@ -103,19 +134,27 @@ function App() {
         return <VerifyEmail onNavigate={handleNavigate} />
       case "home":
         return <Feed onNavigate={handleNavigate} currentPage={currentPage} />
+        return <Feed onNavigate={handleNavigate} currentPage={currentPage} />
       case "profile":
+        return <Profile onNavigate={handleNavigate} userId={viewingUserId} currentPage={currentPage} />
         return <Profile onNavigate={handleNavigate} userId={viewingUserId} currentPage={currentPage} />
       case "comments":
         return <Comments onNavigate={handleNavigate} postId={viewingPostId} currentPage={currentPage} />
+        return <Comments onNavigate={handleNavigate} postId={viewingPostId} currentPage={currentPage} />
       case "rooms":
+        return <RoomsList onNavigate={handleNavigate} currentPage={currentPage} />
         return <RoomsList onNavigate={handleNavigate} currentPage={currentPage} />
       case "chat":
         return <Chat onNavigate={handleNavigate} roomId={viewingRoomId} currentPage={currentPage} />
+        return <Chat onNavigate={handleNavigate} roomId={viewingRoomId} currentPage={currentPage} />
       case "roomInfo":
+        return <RoomInfo onNavigate={handleNavigate} roomId={viewingRoomId} currentPage={currentPage} />
         return <RoomInfo onNavigate={handleNavigate} roomId={viewingRoomId} currentPage={currentPage} />
       case "createPost":
         return <CreatePost onNavigate={handleNavigate} currentPage={currentPage} />
+        return <CreatePost onNavigate={handleNavigate} currentPage={currentPage} />
       case "createRoom":
+        return <CreateRoom onNavigate={handleNavigate} currentPage={currentPage} />
         return <CreateRoom onNavigate={handleNavigate} currentPage={currentPage} />
       case "settings":
         return <Settings onNavigate={handleNavigate} currentPage={currentPage} />

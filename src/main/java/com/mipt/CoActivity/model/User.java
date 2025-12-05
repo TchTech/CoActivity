@@ -1,5 +1,7 @@
 package com.mipt.CoActivity.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -32,39 +34,55 @@ public class User {
   private Long id;
 
   @Column(name = "passwordHash")
+  @JsonIgnore
   private String passwordHash;
 
   @ManyToMany(mappedBy = "collaborators")
-  private List<Room> rooms;
+  @JsonIgnore
+  private List<Room> rooms = new ArrayList<>();
 
   @OneToMany(mappedBy = "author")
-  private List<Post> posts;
+  @JsonIgnore
+  private List<Post> posts = new ArrayList<>();
 
   @ManyToMany
   @JoinTable(
       name = "user_interests",
       joinColumns = @JoinColumn(name = "userId"),
       inverseJoinColumns = @JoinColumn(name = "interestId"))
-  private List<Interest> interests;
+  @JsonIgnoreProperties({"users"})
+  private List<Interest> interests = new ArrayList<>();
   
   @OneToMany(mappedBy = "reviewedUser")
-  private List<Feedback> feedbacks;
+  @JsonIgnore
+  private List<Feedback> feedbacks = new ArrayList<>();
   
   @OneToMany(mappedBy = "author")
-  private List<Feedback> feedbacksAuthor;
+  @JsonIgnore
+  private List<Feedback> feedbacksAuthor = new ArrayList<>();
 
   @ManyToMany
   @JoinTable(
       name = "user_subscriptions",
       joinColumns = @JoinColumn(name = "user_id"),
       inverseJoinColumns = @JoinColumn(name = "subscribed_to_user_id"))
-  private List<User> subscriptions;
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
+  private List<User> subscriptions = new ArrayList<>();
 
   @ManyToMany(mappedBy = "subscriptions")
-  private List<User> followers;
+  @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
+  private List<User> followers = new ArrayList<>();
 
   @Column(name = "createdAt")
   private Instant createdAt;
+
+  @ManyToOne
+  @JoinColumn(name = "avatarImageId")
+  @JsonIgnoreProperties({"content"})
+  private Image avatar;
+
+  @Column(name = "about")
+  private String about;
 
   public User(String username, String email, String passwordHash) {
     this.username = username;

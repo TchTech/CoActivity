@@ -2,64 +2,145 @@
 
 import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
-import { getPostById } from "../scripts/postsData"
-import { getCommentsForPost } from "../scripts/commentsData"
-import { postAPI, commentAPI } from "../lib/api"
+import { commentAPI, postAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { usePostInteractions } from "../hooks/usePostInteractions"
+import { useCommentInteractions } from "../hooks/useCommentInteractions"
+import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/post.css"
 import "../styles/navigation.css"
 
-function Comments({ onNavigate, postId }) {
+function Comments({ onNavigate, postId, currentPage }) {
   const { currentUser } = useUser()
   const [postData, setPostData] = useState(null)
   const [comments, setComments] = useState([])
-  const [postLikes, setPostLikes] = useState(0)
-  const [postDislikes, setPostDislikes] = useState(0)
   const [postComments, setPostComments] = useState(0)
-  const [isPostLiked, setIsPostLiked] = useState(false)
-  const [isPostDisliked, setIsPostDisliked] = useState(false)
   const [commentText, setCommentText] = useState("")
-  const [replyingTo, setReplyingTo] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isDeleted, setIsDeleted] = useState(false)
+  
+  // Hook for post interactions (likes/dislikes)
+  const postInteractions = usePostInteractions(postData)
 
   const fetchPostData = async () => {
     setLoading(true)
     try {
-      // TODO: Когда будет добавлен GET /posts/{postId} эндпоинт
-      // const post = await postAPI.getById(postId)
-      // setPostData(post)
-      // setPostLikes(post.likedUsers?.length || 0)
-      // setPostDislikes(post.dislikedUsers?.length || 0)
-      // setPostComments(post.comments?.length || 0)
+      // Ensure postId is a primitive value
+      const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+      if (!postIdValue) {
+        console.error("[Comments] Invalid postId:", postId)
+        setLoading(false)
+        return
+      }
       
-      // Загрузка комментариев
-      // const postComments = await commentAPI.getByPost(postId)
-      // setComments(postComments || [])
+      console.log("[Comments] Loading post with ID:", postIdValue)
+      // Load post from backend
+      try {
+        const post = await postAPI.getById(postIdValue)
+        console.log("[Comments] Loaded post:", post)
+        setPostData(post)
+      } catch (apiError) {
+        // Если пост не найден, выбрасываем ошибку с статусом 404
+        if (apiError.status === 404 || (apiError.message && apiError.message.includes("404"))) {
+          const notFoundError = new Error("Post not found")
+          notFoundError.status = 404
+          throw notFoundError
+        }
+        throw apiError
+      }
       
-      // Временно используем моковые данные
-      const data = getPostById(postId)
-      setPostData(data)
-      if (data) {
-        const initialComments = getCommentsForPost(postId, data.userId, data.time)
-        setComments(initialComments)
-        setPostLikes(data.likes)
-        setPostDislikes(data.dislikes || 0)
-        setPostComments(data.comments)
+      // Load comments from backend
+      try {
+        const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+        console.log("[Comments] Loading comments for post:", postIdValue)
+        const apiComments = await commentAPI.getByPost(postIdValue)
+        console.log("[Comments] Loaded comments from API:", apiComments)
+        // Map and sort comments by creation date (oldest first for chronological order)
+        // Маппинг комментариев (без ответов - только корневые комментарии)
+        const sortedComments = Array.isArray(apiComments) && apiComments.length > 0
+          ? apiComments.map(c => {
+              const authorId = c.author?.id || c.authorId
+              const authorName = c.author?.name || c.author?.username || "Пользователь"
+              
+              return {
+                id: c.id,
+                userId: authorId,
+                author: {
+                  id: authorId,
+                  name: authorName,
+                  username: c.author?.username,
+                  avatar: c.author?.avatar, // Сохраняем объект avatar с id, если он есть
+                  rating: c.author?.rating,
+                },
+                text: c.text || c.content || "",
+                createdAt: c.createdAt || c.created_at,
+                time: "", // Время комментария не отображается
+                likes: c.likedUsers?.length || 0,
+                likedUsers: c.likedUsers || [],
+                dislikedUsers: c.dislikedUsers || [],
+                dislikes: c.dislikedUsers?.length || 0,
+                isLiked: false,
+                isDisliked: false,
+              }
+            }).sort((a, b) => {
+              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+              return dateA - dateB
+            })
+          : []
+        console.log("[Comments] Mapped and sorted comments:", sortedComments.length)
+        setComments(sortedComments)
+        setPostComments(sortedComments.length)
+      } catch (error) {
+        console.error("Ошибка загрузки комментариев:", error)
+        // Fallback: use comments from post object if available
+        const postComments = post.comments || []
+        if (Array.isArray(postComments) && postComments.length > 0) {
+          const mappedComments = postComments.map(c => ({
+            id: c.id,
+            userId: c.author?.id || c.authorId,
+            author: {
+              id: c.author?.id || c.authorId,
+              name: c.author?.name || c.author?.username || "Пользователь",
+              avatar: c.author?.avatar || "/placeholder.svg",
+            },
+            text: c.text || c.content || "",
+            createdAt: c.createdAt,
+            likes: c.likedUsers?.length || 0,
+            likedUsers: c.likedUsers || [],
+            isLiked: false,
+            commentCount: 0,
+            replies: [],
+          }))
+          setComments(mappedComments)
+          setPostComments(mappedComments.length)
+        } else {
+          setComments([])
+          setPostComments(0)
+        }
       }
     } catch (error) {
       console.error("Ошибка загрузки поста:", error)
-      // Fallback на моковые данные
-      const data = getPostById(postId)
-      setPostData(data)
-      if (data) {
-        const initialComments = getCommentsForPost(postId, data.userId, data.time)
-        setComments(initialComments)
-        setPostLikes(data.likes)
-        setPostDislikes(data.dislikes || 0)
-        setPostComments(data.comments)
+      // Если пост не найден (404), редиректим на главную страницу
+      if (error.status === 404 || (error.message && error.message.includes("404"))) {
+        console.warn("Пост не найден, перенаправление на главную страницу")
+        setPostData(null)
+        setComments([])
+        setPostComments(0)
+        // Небольшая задержка перед редиректом, чтобы пользователь увидел, что что-то происходит
+        setTimeout(() => {
+          onNavigate("home")
+        }, 1000)
+      } else {
+        // Для других ошибок просто очищаем данные
+        setPostData(null)
+        setComments([])
+        setPostComments(0)
       }
     } finally {
       setLoading(false)
@@ -67,9 +148,21 @@ function Comments({ onNavigate, postId }) {
   }
 
   useEffect(() => {
-    console.log("[v0] Loading post with ID:", postId)
-    fetchPostData()
-  }, [postId])
+    // Не загружаем данные, если пост был удален
+    if (isDeleted) {
+      return
+    }
+    
+    // Ensure postId is a primitive value
+    const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+    console.log("[Comments] useEffect triggered, postId:", postId, "postIdValue:", postIdValue)
+    if (postIdValue) {
+      fetchPostData()
+    } else {
+      console.warn("[Comments] No valid postId provided")
+      setLoading(false)
+    }
+  }, [postId, isDeleted])
 
   if (loading) {
     return (
@@ -101,142 +194,179 @@ function Comments({ onNavigate, postId }) {
     )
   }
 
-  const handlePostLike = async () => {
-    if (!currentUser) return
 
-    const wasLiked = isPostLiked
-    const wasDisliked = isPostDisliked
+  const handleCommentLike = async (commentId) => {
+    if (!currentUser || !postId) return
 
     try {
-      await postAPI.like(currentUser.id, postId)
-
-      if (wasLiked) {
-        setPostLikes(postLikes - 1)
-        setIsPostLiked(false)
-      } else {
-        setPostLikes(postLikes + 1)
-        setIsPostLiked(true)
-        
-        if (wasDisliked) {
-          setPostDislikes(postDislikes - 1)
-          setIsPostDisliked(false)
-        }
+      // Ensure all IDs are primitive values
+      const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+      const commentIdValue = typeof commentId === "object" ? (commentId?.id || commentId?.commentId || null) : commentId
+      const userIdValue = typeof currentUser.id === "object" ? (currentUser.id?.id || currentUser.id?.userId || null) : currentUser.id
+      
+      if (!postIdValue || !commentIdValue || !userIdValue) {
+        console.error("[Comments] Invalid IDs for like:", { postId, commentId, userId: currentUser.id })
+        return
       }
-    } catch (error) {
-      console.error("Ошибка при лайке поста:", error)
-    }
-  }
-
-  const handlePostDislike = async () => {
-    if (!currentUser) return
-
-    const wasDisliked = isPostDisliked
-    const wasLiked = isPostLiked
-
-    try {
-      await postAPI.dislike(currentUser.id, postId)
-
-      if (wasDisliked) {
-        setPostDislikes(postDislikes - 1)
-        setIsPostDisliked(false)
-      } else {
-        setPostDislikes(postDislikes + 1)
-        setIsPostDisliked(true)
-        
-        if (wasLiked) {
-          setPostLikes(postLikes - 1)
-          setIsPostLiked(false)
-        }
-      }
-    } catch (error) {
-      console.error("Ошибка при дизлайке поста:", error)
-    }
-  }
-
-  const handleCommentLike = (commentId, isReply = false, parentId = null) => {
-    setComments((prevComments) => {
-      return prevComments.map((comment) => {
-        if (isReply && comment.id === parentId) {
-          return {
-            ...comment,
-            replies: comment.replies.map((reply) => {
-              if (reply.id === commentId) {
-                return {
-                  ...reply,
-                  likes: reply.isLiked ? reply.likes - 1 : reply.likes + 1,
-                  isLiked: !reply.isLiked,
-                }
-              }
-              return reply
-            }),
+      
+      await commentAPI.like(postIdValue, commentIdValue, userIdValue)
+      
+      // Оптимистичное обновление UI
+      setComments((prevComments) => {
+        return prevComments.map((comment) => {
+          if (comment.id === commentId) {
+            const wasLiked = comment.isLiked
+            return {
+              ...comment,
+              likes: wasLiked ? comment.likes - 1 : comment.likes + 1,
+              isLiked: !wasLiked,
+              isDisliked: false,
+              dislikes: comment.isDisliked ? Math.max(0, comment.dislikes - 1) : comment.dislikes,
+            }
           }
-        } else if (comment.id === commentId) {
-          return {
-            ...comment,
-            likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
-            isLiked: !comment.isLiked,
-          }
-        }
-        return comment
+          return comment
+        })
       })
-    })
+    } catch (error) {
+      console.error("Ошибка при лайке комментария:", error)
+    }
+  }
+
+  const handleCommentDislike = async (commentId) => {
+    if (!currentUser || !postId) return
+
+    try {
+      // Ensure all IDs are primitive values
+      const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+      const commentIdValue = typeof commentId === "object" ? (commentId?.id || commentId?.commentId || null) : commentId
+      const userIdValue = typeof currentUser.id === "object" ? (currentUser.id?.id || currentUser.id?.userId || null) : currentUser.id
+      
+      if (!postIdValue || !commentIdValue || !userIdValue) {
+        console.error("[Comments] Invalid IDs for dislike:", { postId, commentId, userId: currentUser.id })
+        return
+      }
+      
+      await commentAPI.dislike(postIdValue, commentIdValue, userIdValue)
+      
+      // Оптимистичное обновление UI
+      setComments((prevComments) => {
+        return prevComments.map((comment) => {
+          if (comment.id === commentId) {
+            const wasDisliked = comment.isDisliked
+            return {
+              ...comment,
+              dislikes: wasDisliked ? comment.dislikes - 1 : comment.dislikes + 1,
+              isDisliked: !wasDisliked,
+              isLiked: false,
+              likes: comment.isLiked ? Math.max(0, comment.likes - 1) : comment.likes,
+            }
+          }
+          return comment
+        })
+      })
+    } catch (error) {
+      console.error("Ошибка при дизлайке комментария:", error)
+    }
   }
 
   const handleCommentSubmit = async () => {
     if (!commentText.trim() || !currentUser) return
 
     try {
+      // Ensure postId is a primitive value
+      const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+      if (!postIdValue) {
+        console.error("[Comments] Invalid postId for comment creation:", postId)
+        return
+      }
+      
       const commentData = {
         text: commentText,
         author: { id: currentUser.id },
       }
 
       // Создание комментария через API
-      const newComment = await commentAPI.create(postId, commentData)
+      const newComment = await commentAPI.create(postIdValue, commentData)
 
-      // Оптимистичное обновление UI
+      // Optimistically update UI with the new comment
       const uiComment = {
         id: newComment?.id || Date.now(),
         userId: currentUser.id,
         author: {
+          id: currentUser.id,
           name: currentUser.name || currentUser.username || "Вы",
-          avatar: currentUser.avatar || "/male-avatar.png",
-          rating: currentUser.rating || 0,
+          avatar: currentUser.avatar, // Сохраняем аватарку текущего пользователя
+          rating: currentUser.rating,
         },
         text: commentText,
-        time: "только что",
+        createdAt: new Date().toISOString(),
+        time: "", // Не показываем время для новых комментариев
         likes: 0,
+        likedUsers: [],
         isLiked: false,
         commentCount: 0,
         replies: [],
       }
 
-      if (replyingTo) {
-        setComments((prevComments) => {
-          return prevComments.map((comment) => {
-            if (comment.id === replyingTo) {
-              return {
-                ...comment,
-                commentCount: comment.commentCount + 1,
-                replies: [
-                  ...comment.replies,
-                  {
-                    ...uiComment,
-                    id: Date.now() + Math.random(),
-                  },
-                ],
-              }
-            }
-            return comment
-          })
-        })
-        setReplyingTo(null)
-      } else {
-        setComments([...comments, uiComment])
-        setPostComments(postComments + 1)
-      }
+      // Add new comment to the list
+      setComments([...comments, uiComment])
+      setPostComments(postComments + 1)
 
       setCommentText("")
+      
+      // Refresh comments from server to get the actual comment data
+      // This ensures we have the correct ID and any server-side formatting
+      // Use a small delay to ensure the server has processed the comment
+      setTimeout(async () => {
+        try {
+          const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+          if (!postIdValue) {
+            console.error("[Comments] Invalid postId for refresh:", postId)
+            return
+          }
+          const refreshedComments = await commentAPI.getByPost(postIdValue)
+          if (Array.isArray(refreshedComments) && refreshedComments.length > 0) {
+            // Маппинг комментариев (без ответов - только корневые комментарии)
+            const sortedComments = refreshedComments.map(c => {
+              const authorId = c.author?.id || c.authorId
+              const authorName = c.author?.name || c.author?.username || "Пользователь"
+              
+              return {
+                id: c.id,
+                userId: authorId,
+                author: {
+                  id: authorId,
+                  name: authorName,
+                  username: c.author?.username,
+                  avatar: c.author?.avatar, // Сохраняем объект avatar с id, если он есть
+                  rating: c.author?.rating,
+                },
+                text: c.text || c.content || "",
+                createdAt: c.createdAt || c.created_at,
+                time: "", // Время комментария не отображается
+                likes: c.likedUsers?.length || 0,
+                likedUsers: c.likedUsers || [],
+                dislikedUsers: c.dislikedUsers || [],
+                dislikes: c.dislikedUsers?.length || 0,
+                isLiked: false,
+                isDisliked: false,
+              }
+            }).sort((a, b) => {
+              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+              return dateA - dateB
+            })
+            setComments(sortedComments)
+            setPostComments(sortedComments.length)
+          } else {
+            // If refresh returns empty, keep the optimistic update
+            console.warn("Comment refresh returned empty, keeping optimistic update")
+          }
+        } catch (error) {
+          console.error("Ошибка обновления комментариев:", error)
+          // Keep the optimistic update if refresh fails
+        }
+      }, 500)
     } catch (error) {
       console.error("Ошибка при создании комментария:", error)
       // Можно показать уведомление об ошибке
@@ -253,213 +383,240 @@ function Comments({ onNavigate, postId }) {
         <div style={{ width: "40px" }}></div>
       </div>
 
-      <div style={{ padding: "var(--spacing-lg)", paddingBottom: "80px" }}>
+      {/* Начало блока содержимого поста и комментариев */}
+      <div style={{ padding: "var(--spacing-lg)", paddingBottom: "80px" }} className="comments-content">
         <div className="post-card">
           <div className="post-header">
-            <img
-              src={postData.author.avatar || "/placeholder.svg"}
-              alt={postData.author.name}
-              className="avatar avatar-md avatar-clickable"
-              onClick={(e) => {
-                e.stopPropagation()
-                onNavigate("profile", postData.userId)
-              }}
-            />
+            {postData.author?.avatar?.id ? (
+              <img
+                src={imageAPI.getImageUrl(postData.author.avatar.id)}
+                alt={postData.author?.name || "Пользователь"}
+                className="avatar avatar-md avatar-clickable"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate("profile", postData.userId || postData.author?.id)
+                }}
+              />
+            ) : (
+              <div
+                className="avatar avatar-md"
+                style={{
+                  backgroundColor: "transparent",
+                  border: "none",
+                  width: "40px",
+                  height: "40px"
+                }}
+              />
+            )}
             <div className="post-user-info">
               <div className="post-username">
-                {postData.author.name}
-                <span className="badge badge-rating">{postData.author.rating}</span>
+                {postData.author?.name || postData.author?.username || "Пользователь"}
+                {postData.author?.rating && (
+                  <span className="badge badge-rating">{postData.author.rating.toFixed(1)}</span>
+                )}
               </div>
-              <div className="post-time">{postData.time}</div>
+              <div className="post-time">{postData.time || (postData.createdAt ? new Date(postData.createdAt).toLocaleDateString("ru-RU") : "")}</div>
             </div>
-            <button className="btn btn-primary">подписаться</button>
+            <div style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center" }}>
+              {currentUser && (postData.author?.id === currentUser.id || postData.userId === currentUser.id) && (
+                <>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowDeleteDialog(true)
+                    }}
+                    disabled={isDeleting}
+                    style={{ fontSize: "var(--font-size-sm)", padding: "6px 12px" }}
+                    title="Удалить пост"
+                  >
+                    {isDeleting ? "..." : "🗑️"}
+                  </button>
+                  <ConfirmDeleteDialog
+                    open={showDeleteDialog}
+                    onOpenChange={setShowDeleteDialog}
+                    onConfirm={async () => {
+                      setIsDeleting(true)
+                      try {
+                        const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+                        if (postIdValue) {
+                          await postAPI.delete(postIdValue, currentUser.id)
+                          // Устанавливаем флаг, что пост удален, чтобы предотвратить повторную загрузку
+                          setIsDeleted(true)
+                          setShowDeleteDialog(false)
+                          // Редирект на главную страницу
+                          onNavigate("home")
+                        }
+                      } catch (error) {
+                        console.error("Ошибка при удалении поста:", error)
+                        // Если ошибка 404, значит пост уже удален - просто редиректим
+                        if (error.status === 404 || (error.message && error.message.includes("404"))) {
+                          setIsDeleted(true)
+                          setShowDeleteDialog(false)
+                          onNavigate("home")
+                        } else {
+                          alert("Не удалось удалить пост. Попробуйте еще раз.")
+                        }
+                      } finally {
+                        setIsDeleting(false)
+                      }
+                    }}
+                  />
+                </>
+              )}
+              <button className="btn btn-primary">подписаться</button>
+            </div>
           </div>
 
-          <h3 className="post-title">{postData.title}</h3>
-          <p className="post-content">{postData.content}</p>
+          <h3 className="post-title">{postData.name || postData.title}</h3>
+          <p className="post-content">{postData.text || postData.content}</p>
 
-          <img src={postData.image || "/placeholder.svg"} alt={postData.title} className="post-image" />
+          {postData.image && (
+            <img 
+              src={
+                typeof postData.image === "object" && postData.image.id
+                  ? imageAPI.getImageUrl(postData.image.id)
+                  : postData.image?.url || postData.image || "/placeholder.svg"
+              } 
+              alt={postData.name || postData.title} 
+              className="post-image" 
+            />
+          )}
 
           <div className="post-actions">
-            <button className={`post-action-btn ${isPostLiked ? "liked" : ""}`} onClick={handlePostLike}>
-              <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M7 22V11M2 13l5-10 5 10M17 22v-6M12 18l5-6 5 6" fill={isPostLiked ? "currentColor" : "none"}/>
-                <path d="M12 2L7 7h10L12 2z" fill={isPostLiked ? "currentColor" : "none"}/>
-                <path d="M7 7v15h10V7" fill={isPostLiked ? "currentColor" : "none"}/>
-              </svg>
-              <span>{postLikes}</span>
+            {/* Кнопка "Лайк" */}
+            <button 
+              className={`post-action-btn ${postInteractions.isLiked ? "liked" : ""}`} 
+              onClick={postInteractions.handleLike}
+              disabled={postInteractions.loading}
+            >
+              <img 
+                src="/like.png" 
+                alt="Лайк" 
+                className="post-action-icon"
+                style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+              />
+              <span>{postInteractions.likes}</span>
             </button>
-            <button className={`post-action-btn ${isPostDisliked ? "disliked" : ""}`} onClick={handlePostDislike}>
-              <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 2v11M22 11l-5-10-5 10M7 2v6M12 6l-5 6-5-6" fill={isPostDisliked ? "currentColor" : "none"}/>
-                <path d="M12 22L7 17h10L12 22z" fill={isPostDisliked ? "currentColor" : "none"}/>
-                <path d="M7 17V2h10v15" fill={isPostDisliked ? "currentColor" : "none"}/>
-              </svg>
-              <span>{postDislikes}</span>
+            {/* Кнопка "Дизлайк" */}
+            <button 
+              className={`post-action-btn ${postInteractions.isDisliked ? "disliked" : ""}`} 
+              onClick={postInteractions.handleDislike}
+              disabled={postInteractions.loading}
+            >
+              <img 
+                src="/dislike.png" 
+                alt="Дизлайк" 
+                className="post-action-icon"
+                style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+              />
+              <span>{postInteractions.dislikes}</span>
             </button>
+            {/* Кнопка "Комментарии" */}
             <button className="post-action-btn active">
               <svg className="post-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
               <span>{postComments}</span>
             </button>
-            <button
-              className="post-action-btn"
-              style={{
-                marginLeft: "auto",
-                backgroundColor: "var(--accent-gold)",
-                color: "var(--bg-primary)",
-                padding: "8px 20px",
-                borderRadius: "var(--radius-full)",
-              }}
-            >
-              ОТКЛИКНУТЬСЯ
-            </button>
           </div>
-        </div>
+        </div> {/* <-- ЗАКРЫВАЕТ post-card */}
 
-        <div className="comments-section">
+        <div className="comments-section"> {/* <-- СТРОКА, ГДЕ БЫЛА ОШИБКА */}
           <h2 className="comments-header">КОММЕНТАРИИ</h2>
 
-          {comments.map((comment) => (
-            <div key={comment.id}>
-              <div className="comment">
-                <div className="comment-header">
-                  <img
-                    src={comment.author.avatar || "/placeholder.svg"}
-                    alt={comment.author.name}
-                    className="avatar avatar-md avatar-clickable"
-                    onClick={() => onNavigate("profile", comment.userId)}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div className="post-username">
-                      {comment.author.name}
-                      <span className="badge badge-rating">{comment.author.rating}</span>
+          {comments.length > 0 ? comments.map((comment) => {
+            // Ensure comment has required fields
+            if (!comment || !comment.id) {
+              return null
+            }
+            
+            const authorId = comment.userId || comment.author?.id
+            const authorName = comment.author?.name || comment.author?.username || "Пользователь"
+            const authorAvatar = comment.author?.avatar
+            const commentText = comment.text || comment.content || ""
+            // Время комментария не отображается
+            const commentTime = ""
+            
+            // Проверяем, есть ли аватарка у автора комментария
+            const hasAvatar = authorAvatar?.id
+            
+            return (
+              <div key={comment.id}>
+                <div className="comment">
+                  <div className="comment-header">
+                    {hasAvatar ? (
+                      <img
+                        src={imageAPI.getImageUrl(authorAvatar.id)}
+                        alt={authorName}
+                        className="avatar avatar-md avatar-clickable"
+                        onClick={() => {
+                          if (authorId) {
+                            onNavigate("profile", authorId)
+                          }
+                        }}
+                      />
+                    ) : (
+                      // Если аватарки нет, показываем пустое место
+                      <div 
+                        className="avatar avatar-md"
+                        style={{ 
+                          backgroundColor: "transparent",
+                          border: "none",
+                          width: "40px",
+                          height: "40px"
+                        }}
+                      />
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div className="post-username">
+                        {authorName}
+                        {comment.author?.rating && comment.author.rating > 0 && (
+                          <span className="badge badge-rating">{comment.author.rating.toFixed(1)}</span>
+                        )}
+                      </div>
+                      {commentTime && <div className="post-time">{commentTime}</div>}
                     </div>
-                    <div className="post-time">{comment.time}</div>
                   </div>
-                </div>
 
-                <p className="comment-content">{comment.text}</p>
+                  <p className="comment-content">{commentText}</p>
 
                 <div className="comment-actions">
-                  <button className="comment-action" onClick={() => setReplyingTo(comment.id)}>
-                    <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                    ответить
-                  </button>
                   <button
                     className={`comment-action ${comment.isLiked ? "liked" : ""}`}
                     onClick={() => handleCommentLike(comment.id)}
                   >
-                    <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path
-                        d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                        fill={comment.isLiked ? "currentColor" : "none"}
-                      />
-                    </svg>
-                    {comment.likes}
+                    <img 
+                      src="/like.png" 
+                      alt="Лайк" 
+                      className="comment-icon"
+                      style={{ width: '18px', height: '18px', objectFit: 'contain' }}
+                    />
+                    {comment.likedUsers?.length || comment.likes || 0}
                   </button>
-                  {comment.commentCount > 0 && (
-                    <button className="comment-action">
-                      <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                      </svg>
-                      {comment.commentCount}
-                    </button>
-                  )}
+                  <button
+                    className={`comment-action ${comment.isDisliked ? "disliked" : ""}`}
+                    onClick={() => handleCommentDislike(comment.id)}
+                  >
+                    <img 
+                      src="/dislike.png" 
+                      alt="Дизлайк" 
+                      className="comment-icon"
+                      style={{ width: '18px', height: '18px', objectFit: 'contain' }}
+                    />
+                    {comment.dislikedUsers?.length || comment.dislikes || 0}
+                  </button>
                 </div>
               </div>
-
-              {comment.replies && comment.replies.length > 0 && (
-                <div className="comment-replies">
-                  <div className="reply-label">ответы</div>
-                  {comment.replies.map((reply) => (
-                    <div key={reply.id} className="comment">
-                      <div className="comment-header">
-                        <img
-                          src={reply.author.avatar || "/placeholder.svg"}
-                          alt={reply.author.name}
-                          className="avatar avatar-sm avatar-clickable"
-                          onClick={() => onNavigate("profile", reply.userId)}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div className="post-username" style={{ fontSize: "var(--font-size-sm)" }}>
-                            {reply.author.name}
-                            <span className="badge badge-rating" style={{ fontSize: "10px", padding: "2px 8px" }}>
-                              {reply.author.rating}
-                            </span>
-                          </div>
-                          <div className="post-time">{reply.time}</div>
-                        </div>
-                      </div>
-
-                      <p className="comment-content" style={{ fontSize: "var(--font-size-sm)" }}>
-                        {reply.text}
-                      </p>
-
-                      <div className="comment-actions">
-                        <button className="comment-action" onClick={() => setReplyingTo(comment.id)}>
-                          <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                          </svg>
-                          ответить
-                        </button>
-                        <button
-                          className={`comment-action ${reply.isLiked ? "liked" : ""}`}
-                          onClick={() => handleCommentLike(reply.id, true, comment.id)}
-                        >
-                          <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path
-                              d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                              fill={reply.isLiked ? "currentColor" : "none"}
-                            />
-                          </svg>
-                          {reply.likes}
-                        </button>
-                        {reply.commentCount > 0 && (
-                          <button className="comment-action">
-                            <svg className="comment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                            </svg>
-                            {reply.commentCount}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
-          ))}
+            )
+          }).filter(Boolean) : (
+            <div style={{ textAlign: "center", padding: "var(--spacing-xl)", color: "var(--text-muted)" }}>
+              Пока нет комментариев
+            </div>
+          )}
 
           <div style={{ marginTop: "var(--spacing-lg)" }}>
-            {replyingTo && (
-              <div
-                style={{
-                  fontSize: "var(--font-size-sm)",
-                  color: "var(--accent-gold)",
-                  marginBottom: "var(--spacing-sm)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span>Ответ на комментарий</span>
-                <button
-                  onClick={() => setReplyingTo(null)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--text-muted)",
-                    cursor: "pointer",
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            )}
             <textarea
               className="input textarea"
               placeholder="Написать комментарий (до 500 символов)..."
@@ -484,7 +641,7 @@ function Comments({ onNavigate, postId }) {
         </div>
       </div>
 
-      <BottomNavigation currentPage="home" onNavigate={onNavigate} />
+      <BottomNavigation currentPage={currentPage || "home"} onNavigate={onNavigate} />
     </div>
   )
 }

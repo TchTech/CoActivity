@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class ExternalLinkResponse {
     private Long id;
     private String platformName;
+    private String label;
     private String url;
 }
 

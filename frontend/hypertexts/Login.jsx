@@ -3,6 +3,9 @@
 import { useState } from "react"
 import { userAPI, twoFactorAPI, emailVerificationAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { userAPI } from "../lib/api"
+import { useUser } from "../context/UserContext"
+import AuthAlert from "../components/AuthAlert"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -15,7 +18,7 @@ function Login({ onNavigate }) {
     password: "",
     twoFactorCode: "",
   })
-  const [error, setError] = useState("")
+  const [alert, setAlert] = useState({ visible: false, message: "", type: "error" })
   const [loading, setLoading] = useState(false)
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false)
   const [pendingEmail, setPendingEmail] = useState("")
@@ -23,6 +26,58 @@ function Login({ onNavigate }) {
   const [emailNotVerified, setEmailNotVerified] = useState(false)
   const [resendingEmail, setResendingEmail] = useState(false)
   const [resendSuccess, setResendSuccess] = useState("")
+  
+  // Функция для парсинга ошибок и преобразования в понятные сообщения
+  const parseError = (error) => {
+    const errorMessage = error?.message || error?.toString() || ""
+    const errorStatus = error?.status
+    const errorData = error?.data
+    
+    // Проверяем сообщение об ошибке от бэкенда
+    if (errorData?.message) {
+      const backendMessage = errorData.message.toLowerCase()
+      
+      if (backendMessage.includes("invalid") && backendMessage.includes("password")) {
+        return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+      }
+      if (backendMessage.includes("invalid") && (backendMessage.includes("email") || backendMessage.includes("login"))) {
+        return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+      }
+      if (backendMessage.includes("not found") || backendMessage.includes("user not found")) {
+        return "Пользователь с таким email/логином не найден. Проверьте правильность введенных данных."
+      }
+      if (backendMessage.includes("unauthorized")) {
+        return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+      }
+      
+      return errorData.message
+    }
+    
+    // Проверяем статус HTTP
+    if (errorStatus === 401 || errorStatus === 403) {
+      return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+    }
+    if (errorStatus === 404) {
+      return "Пользователь с таким email/логином не найден. Проверьте правильность введенных данных."
+    }
+    if (errorStatus === 400) {
+      return "Неверный формат данных. Проверьте правильность введенных данных."
+    }
+    if (errorStatus >= 500) {
+      return "Произошла ошибка на сервере. Пожалуйста, попробуйте позже."
+    }
+    
+    // Проверяем текст ошибки
+    const lowerMessage = errorMessage.toLowerCase()
+    if (lowerMessage.includes("invalid") || lowerMessage.includes("неверный")) {
+      return "Неверный email/логин или пароль. Проверьте правильность введенных данных."
+    }
+    if (lowerMessage.includes("not found") || lowerMessage.includes("не найден")) {
+      return "Пользователь с таким email/логином не найден. Проверьте правильность введенных данных."
+    }
+    
+    return errorMessage || "Произошла ошибка при входе. Попробуйте еще раз."
+  }
 
   const handleChange = (e) => {
     setFormData({
@@ -68,17 +123,17 @@ function Login({ onNavigate }) {
 
     // Обычный вход
     if (!formData.login || !formData.password) {
-      setError("Пожалуйста, заполните все поля")
+      setAlert({ visible: true, message: "Пожалуйста, заполните все поля", type: "error" })
       return
     }
 
     if (formData.password.length < 8) {
-      setError("Пароль должен содержать минимум 8 символов")
+      setAlert({ visible: true, message: "Пароль должен содержать минимум 8 символов", type: "error" })
       return
     }
 
     setLoading(true)
-    setError("")
+    setAlert({ visible: false, message: "", type: "error" })
 
     try {
       // Вызов API для аутентификации
@@ -101,6 +156,17 @@ function Login({ onNavigate }) {
       }
       
       // Переход на главную страницу
+      // Вызов API для аутентификации
+      const user = await userAPI.login(formData.login, formData.password)
+      
+      console.log("Успешный вход:", user)
+      
+      // Сохраняем пользователя в контекст
+      if (user) {
+        loginUser(user)
+      }
+      
+      // Переход на главную страницу
       onNavigate("home")
     } catch (err) {
       console.error("Ошибка входа:", err)
@@ -114,6 +180,8 @@ function Login({ onNavigate }) {
       } else {
         setError(errorMessage)
       }
+      const errorMessage = parseError(err)
+      setAlert({ visible: true, message: errorMessage, type: "error" })
     } finally {
       setLoading(false)
     }
@@ -218,6 +286,25 @@ function Login({ onNavigate }) {
                       disabled={loading}
                     />
                   </div>
+        <AuthAlert 
+          type={alert.type} 
+          message={alert.message} 
+          visible={alert.visible} 
+          onClose={() => setAlert({ visible: false, message: "", type: "error" })} 
+        />
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="input-group">
+            <label className="input-label">Логин или Email</label>
+            <input
+              type="text"
+              name="login"
+              className="input"
+              placeholder="Введите никнейм или email"
+              value={formData.login}
+              onChange={handleChange}
+            />
+          </div>
 
                   <div className="input-group">
                     <label className="input-label">Пароль</label>

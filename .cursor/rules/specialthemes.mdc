@@ -1,0 +1,305 @@
+---
+alwaysApply: true
+---
+Functional Requirements (English Translation)
+Registration / Login (user)
+
+Registration / login fields: login & password
+
+login may contain either a unique nickname or an email
+
+password must be 8 characters or longer
+
+Profile completion (user)
+
+First name
+
+Last name
+
+City
+
+Hobbies (from the hobbies reference list)
+
+About me (up to 500 characters)
+
+Nickname (if login is not an email — nickname is optional; if login is email — nickname is required)
+
+Avatar
+
+Creating a post with text and images
+
+Text field: 1–1000 characters
+
+Images: user can attach 0–1 images, size < 10 MB
+
+A post can be deleted
+
+Liking a post
+
+A user can like / unlike a post (toggle) once
+
+The like counter updates without page reload
+
+Comments on a post
+
+Text field: up to 500 characters
+
+The author of a comment can delete their comment
+
+Following a user
+
+Actions: follow / unfollow
+
+If a user is not following anyone, the feed is formed based on their interests specified during registration.
+Otherwise — the feed is based on followed users.
+
+The list of subscriptions is located in a separate tab: Profile → Favorites
+
+Creating a room
+
+Required fields:
+
+Category (from hobbies reference list)
+
+Date
+
+Creation time
+
+Title (≤ 50 characters)
+
+Description (≤ 500 characters)
+
+Format (online / in-person)
+
+Type of admission (open / by request)
+
+If online: room capacity is max 20 users
+
+If in-person: city (default = creator’s profile city), address, unlimited participant count
+
+The room can be published only when all required fields are filled
+
+After publishing, the room appears in the "My Rooms" section
+
+Room search by categories (semantic search across all room fields, ElasticSearch-like)
+
+Indexed rooms appear in search, but full rooms do not appear in recommendation feeds.
+
+Category filter (multiple categories selectable)
+
+Search results contain only rooms matching selected categories
+
+Submitting a participation request
+
+For rooms by request:
+
+Request form: text up to 500 characters
+
+Request status changes (approved / rejected) trigger a notification to both the room owner and the applicant
+
+For open rooms:
+
+Users can join until the capacity limit is reached
+
+Managing participation requests (room owner + moderators)
+
+List of requests with applicant data.
+Room owner + admin can approve or reject requests.
+
+Approved users move to the participant list; reaching the limit automatically closes admission.
+
+Room group chat
+
+Access only for the owner and approved participants
+
+Owner can delete messages
+
+Owner can ban participants
+
+One message: up to 500 characters
+
+Images are sent as a separate message, size ≤ 10 MB
+
+Notifications about comments / mentions
+
+Notifications appear in the "bell" icon
+
+A user can disable specific notifications (comments / mentions and others from notification reference list) in settings
+
+Room notifications
+
+Events that trigger notifications:
+
+New request (for room owners / moderators)
+
+Decision on a request (for applicants)
+
+Event reminders: 1 hour / 24 hours before the event
+
+Viewing other users’ profiles
+
+Profile card contains:
+
+Nickname (if present)
+
+First name
+
+Last name
+
+Hobbies
+
+Follow button
+
+City
+
+About the user
+
+User rating
+
+Room feed and sorting
+
+Display only active rooms (rooms where:
+
+user’s request is approved OR
+
+the room is open)
+
+Sorting options:
+
+by event time (default: nearest first)
+
+by creation date
+
+Room card includes:
+
+Title
+
+Category
+
+Date and time
+
+Format (if in-person: city, venue)
+
+Creator
+
+Admission status
+
+Occupied vs capacity
+
+Admission may be closed manually before reaching the limit.
+Reaching the limit closes admission automatically.
+
+If the event date has passed, the room closes automatically.
+Otherwise, the owner can close it manually.
+
+Review & rating system
+
+After event completion, participants can leave:
+
+A review (up to 400 characters)
+
+A rating (0–5)
+For both the room and/or the mentor.
+
+Average rating is displayed:
+
+In the user profile
+
+On the event page (after completion)
+
+Additional notifications
+
+User banned in a group
+
+Request sent to a closed group
+
+Acceptance into a group
+
+User email verification status
+
+User verification via phone number
+Search posts in user profile + global post search (across the platform)
+Non-Functional Requirements (NFR)
+(1) Usability
+
+Adaptive interface: supports tablets, smartphones, and laptop/PC monitors.
+Other screen types are not guaranteed.
+
+(2) Performance
+
+SLA: API response time for key operations (feed, search, room page) — ≤ 3 seconds at 95th percentile
+
+Chat message send/delivery — ≤ 2 seconds, messages visible after reload
+
+Supported read load: up to 1000 rps without failures
+
+Attachment size limits:
+
+Posts: ≤ 10 MB
+
+Chats: ≤ 25 MB
+Bigger files are rejected.
+
+(3) Reliability & Availability
+
+Target service availability: 99% per month
+
+(4) Security
+
+Transport: HTTPS everywhere
+
+Auth cookies: HttpOnly, Secure, SameSite=Lax
+
+Minimum password length — 8
+
+Error messages must not contain stack traces or internal details
+
+RBAC: user / admin; actions outside role are forbidden
+
+(5) Privacy
+
+Contacts and email are hidden by default; visibility adjustable by the user
+
+Profile data can be deleted
+
+Data is used only for service functionality
+
+(6) Maintainability
+
+Documentation:
+
+README with run instructions
+
+Swagger / OpenAPI for REST endpoints
+
+CI runs build, linters, and tests on every PR; build must pass successfully
+
+(7) Scalability
+
+Stateless components support horizontal scaling
+
+Lists / feed support caching and pagination; heavy operations do not block UI
+
+Real-time features (chat/notifications) via persistent connections (WebSocket / SSE)
+
+Features
+
+Social network: post creation with “rooms” integration, likes, dislikes, views, etc.
+
+User verification
+
+Ability to attach external links: personal website, GitHub
+
+Subscriptions + feed + notification bell
+
+Ready-made presets (“Basketball”, “Java Partner”) and the ability to duplicate them with a new date
+
+Open rooms = one-click join; request-based rooms = short form; chat supports file attachments
+
+Event reminders: 24h and 1h before the event
+
+After the event: participants leave rating + review; verified mentors / creators get visible badges
+
+Interest-based recommendations & Similar rooms
+
+Social feed of posts

@@ -30,8 +30,22 @@ function Comment({ comment, replies }) {
         <button className="reply-button">ответить</button>
 
         <div className="comment-likes">
-          <button className="like-btn">👍 {commentLikes}</button>
-          <button className="like-btn">👎 {comment.dislikes || 2}</button>
+          <button className="like-btn">
+            <img 
+              src="/like.png" 
+              alt="Лайк" 
+              style={{ width: '18px', height: '18px', objectFit: 'contain', marginRight: '4px' }}
+            />
+            {commentLikes}
+          </button>
+          <button className="like-btn">
+            <img 
+              src="/dislike.png" 
+              alt="Дизлайк" 
+              style={{ width: '18px', height: '18px', objectFit: 'contain', marginRight: '4px' }}
+            />
+            {comment.dislikes || 2}
+          </button>
         </div>
       </div>
 

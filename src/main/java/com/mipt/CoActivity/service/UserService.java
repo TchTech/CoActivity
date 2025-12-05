@@ -5,13 +5,16 @@ import com.mipt.CoActivity.exception.*;
 import com.mipt.CoActivity.model.*;
 import com.mipt.CoActivity.repository.*;
 import com.mipt.CoActivity.repository.ExternalLinkRepository;
+import com.mipt.CoActivity.service.ImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,6 +27,8 @@ public class UserService {
   private final RoomFolderRepository roomFolderRepository;
   private final BCryptPasswordEncoder passwordEncoder;
   private final ExternalLinkRepository externalLinkRepository;
+  private final ImageService imageService;
+  private final NotificationService notificationService;
 
   @Autowired
   UserService(UserRepository userRepository,
@@ -31,13 +36,17 @@ public class UserService {
               RoomRepository roomRepository,
               RoomFolderRepository roomFolderRepository,
               BCryptPasswordEncoder passwordEncoder,
-              ExternalLinkRepository externalLinkRepository) {
+              ExternalLinkRepository externalLinkRepository,
+              ImageService imageService,
+              NotificationService notificationService) {
     this.userRepository = userRepository;
     this.userSettingsRepository = userSettingsRepository;
     this.roomRepository = roomRepository;
     this.roomFolderRepository = roomFolderRepository;
     this.passwordEncoder = passwordEncoder;
     this.externalLinkRepository = externalLinkRepository;
+    this.imageService = imageService;
+    this.notificationService = notificationService;
   }
 
   public User getUserByUsername(String username) {
@@ -61,6 +70,22 @@ public class UserService {
   }
 
   public User registerUser(String username, String email, String password) {
+    logger.info("Registering user - username: {}, email: {}", username, email);
+    
+    // Валидация входных данных
+    if (username == null || username.trim().isEmpty()) {
+      throw new BadRequestException("Username cannot be empty");
+    }
+    if (email == null || email.trim().isEmpty()) {
+      throw new BadRequestException("Email cannot be empty");
+    }
+    if (password == null || password.isEmpty()) {
+      throw new BadRequestException("Password cannot be empty");
+    }
+    if (password.length() < 8) {
+      throw new BadRequestException("Password must be at least 8 characters long");
+    }
+    
     if (isUsernameExists(username)) {
       throw new ConflictException("Username already exists");
     }
@@ -69,11 +94,62 @@ public class UserService {
       throw new ConflictException("Email already exists");
     }
 
-    String hashedPassword = hashPassword(password);
+    try {
+      String hashedPassword = hashPassword(password);
+      User newUser = new User(username, email, hashedPassword);
+      User savedUser = userRepository.save(newUser);
+      
+      // Auto-join default room
+      Room defaultRoom = roomRepository.findByIsDefaultTrue().orElse(null);
+      if (defaultRoom != null) {
+        defaultRoom.getCollaborators().add(savedUser);
+        roomRepository.save(defaultRoom);
+        logger.info("User {} auto-joined default room {}", savedUser.getId(), defaultRoom.getId());
+      }
+      
+      logger.info("User registered successfully - id: {}, username: {}", savedUser.getId(), savedUser.getUsername());
+      return savedUser;
+    } catch (Exception e) {
+      logger.error("Error registering user: ", e);
+      throw new RuntimeException("Failed to register user: " + e.getMessage(), e);
+    }
+  }
 
-    User newUser = new User(username, email, hashedPassword);
+  /**
+   * Аутентификация пользователя по логину (username или email) и паролю
+   * @param login - username или email
+   * @param password - пароль в открытом виде
+   * @return User - объект пользователя при успешной аутентификации
+   * @throws ResourceNotFoundException - если пользователь не найден
+   * @throws BadRequestException - если пароль неверный
+   */
+  public User loginUser(String login, String password) {
+    if (login == null || login.trim().isEmpty()) {
+      throw new BadRequestException("Login cannot be empty");
+    }
+    if (password == null || password.isEmpty()) {
+      throw new BadRequestException("Password cannot be empty");
+    }
 
-    return userRepository.save(newUser);
+    // Определяем, является ли login email или username
+    User user = null;
+    if (login.contains("@")) {
+      user = getUserByEmail(login);
+    } else {
+      user = getUserByUsername(login);
+    }
+
+    if (user == null) {
+      throw new ResourceNotFoundException("User not found");
+    }
+
+    // Проверяем пароль
+    if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+      throw new BadRequestException("Invalid password");
+    }
+
+    logger.info("User {} successfully logged in", user.getUsername());
+    return user;
   }
 
   public void subscribe(Long userId, Long userToSubscribeId) {
@@ -84,8 +160,10 @@ public class UserService {
                     .findById(userToSubscribeId)
                     .orElseThrow(() -> new ResourceNotFoundException("User to subscribe not found"));
 
+    // Idempotent: if already subscribed, just return success
     if (user.getSubscriptions().contains(userToSubscribe)) {
-      throw new ConflictException("User is already subscribed to this user");
+      logger.debug("User {} is already subscribed to user {}, returning success", userId, userToSubscribeId);
+      return;
     }
 
     user.getSubscriptions().add(userToSubscribe);
@@ -93,6 +171,23 @@ public class UserService {
 
     userRepository.save(user);
     userRepository.save(userToSubscribe);
+    logger.info("User {} subscribed to user {}", userId, userToSubscribeId);
+    
+    // Create notification for the user being followed
+    try {
+      String subscriberName = user.getName() != null ? user.getName() : user.getUsername();
+      notificationService.createNotification(
+        userToSubscribeId,
+        "FOLLOW",
+        "Новая подписка",
+        subscriberName + " подписался на вас",
+        "{\"subscriberId\":" + userId + ",\"subscriberName\":\"" + subscriberName + "\"}"
+      );
+      logger.info("Created follow notification for user {}", userToSubscribeId);
+    } catch (Exception e) {
+      logger.error("Failed to create follow notification: {}", e.getMessage(), e);
+      // Don't fail the subscription if notification creation fails
+    }
   }
 
   public void unsubscribe(Long userId, Long userToUnsubscribeId) {
@@ -103,8 +198,10 @@ public class UserService {
                     .findById(userToUnsubscribeId)
                     .orElseThrow(() -> new ResourceNotFoundException("User to unsubscribe not found"));
 
+    // Idempotent: if not subscribed, just return success
     if (!user.getSubscriptions().contains(userToUnsubscribe)) {
-      throw new ConflictException("User is not subscribed to this user");
+      logger.debug("User {} is not subscribed to user {}, returning success", userId, userToUnsubscribeId);
+      return;
     }
 
     user.getSubscriptions().remove(userToUnsubscribe);
@@ -112,6 +209,7 @@ public class UserService {
 
     userRepository.save(user);
     userRepository.save(userToUnsubscribe);
+    logger.info("User {} unsubscribed from user {}", userId, userToUnsubscribeId);
   }
 
   public User getUserProfile(Long id) {
@@ -199,9 +297,7 @@ public class UserService {
                 user.getName(), userId, targetUser.getName(), request.getTargetUserId());
         break;
       case "addFriend":
-        if (user.getSubscriptions().contains(targetUser)) {
-          throw new ConflictException("User is already a friend");
-        }
+        // Idempotent: subscribe will handle if already subscribed
         subscribe(userId, request.getTargetUserId());
         break;
       case "getCommonRooms":
@@ -358,6 +454,7 @@ public class UserService {
         .map(link -> ExternalLinkResponse.builder()
             .id(link.getId())
             .platformName(link.getPlatformName())
+            .label(link.getLabel())
             .url(link.getUrl())
             .build())
         .collect(Collectors.toList());
@@ -371,16 +468,80 @@ public class UserService {
       throw new BadRequestException("URL cannot be empty");
     }
     
-    if (!request.getUrl().startsWith("http://") && !request.getUrl().startsWith("https://")) {
-      throw new BadRequestException("URL must be valid (start with http:// or https://)");
+    // Check limit (max 10 links per user)
+    List<ExternalLink> existingLinks = externalLinkRepository.findByUserId(id);
+    if (existingLinks.size() >= 10) {
+      throw new BadRequestException("Maximum 10 external links allowed per user");
+    }
+    
+    // Validate and normalize URL
+    String url = request.getUrl().trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+    
+    // Validate URL format
+    try {
+      new java.net.URL(url);
+    } catch (java.net.MalformedURLException e) {
+      throw new BadRequestException("Invalid URL format");
     }
 
-    ExternalLink link = new ExternalLink(user, request.getPlatformName(), request.getUrl());
+    ExternalLink link = new ExternalLink(user, request.getPlatformName(), url);
+    if (request.getLabel() != null) {
+      link.setLabel(request.getLabel());
+    }
     ExternalLink savedLink = externalLinkRepository.save(link);
     
     return ExternalLinkResponse.builder()
         .id(savedLink.getId())
         .platformName(savedLink.getPlatformName())
+        .label(savedLink.getLabel())
+        .url(savedLink.getUrl())
+        .build();
+  }
+
+  @Transactional
+  public ExternalLinkResponse updateExternalLink(Long id, Long linkId, ExternalLinkRequest request) {
+    getUserProfile(id);
+    ExternalLink link = externalLinkRepository.findById(linkId)
+        .orElseThrow(() -> new ResourceNotFoundException("External link not found"));
+
+    if (!link.getUser().getId().equals(id)) {
+      throw new ForbiddenException("You can only update your own external links");
+    }
+
+    // Validate URL if provided
+    if (request.getUrl() != null && !request.getUrl().trim().isEmpty()) {
+      String url = request.getUrl().trim();
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        url = "https://" + url;
+      }
+      
+      try {
+        new java.net.URL(url);
+      } catch (java.net.MalformedURLException e) {
+        throw new BadRequestException("Invalid URL format");
+      }
+      
+      link.setUrl(url);
+    }
+
+    if (request.getPlatformName() != null) {
+      link.setPlatformName(request.getPlatformName());
+    }
+
+    if (request.getLabel() != null) {
+      link.setLabel(request.getLabel());
+    }
+
+    link.setUpdatedAt(java.time.Instant.now());
+    ExternalLink savedLink = externalLinkRepository.save(link);
+
+    return ExternalLinkResponse.builder()
+        .id(savedLink.getId())
+        .platformName(savedLink.getPlatformName())
+        .label(savedLink.getLabel())
         .url(savedLink.getUrl())
         .build();
   }
@@ -398,6 +559,13 @@ public class UserService {
     externalLinkRepository.delete(link);
   }
 
+  public Integer getRoomCount(Long userId) {
+    getUserProfile(userId);
+    // Count rooms where user is a member (collaborator)
+    List<Room> rooms = roomRepository.findByCollaboratorsId(userId);
+    return rooms != null ? rooms.size() : 0;
+  }
+
   @Transactional
   public UserSettings updateGeneralNotificationSettings(Long userId, GeneralNotificationSettingsRequest request) {
     UserSettings settings = getUserSettings(userId);
@@ -406,6 +574,8 @@ public class UserService {
     }
     if (request.getPushNotifications() != null) {
       settings.setPushNotifications(request.getPushNotifications());
+      // Synchronize notificationsEnabled with pushNotifications
+      settings.setNotificationsEnabled(request.getPushNotifications());
     }
     return userSettingsRepository.save(settings);
   }
@@ -457,5 +627,71 @@ public class UserService {
     return userRooms.stream()
             .filter(targetRooms::contains)
             .collect(Collectors.toList());
+  }
+
+  /**
+   * Рассчитывает средний рейтинг пользователя на основе отзывов
+   * @param userId - ID пользователя
+   * @return Double - средний рейтинг от 0 до 5, или null если нет отзывов
+   */
+  public Double calculateUserRating(Long userId) {
+    User user = getUserProfile(userId);
+    List<Feedback> feedbacks = user.getFeedbacks();
+    
+    if (feedbacks == null || feedbacks.isEmpty()) {
+      return null;
+    }
+    
+    double sum = feedbacks.stream()
+            .filter(f -> f.getRating() != null)
+            .mapToDouble(Feedback::getRating)
+            .sum();
+    
+    long count = feedbacks.stream()
+            .filter(f -> f.getRating() != null)
+            .count();
+    
+    if (count == 0) {
+      return null;
+    }
+    
+    return sum / count;
+  }
+
+  @Transactional
+  public User uploadAvatar(Long userId, MultipartFile file) throws IOException {
+    User user = getUserProfile(userId);
+    
+    if (file == null || file.isEmpty()) {
+      throw new BadRequestException("File cannot be empty");
+    }
+
+    // Validate file size (max 10MB)
+    if (file.getSize() > 10 * 1024 * 1024) {
+      throw new BadRequestException("File size cannot exceed 10MB");
+    }
+
+    // Validate file type
+    String contentType = file.getContentType();
+    if (contentType == null || !contentType.startsWith("image/")) {
+      throw new BadRequestException("File must be an image");
+    }
+
+    com.mipt.CoActivity.model.Image avatarImage = imageService.uploadImage(file);
+    user.setAvatar(avatarImage);
+    return userRepository.save(user);
+  }
+
+  @Transactional
+  public void updateAbout(Long userId, UpdateAboutRequest request) {
+    User user = getUserProfile(userId);
+    user.setAbout(request.getAbout());
+    userRepository.save(user);
+    logger.info("User {} updated their about field", userId);
+  }
+
+  public String getAbout(Long userId) {
+    User user = getUserProfile(userId);
+    return user.getAbout();
   }
 }
