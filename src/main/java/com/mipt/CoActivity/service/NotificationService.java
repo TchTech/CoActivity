@@ -366,11 +366,16 @@ public class NotificationService {
    */
   private void logDeduplication(String deduplicationHash, User user, String type) {
     try {
+      if (deduplicationHash == null || user == null || type == null) {
+        logger.warn("Cannot log deduplication: missing required fields (hash: {}, user: {}, type: {})", 
+            deduplicationHash != null, user != null, type != null);
+        return;
+      }
       NotificationDeduplicationLog log = new NotificationDeduplicationLog(deduplicationHash, user, type);
       deduplicationLogRepository.save(log);
     } catch (Exception e) {
-      // Log but don't fail notification creation
-      logger.warn("Failed to log deduplication entry: {}", e.getMessage());
+      // Log but don't fail notification creation if deduplication logging fails
+      logger.warn("Failed to log deduplication entry: {}", e.getMessage(), e);
     }
   }
 
