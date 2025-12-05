@@ -18,6 +18,7 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
   const [hasPendingRequest, setHasPendingRequest] = useState(false)
   const [pendingRequestId, setPendingRequestId] = useState(null)
   const [activeTab, setActiveTab] = useState("info") // "info" or "posts"
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     const loadRoomData = async () => {
@@ -34,8 +35,11 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
         console.log("[RoomInfo] Members:", data.members)
         setRoomData(data)
         
-        // Check if user is a member
+        // Check if user is a member and admin
         if (currentUser?.id) {
+          // Check if current user is admin
+          const currentUserMember = data.members?.find(m => m.id === currentUser.id)
+          setIsAdmin(currentUserMember?.isAdmin || false)
           try {
             const userRooms = await roomAPI.getUserRooms(currentUser.id)
             const isInRoom = Array.isArray(userRooms) && userRooms.some(r => r.id === roomId)
@@ -378,6 +382,62 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
                             </div>
                           )}
                         </div>
+                        {isAdmin && currentUser?.id && member.id !== currentUser.id && roomData.creatorId !== member.id && (
+                          <div style={{ display: "flex", gap: "var(--spacing-xs)", flexShrink: 0 }}>
+                            {!member.isAdmin && (
+                              <button
+                                className="btn btn-secondary"
+                                style={{ 
+                                  fontSize: "var(--font-size-xs)",
+                                  padding: "var(--spacing-xs) var(--spacing-sm)"
+                                }}
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  if (confirm(`Назначить ${member.name || member.username} администратором?`)) {
+                                    try {
+                                      await roomAPI.promoteToAdmin(roomId, member.id, currentUser.id)
+                                      // Reload room data
+                                      const updatedData = await roomAPI.getDetails(roomId)
+                                      setRoomData(updatedData)
+                                      alert("Пользователь назначен администратором")
+                                    } catch (err) {
+                                      console.error("Ошибка назначения администратора:", err)
+                                      alert("Не удалось назначить администратора: " + (err.message || "Неизвестная ошибка"))
+                                    }
+                                  }
+                                }}
+                              >
+                                Сделать админом
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-secondary"
+                              style={{ 
+                                fontSize: "var(--font-size-xs)",
+                                padding: "var(--spacing-xs) var(--spacing-sm)",
+                                backgroundColor: "var(--error)",
+                                color: "white"
+                              }}
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (confirm(`Выгнать ${member.name || member.username} из комнаты?`)) {
+                                  try {
+                                    await roomAPI.kickUserFromRoom(roomId, member.id, currentUser.id)
+                                    // Reload room data
+                                    const updatedData = await roomAPI.getDetails(roomId)
+                                    setRoomData(updatedData)
+                                    alert("Пользователь исключен из комнаты")
+                                  } catch (err) {
+                                    console.error("Ошибка выгона пользователя:", err)
+                                    alert("Не удалось выгнать пользователя: " + (err.message || "Неизвестная ошибка"))
+                                  }
+                                }
+                              }}
+                            >
+                              Выгнать
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
