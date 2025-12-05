@@ -94,7 +94,7 @@ function NotificationsPanel({ userId, onClose, onNavigate, onNotificationUpdate 
       }
     } catch (error) {
       console.error("Ошибка отметки всех уведомлений:", error)
-      alert("Не удалось отметить все уведомления как прочитанные: " + (error.message || "Неизвестная ошибка"))
+      console.error("Не удалось отметить все уведомления как прочитанные:", error)
     }
   }
 
@@ -151,12 +151,15 @@ function NotificationsPanel({ userId, onClose, onNavigate, onNotificationUpdate 
 
   return (
     <div
+      className="card"
       style={{
         width: "100%",
         maxHeight: "500px",
-        backgroundColor: "var(--bg-primary)",
         display: "flex",
         flexDirection: "column",
+        padding: 0,
+        borderRadius: "var(--radius-lg)",
+        boxShadow: "var(--shadow-lg)",
       }}
     >
       <div
@@ -166,27 +169,52 @@ function NotificationsPanel({ userId, onClose, onNavigate, onNotificationUpdate 
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          backgroundColor: "var(--bg-secondary)",
+          borderTopLeftRadius: "var(--radius-lg)",
+          borderTopRightRadius: "var(--radius-lg)",
         }}
       >
-        <h3 style={{ margin: 0, fontSize: "var(--font-size-lg)" }}>Уведомления</h3>
-        <div style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center" }}>
-          <button
-            className="btn-icon"
-            onClick={onClose}
-            style={{ padding: "4px" }}
-          >
-            ×
-          </button>
-        </div>
+        <h3 style={{ 
+          margin: 0, 
+          fontSize: "var(--font-size-lg)",
+          fontWeight: "600",
+          color: "var(--accent-gold)"
+        }}>
+          Уведомления
+        </h3>
+        <button
+          className="btn-icon"
+          onClick={onClose}
+          style={{ 
+            padding: "4px",
+            width: "32px",
+            height: "32px",
+            fontSize: "var(--font-size-lg)"
+          }}
+        >
+          ×
+        </button>
       </div>
 
-      <div style={{ overflowY: "auto", flex: 1 }}>
+      <div style={{ 
+        overflowY: "auto", 
+        flex: 1,
+        backgroundColor: "var(--bg-primary)"
+      }}>
         {loading ? (
-          <div style={{ padding: "var(--spacing-lg)", textAlign: "center", color: "var(--text-muted)" }}>
+          <div style={{ 
+            padding: "var(--spacing-lg)", 
+            textAlign: "center", 
+            color: "var(--text-muted)" 
+          }}>
             Загрузка...
           </div>
         ) : notifications.length === 0 ? (
-          <div style={{ padding: "var(--spacing-lg)", textAlign: "center", color: "var(--text-muted)" }}>
+          <div style={{ 
+            padding: "var(--spacing-lg)", 
+            textAlign: "center", 
+            color: "var(--text-muted)" 
+          }}>
             Нет уведомлений
           </div>
         ) : (
@@ -202,27 +230,53 @@ function NotificationsPanel({ userId, onClose, onNavigate, onNotificationUpdate 
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-start",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--bg-hover)"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = notification.isRead ? "var(--bg-primary)" : "var(--bg-secondary)"
               }}
             >
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: notification.isRead ? "400" : "600", marginBottom: "var(--spacing-xs)" }}>
+                <div style={{ 
+                  fontWeight: notification.isRead ? "400" : "600", 
+                  marginBottom: "var(--spacing-xs)",
+                  color: notification.isRead ? "var(--text-secondary)" : "var(--text-primary)"
+                }}>
                   {notification.title}
                 </div>
-                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", marginBottom: "var(--spacing-xs)" }}>
+                <div style={{ 
+                  fontSize: "var(--font-size-sm)", 
+                  color: "var(--text-secondary)", 
+                  marginBottom: "var(--spacing-xs)",
+                  lineHeight: "1.5"
+                }}>
                   {notification.content}
                 </div>
-                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-muted)" }}>
+                <div style={{ 
+                  fontSize: "var(--font-size-xs)", 
+                  color: "var(--text-muted)" 
+                }}>
                   {formatTime(notification.createdAt)}
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)", marginLeft: "var(--spacing-sm)" }}>
+              <div style={{ 
+                display: "flex", 
+                flexDirection: "column", 
+                gap: "var(--spacing-xs)", 
+                marginLeft: "var(--spacing-sm)",
+                alignItems: "center"
+              }}>
                 {!notification.isRead && (
                   <div
                     style={{
-                      width: "8px",
-                      height: "8px",
+                      width: "10px",
+                      height: "10px",
                       borderRadius: "50%",
-                      backgroundColor: "var(--accent-blue)",
+                      backgroundColor: "var(--accent-gold)",
+                      boxShadow: "0 0 8px rgba(212, 175, 55, 0.6)",
                     }}
                   />
                 )}
@@ -232,7 +286,21 @@ function NotificationsPanel({ userId, onClose, onNavigate, onNotificationUpdate 
                     e.stopPropagation()
                     handleDismiss(notification.id)
                   }}
-                  style={{ padding: "2px", fontSize: "var(--font-size-sm)" }}
+                  style={{ 
+                    padding: "4px", 
+                    fontSize: "var(--font-size-base)",
+                    width: "28px",
+                    height: "28px",
+                    opacity: 0.7
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.opacity = "1"
+                    e.currentTarget.style.color = "var(--error-color)"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.opacity = "0.7"
+                    e.currentTarget.style.color = "var(--text-primary)"
+                  }}
                 >
                   ×
                 </button>

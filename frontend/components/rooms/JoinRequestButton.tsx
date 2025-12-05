@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { roomAPI } from "@/lib/api"
-import { handleApiError, extractCooldownMinutes, isCooldownError } from "@/types"
-import type { RoomJoinRequest } from "@/types"
+import { roomAPI } from "../../lib/api"
+import { handleApiError, extractCooldownMinutes, isCooldownError } from "../../types"
+import type { RoomJoinRequest } from "../../types"
+import "../../styles/variables.css"
+import "../../styles/global.css"
+import "../../styles/components.css"
 
 interface JoinRequestButtonProps {
   roomId: number
@@ -162,16 +164,15 @@ export function JoinRequestButton({
   if (roomJoinType === "open") {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)" }}>
-        <Button
+        <button
+          className="btn btn-primary"
           onClick={handleJoinRoom}
           disabled={loading || isMember}
-          variant="default"
-          size="default"
         >
           {loading ? "Присоединение..." : "Присоединиться"}
-        </Button>
+        </button>
         {error && (
-          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--destructive)" }}>
+          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--error-color)" }}>
             {error}
           </span>
         )}
@@ -188,58 +189,54 @@ export function JoinRequestButton({
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)" }}>
       {isPending ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)" }}>
-          <Button
-            variant="secondary"
+          <button
+            className="btn btn-secondary"
             disabled
-            size="default"
           >
             Заявка отправлена
-          </Button>
-          <Button
+          </button>
+          <button
+            className="btn btn-outline"
             onClick={handleCancelRequest}
             disabled={loading}
-            variant="outline"
-            size="sm"
+            style={{ fontSize: "var(--font-size-sm)" }}
           >
             {loading ? "Отмена..." : "Отменить заявку"}
-          </Button>
+          </button>
         </div>
       ) : isRejected && cooldownRemaining !== null ? (
-        <Button
-          variant="outline"
+        <button
+          className="btn btn-outline"
           disabled
-          size="default"
         >
           Подождите {cooldownRemaining} мин. перед повторной заявкой
-        </Button>
+        </button>
       ) : canReapply ? (
-        <Button
+        <button
+          className="btn btn-primary"
           onClick={handleCreateRequest}
           disabled={loading}
-          variant="default"
-          size="default"
         >
           {loading ? "Отправка..." : "Подать заявку повторно"}
-        </Button>
+        </button>
       ) : (
-        <Button
+        <button
+          className="btn btn-primary"
           onClick={handleCreateRequest}
           disabled={loading}
-          variant="default"
-          size="default"
         >
           {loading ? "Отправка..." : "Подать заявку"}
-        </Button>
+        </button>
       )}
       
       {error && (
-        <span style={{ fontSize: "var(--font-size-sm)", color: "var(--destructive)" }}>
+        <span style={{ fontSize: "var(--font-size-sm)", color: "var(--error-color)" }}>
           {error}
         </span>
       )}
       
       {cooldownRemaining !== null && cooldownRemaining > 0 && (
-        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--muted-foreground)" }}>
+        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-muted)" }}>
           Осталось {cooldownRemaining} мин. до возможности повторной заявки
         </span>
       )}

@@ -355,6 +355,22 @@ export const userAPI = {
     // Backend: GET /users/{userId}/about
     return request(`/users/${userId}/about`, { method: "GET" })
   },
+
+  async getNotificationSettings(userId) {
+    // Backend: GET /users/{userId}/settings/general-notifications
+    // UserController uses @RequestMapping("/users"), not "/api/users"
+    return request(`/users/${userId}/settings/general-notifications`, { method: "GET" })
+  },
+
+  async updateNotificationSettings(userId, settings) {
+    // Backend: PUT /users/{userId}/settings/general-notifications
+    // settings should contain: { emailNotifications, pushNotifications }
+    // UserController uses @RequestMapping("/users"), not "/api/users"
+    return request(`/users/${userId}/settings/general-notifications`, {
+      method: "PUT",
+      body: settings,
+    })
+  },
 }
 
 // --- EXTERNAL LINKS API ---

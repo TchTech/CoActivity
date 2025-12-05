@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { roomAPI } from "@/lib/api"
-import { handleApiError } from "@/types"
-import type { RoomJoinRequest, ApproveJoinRequestRequest, RejectJoinRequestRequest } from "@/types"
+import { roomAPI } from "../../lib/api"
+import { handleApiError } from "../../types"
+import type { RoomJoinRequest, ApproveJoinRequestRequest, RejectJoinRequestRequest } from "../../types"
 import { RejectRequestDialog } from "./RejectRequestDialog"
+import "../../styles/variables.css"
+import "../../styles/global.css"
+import "../../styles/components.css"
 
 interface PendingRequestsListProps {
   roomId: number
@@ -145,46 +145,51 @@ export function PendingRequestsList({
 
   if (loading) {
     return (
-      <Card>
-        <CardContent style={{ padding: "var(--spacing-lg)", textAlign: "center" }}>
+      <div className="card">
+        <div style={{ padding: "var(--spacing-lg)", textAlign: "center", color: "var(--text-muted)" }}>
           Загрузка заявок...
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   if (error && requests.length === 0) {
     return (
-      <Card>
-        <CardContent style={{ padding: "var(--spacing-lg)" }}>
+      <div className="card">
+        <div style={{ padding: "var(--spacing-lg)" }}>
           <div style={{ 
-            color: "var(--destructive)",
+            color: "var(--error-color)",
             fontSize: "var(--font-size-sm)"
           }}>
             {error}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Заявки на вступление</CardTitle>
+      <div className="card">
+        <div className="card-header">
+          <h3 style={{ margin: 0, fontSize: "var(--font-size-lg)", color: "var(--accent-gold)" }}>
+            Заявки на вступление
+          </h3>
           {isRoomClosed && (
-            <Badge variant="destructive" style={{ marginTop: "var(--spacing-xs)" }}>
+            <span className="badge" style={{ 
+              backgroundColor: "var(--error-color)",
+              color: "white"
+            }}>
               Комната закрыта
-            </Badge>
+            </span>
           )}
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="card-body">
           {requests.length === 0 ? (
             <div style={{ 
               padding: "var(--spacing-lg)",
               textAlign: "center",
-              color: "var(--muted-foreground)"
+              color: "var(--text-muted)"
             }}>
               Нет pending заявок
             </div>
@@ -194,8 +199,8 @@ export function PendingRequestsList({
                 <div style={{
                   padding: "var(--spacing-sm)",
                   borderRadius: "var(--radius-md)",
-                  backgroundColor: "var(--destructive)/10",
-                  color: "var(--destructive)",
+                  backgroundColor: "rgba(244, 67, 54, 0.1)",
+                  color: "var(--error-color)",
                   fontSize: "var(--font-size-sm)"
                 }}>
                   {error}
@@ -209,62 +214,91 @@ export function PendingRequestsList({
                     padding: "var(--spacing-md)",
                     borderRadius: "var(--radius-md)",
                     border: "1px solid var(--border-color)",
+                    backgroundColor: "var(--bg-secondary)",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "var(--spacing-sm)"
+                    gap: "var(--spacing-sm)",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--accent-gold)"
+                    e.currentTarget.style.backgroundColor = "var(--bg-tertiary)"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-color)"
+                    e.currentTarget.style.backgroundColor = "var(--bg-secondary)"
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
-                      <div style={{ fontWeight: "600", marginBottom: "var(--spacing-xs)" }}>
+                      <div style={{ 
+                        fontWeight: "600", 
+                        marginBottom: "var(--spacing-xs)",
+                        color: "var(--text-primary)"
+                      }}>
                         {request.userName || `Пользователь #${request.userId}`}
                       </div>
                       {request.message && (
                         <div style={{ 
                           fontSize: "var(--font-size-sm)",
-                          color: "var(--muted-foreground)",
-                          marginTop: "var(--spacing-xs)"
+                          color: "var(--text-secondary)",
+                          marginTop: "var(--spacing-xs)",
+                          lineHeight: "1.5"
                         }}>
                           {request.message}
                         </div>
                       )}
                       <div style={{ 
                         fontSize: "var(--font-size-xs)",
-                        color: "var(--muted-foreground)",
+                        color: "var(--text-muted)",
                         marginTop: "var(--spacing-xs)"
                       }}>
                         Подана: {new Date(request.createdAt).toLocaleString("ru-RU")}
                       </div>
                     </div>
-                    <Badge variant="secondary">
+                    <span className="badge badge-gold">
                       {request.status}
-                    </Badge>
+                    </span>
                   </div>
 
                   <div style={{ display: "flex", gap: "var(--spacing-sm)", marginTop: "var(--spacing-xs)" }}>
-                    <Button
+                    <button
+                      className="btn btn-primary"
                       onClick={() => handleApprove(request)}
                       disabled={isRoomClosed || processingRequestId === request.id}
-                      variant="default"
-                      size="sm"
+                      style={{ fontSize: "var(--font-size-sm)" }}
                     >
                       {processingRequestId === request.id ? "Одобрение..." : "Одобрить"}
-                    </Button>
-                    <Button
+                    </button>
+                    <button
+                      className="btn"
                       onClick={() => handleRejectClick(request)}
                       disabled={processingRequestId === request.id}
-                      variant="destructive"
-                      size="sm"
+                      style={{ 
+                        fontSize: "var(--font-size-sm)",
+                        backgroundColor: "var(--error-color)",
+                        color: "white"
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!e.currentTarget.disabled) {
+                          e.currentTarget.style.backgroundColor = "#d32f2f"
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!e.currentTarget.disabled) {
+                          e.currentTarget.style.backgroundColor = "var(--error-color)"
+                        }
+                      }}
                     >
                       Отклонить
-                    </Button>
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <RejectRequestDialog
         open={rejectDialogOpen}

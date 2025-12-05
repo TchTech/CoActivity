@@ -213,27 +213,32 @@ function RoomsList({ onNavigate, currentPage }) {
               <PopoverTrigger asChild>
                 <button
                   className="btn-icon"
-                  style={{ position: "relative" }}
+                  style={{ 
+                    position: "relative",
+                    width: "40px",
+                    height: "40px"
+                  }}
                   aria-label="Уведомления"
                 >
-                  <Bell size={20} />
+                  <Bell size={20} style={{ color: "var(--text-primary)" }} />
                   {unreadCount > 0 && (
                     <span
                       style={{
                         position: "absolute",
                         top: "-4px",
                         right: "-4px",
-                        backgroundColor: "var(--error-color, #ef4444)",
-                        color: "white",
+                        backgroundColor: "var(--accent-gold)",
+                        color: "var(--bg-primary)",
                         borderRadius: "50%",
-                        width: "18px",
-                        height: "18px",
+                        width: "20px",
+                        height: "20px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "10px",
-                        fontWeight: "600",
+                        fontSize: "11px",
+                        fontWeight: "700",
                         border: "2px solid var(--bg-primary)",
+                        boxShadow: "0 0 8px rgba(212, 175, 55, 0.6)",
                       }}
                     >
                       {unreadCount > 99 ? "99+" : unreadCount}
@@ -246,9 +251,12 @@ function RoomsList({ onNavigate, currentPage }) {
                 align="end"
                 style={{
                   padding: 0,
-                  width: "350px",
-                  maxHeight: "500px",
+                  width: "380px",
+                  maxHeight: "600px",
                   overflow: "hidden",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  boxShadow: "none",
                 }}
               >
                 <NotificationsPanel
@@ -363,7 +371,7 @@ function RoomsList({ onNavigate, currentPage }) {
               className="room-item"
               style={{
                 opacity: room.isClosed ? 0.7 : 1,
-                borderLeft: room.isClosed ? "3px solid var(--destructive, #ef4444)" : "none"
+                borderLeft: room.isClosed ? "3px solid var(--error-color)" : "none"
               }}
               onClick={() => {
                 const roomId = typeof room.id === "object" ? (room.id?.id || room.id?.roomId || null) : room.id
@@ -387,12 +395,9 @@ function RoomsList({ onNavigate, currentPage }) {
                     {room.name || room.description || "Комната"}
                   </div>
                   {room.isClosed && (
-                    <span style={{
-                      fontSize: "var(--font-size-xs)",
-                      padding: "2px 8px",
-                      backgroundColor: "var(--destructive, #ef4444)",
+                    <span className="badge" style={{
+                      backgroundColor: "var(--error-color)",
                       color: "white",
-                      borderRadius: "var(--radius-sm)",
                       fontWeight: "600",
                       textTransform: "uppercase"
                     }}>

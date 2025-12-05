@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { roomAPI } from "@/lib/api"
-import { handleApiError } from "@/types"
-import type { RoomJoinRequest } from "@/types"
+import { roomAPI } from "../../lib/api"
+import { handleApiError } from "../../types"
+import type { RoomJoinRequest } from "../../types"
+import "../../styles/variables.css"
+import "../../styles/global.css"
+import "../../styles/components.css"
 
 interface MyApplicationsListProps {
   userId: number
@@ -87,18 +87,18 @@ export function MyApplicationsList({
     }
   }
 
-  const getStatusBadgeVariant = (status: RoomJoinRequest["status"]) => {
+  const getStatusBadgeStyle = (status: RoomJoinRequest["status"]) => {
     switch (status) {
       case "pending":
-        return "secondary"
+        return { backgroundColor: "rgba(212, 175, 55, 0.2)", color: "var(--accent-gold)" }
       case "approved":
-        return "default"
+        return { backgroundColor: "var(--success-color)", color: "white" }
       case "rejected":
-        return "destructive"
+        return { backgroundColor: "var(--error-color)", color: "white" }
       case "cancelled":
-        return "outline"
+        return { backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)" }
       default:
-        return "outline"
+        return { backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)" }
     }
   }
 
@@ -129,40 +129,42 @@ export function MyApplicationsList({
 
   if (loading) {
     return (
-      <Card>
-        <CardContent style={{ padding: "var(--spacing-lg)", textAlign: "center" }}>
+      <div className="card">
+        <div style={{ padding: "var(--spacing-lg)", textAlign: "center", color: "var(--text-muted)" }}>
           Загрузка заявок...
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   if (error && requests.length === 0) {
     return (
-      <Card>
-        <CardContent style={{ padding: "var(--spacing-lg)" }}>
+      <div className="card">
+        <div style={{ padding: "var(--spacing-lg)" }}>
           <div style={{ 
-            color: "var(--destructive)",
+            color: "var(--error-color)",
             fontSize: "var(--font-size-sm)"
           }}>
             {error}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Мои заявки</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <div className="card">
+      <div className="card-header">
+        <h3 style={{ margin: 0, fontSize: "var(--font-size-lg)", color: "var(--accent-gold)" }}>
+          Мои заявки
+        </h3>
+      </div>
+      <div className="card-body">
         {requests.length === 0 ? (
           <div style={{ 
             padding: "var(--spacing-lg)",
             textAlign: "center",
-            color: "var(--muted-foreground)"
+            color: "var(--text-muted)"
           }}>
             У вас нет активных заявок
           </div>
@@ -172,8 +174,8 @@ export function MyApplicationsList({
               <div style={{
                 padding: "var(--spacing-sm)",
                 borderRadius: "var(--radius-md)",
-                backgroundColor: "var(--destructive)/10",
-                color: "var(--destructive)",
+                backgroundColor: "rgba(244, 67, 54, 0.1)",
+                color: "var(--error-color)",
                 fontSize: "var(--font-size-sm)"
               }}>
                 {error}
@@ -184,6 +186,7 @@ export function MyApplicationsList({
               const isPending = request.status === "pending"
               const isRejected = request.status === "rejected"
               const canCancel = isPending
+              const badgeStyle = getStatusBadgeStyle(request.status)
 
               return (
                 <div
@@ -192,9 +195,19 @@ export function MyApplicationsList({
                     padding: "var(--spacing-md)",
                     borderRadius: "var(--radius-md)",
                     border: "1px solid var(--border-color)",
+                    backgroundColor: "var(--bg-secondary)",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "var(--spacing-sm)"
+                    gap: "var(--spacing-sm)",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--accent-gold)"
+                    e.currentTarget.style.backgroundColor = "var(--bg-tertiary)"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-color)"
+                    e.currentTarget.style.backgroundColor = "var(--bg-secondary)"
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -203,9 +216,20 @@ export function MyApplicationsList({
                         style={{ 
                           fontWeight: "600", 
                           marginBottom: "var(--spacing-xs)",
-                          cursor: onNavigate ? "pointer" : "default"
+                          cursor: onNavigate ? "pointer" : "default",
+                          color: "var(--text-primary)"
                         }}
-                        onClick={() => onNavigate && onNavigate(`rooms/${request.roomId}`)}
+                        onClick={() => onNavigate && onNavigate(`roomInfo`, request.roomId)}
+                        onMouseEnter={(e) => {
+                          if (onNavigate) {
+                            e.currentTarget.style.color = "var(--accent-gold)"
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (onNavigate) {
+                            e.currentTarget.style.color = "var(--text-primary)"
+                          }
+                        }}
                       >
                         {request.roomName || `Комната #${request.roomId}`}
                       </div>
@@ -213,8 +237,9 @@ export function MyApplicationsList({
                       {request.message && (
                         <div style={{ 
                           fontSize: "var(--font-size-sm)",
-                          color: "var(--muted-foreground)",
-                          marginTop: "var(--spacing-xs)"
+                          color: "var(--text-secondary)",
+                          marginTop: "var(--spacing-xs)",
+                          lineHeight: "1.5"
                         }}>
                           {request.message}
                         </div>
@@ -222,7 +247,7 @@ export function MyApplicationsList({
 
                       <div style={{ 
                         fontSize: "var(--font-size-xs)",
-                        color: "var(--muted-foreground)",
+                        color: "var(--text-muted)",
                         marginTop: "var(--spacing-xs)"
                       }}>
                         Подана: {formatDate(request.createdAt)}
@@ -231,7 +256,7 @@ export function MyApplicationsList({
                       {request.respondedAt && (
                         <div style={{ 
                           fontSize: "var(--font-size-xs)",
-                          color: "var(--muted-foreground)",
+                          color: "var(--text-muted)",
                           marginTop: "var(--spacing-xs)"
                         }}>
                           {request.status === "approved" ? "Одобрена" : "Отклонена"}: {formatDate(request.respondedAt)}
@@ -244,9 +269,10 @@ export function MyApplicationsList({
                           marginTop: "var(--spacing-sm)",
                           padding: "var(--spacing-sm)",
                           borderRadius: "var(--radius-md)",
-                          backgroundColor: "var(--destructive)/10",
+                          backgroundColor: "rgba(244, 67, 54, 0.1)",
                           fontSize: "var(--font-size-sm)",
-                          color: "var(--destructive)"
+                          color: "var(--error-color)",
+                          border: "1px solid rgba(244, 67, 54, 0.3)"
                         }}>
                           <strong>Причина отклонения:</strong> {request.rejectionReason}
                         </div>
@@ -255,7 +281,7 @@ export function MyApplicationsList({
                       {isRejected && request.lastRejectedAt && (
                         <div style={{ 
                           fontSize: "var(--font-size-xs)",
-                          color: "var(--muted-foreground)",
+                          color: "var(--text-muted)",
                           marginTop: "var(--spacing-xs)",
                           fontStyle: "italic"
                         }}>
@@ -264,33 +290,33 @@ export function MyApplicationsList({
                       )}
                     </div>
 
-                    <Badge variant={getStatusBadgeVariant(request.status)}>
+                    <span className="badge" style={badgeStyle}>
                       {getStatusLabel(request.status)}
-                    </Badge>
+                    </span>
                   </div>
 
                   {canCancel && (
                     <div style={{ marginTop: "var(--spacing-xs)" }}>
-                      <Button
+                      <button
+                        className="btn btn-outline"
                         onClick={() => handleCancel(request)}
                         disabled={cancellingRequestId === request.id}
-                        variant="outline"
-                        size="sm"
+                        style={{ fontSize: "var(--font-size-sm)" }}
                       >
                         {cancellingRequestId === request.id ? "Отмена..." : "Отменить заявку"}
-                      </Button>
+                      </button>
                     </div>
                   )}
 
                   {request.status === "approved" && onNavigate && (
                     <div style={{ marginTop: "var(--spacing-xs)" }}>
-                      <Button
-                        onClick={() => onNavigate(`rooms/${request.roomId}`)}
-                        variant="default"
-                        size="sm"
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => onNavigate(`roomInfo`, request.roomId)}
+                        style={{ fontSize: "var(--font-size-sm)" }}
                       >
                         Перейти в комнату
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -298,8 +324,8 @@ export function MyApplicationsList({
             })}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 

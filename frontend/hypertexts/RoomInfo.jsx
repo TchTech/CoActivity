@@ -10,6 +10,8 @@ import { useUser } from "../context/UserContext"
 import BottomNavigation from "./BottomNavigation"
 import { JoinRequestButton, PendingRequestsList } from "../components/rooms"
 import { handleApiError } from "../types"
+import { ConfirmDialog } from "../components/ui/ConfirmDialog"
+import { AlertDialog } from "../components/ui/AlertDialog"
 
 function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
   const { currentUser } = useUser()
@@ -22,6 +24,9 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
   const [pendingRequest, setPendingRequest] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [activeTab, setActiveTab] = useState("info") // "info" or "posts"
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [showAlert, setShowAlert] = useState(false)
+  const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })
 
   useEffect(() => {
     const loadRoomData = async () => {
@@ -121,11 +126,12 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
 
   const handleCloseRoom = async () => {
     if (!currentUser?.id || !roomId) return
-    
-    if (!confirm("Вы уверены, что хотите закрыть эту комнату? Все pending заявки будут автоматически отклонены.")) {
-      return
-    }
+    setShowCloseConfirm(true)
+  }
 
+  const confirmCloseRoom = async () => {
+    setShowCloseConfirm(false)
+    
     try {
       await roomAPI.closeRoom(roomId, { userId: currentUser.id })
       // Reload room data
@@ -140,11 +146,30 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
         onRoomUpdated()
       }
       
-      alert("Комната успешно закрыта")
+      setAlertData({
+        title: "Успешно",
+        message: "Комната успешно закрыта",
+        variant: "success"
+      })
+      setShowAlert(true)
     } catch (err) {
       const errorMessage = handleApiError(err)
-      alert("Не удалось закрыть комнату: " + errorMessage)
+      setAlertData({
+        title: "Ошибка",
+        message: "Не удалось закрыть комнату: " + errorMessage,
+        variant: "error"
+      })
+      setShowAlert(true)
     }
+  }
+
+  const showErrorAlert = (message) => {
+    setAlertData({
+      title: "Ошибка",
+      message: message,
+      variant: "error"
+    })
+    setShowAlert(true)
   }
 
   if (loading) {
@@ -477,11 +502,11 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                     padding: "var(--spacing-md)",
                     backgroundColor: "var(--bg-secondary)",
                     borderRadius: "var(--radius-md)",
-                    border: "1px solid var(--destructive)",
+                    border: "1px solid var(--error-color)",
                     textAlign: "center"
                   }}>
                     <div style={{ 
-                      color: "var(--destructive)", 
+                      color: "var(--error-color)", 
                       fontWeight: "600",
                       marginBottom: "var(--spacing-xs)"
                     }}>
@@ -519,9 +544,7 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                     userId={currentUser.id}
                     onRequestCreated={handleRequestCreated}
                     onRequestCancelled={handleRequestCancelled}
-                    onError={(error) => {
-                      alert(error)
-                    }}
+                    onError={showErrorAlert}
                   />
                 )}
 
@@ -551,7 +574,7 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                       {roomData.isClosed && (
                         <span style={{ 
                           fontSize: "var(--font-size-sm)",
-                          color: "var(--destructive)",
+                          color: "var(--error-color)",
                           fontWeight: "600"
                         }}>
                           Комната закрыта
@@ -565,9 +588,7 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                       isRoomClosed={roomData.isClosed || false}
                       onRequestApproved={handleRequestApproved}
                       onRequestRejected={handleRequestRejected}
-                      onError={(error) => {
-                        alert(error)
-                      }}
+                      onError={showErrorAlert}
                     />
                   </div>
                 )}
@@ -580,6 +601,27 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
       )}
 
       <BottomNavigation currentPage={currentPage || "rooms"} onNavigate={onNavigate} />
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={showCloseConfirm}
+        title="Закрыть комнату"
+        message="Вы уверены, что хотите закрыть эту комнату? Все pending заявки будут автоматически отклонены."
+        confirmText="Закрыть"
+        cancelText="Отмена"
+        confirmVariant="destructive"
+        onConfirm={confirmCloseRoom}
+        onCancel={() => setShowCloseConfirm(false)}
+      />
+
+      {/* Alert Dialog */}
+      <AlertDialog
+        open={showAlert}
+        title={alertData.title}
+        message={alertData.message}
+        variant={alertData.variant}
+        onClose={() => setShowAlert(false)}
+      />
     </div>
   )
 }

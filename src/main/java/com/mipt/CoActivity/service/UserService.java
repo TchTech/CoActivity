@@ -555,6 +555,8 @@ public class UserService {
     }
     if (request.getPushNotifications() != null) {
       settings.setPushNotifications(request.getPushNotifications());
+      // Synchronize notificationsEnabled with pushNotifications
+      settings.setNotificationsEnabled(request.getPushNotifications());
     }
     return userSettingsRepository.save(settings);
   }
