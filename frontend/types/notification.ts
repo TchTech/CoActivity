@@ -18,7 +18,13 @@ export type NotificationType =
   | "COMMENT"
   | "MENTION"
   | "EVENT_REMINDER_1H"
-  | "EVENT_REMINDER_24H";
+  | "EVENT_REMINDER_24H"
+  | "NEW_POST"
+  | "POST_LIKED"
+  | "POST_DISLIKED"
+  | "POST_COMMENTED"
+  | "COMMENT_REPLY"
+  | "FOLLOW";
 
 /**
  * Standardized notification data structure
@@ -30,6 +36,17 @@ export interface NotificationData {
   requesterId?: number;
   responderId?: number;
   reason?: string;
+  postId?: number;
+  commentId?: number;
+  authorId?: number;
+  authorName?: string;
+  likerId?: number;
+  likerName?: string;
+  commenterId?: number;
+  commenterName?: string;
+  subscriberId?: number;
+  subscriberName?: string;
+  parentCommentId?: number;
 }
 
 /**

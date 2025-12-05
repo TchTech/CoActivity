@@ -19,6 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class PostService {
@@ -30,6 +34,7 @@ public class PostService {
   private final ImageRepository imageRepository;
   private final RoomPostPinRepository roomPostPinRepository;
   private final CommentRepository commentRepository;
+  private final NotificationService notificationService;
 
   @Autowired
   public PostService(
@@ -38,13 +43,15 @@ public class PostService {
           RoomRepository roomRepository,
           ImageRepository imageRepository,
           RoomPostPinRepository roomPostPinRepository,
-          CommentRepository commentRepository) {
+          CommentRepository commentRepository,
+          NotificationService notificationService) {
     this.postRepository = postRepository;
     this.userRepository = userRepository;
     this.roomRepository = roomRepository;
     this.imageRepository = imageRepository;
     this.roomPostPinRepository = roomPostPinRepository;
     this.commentRepository = commentRepository;
+    this.notificationService = notificationService;
   }
 
   @Transactional
@@ -98,6 +105,22 @@ public class PostService {
       }
     }
     
+    // Send notifications to followers about new post
+    try {
+      sendNewPostNotifications(savedPost, author);
+    } catch (Exception e) {
+      logger.error("Failed to send new post notifications: {}", e.getMessage(), e);
+      // Don't fail post creation if notification fails
+    }
+    
+    // Send notifications for mentions in post text
+    try {
+      sendMentionNotifications(savedPost.getText(), author.getId(), savedPost.getId().longValue(), "POST");
+    } catch (Exception e) {
+      logger.error("Failed to send mention notifications: {}", e.getMessage(), e);
+      // Don't fail post creation if notification fails
+    }
+    
     return savedPost;
   }
 
@@ -112,11 +135,34 @@ public class PostService {
                     .findById(postId.intValue())
                     .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
-    if (post.getLikedUsers().contains(user)) {
+    boolean wasLiked = post.getLikedUsers().contains(user);
+    
+    if (wasLiked) {
       post.getLikedUsers().remove(user);
     } else {
       post.getDislikedUsers().remove(user);
       post.getLikedUsers().add(user);
+      
+      // Send notification to post author about like (only if not liked by author themselves)
+      if (post.getAuthor() != null && !post.getAuthor().getId().equals(userId)) {
+        try {
+          String likerName = user.getName() != null ? user.getName() : user.getUsername();
+          String postTitle = post.getName() != null ? post.getName() : "пост";
+          String content = String.format("%s поставил(а) лайк вашему посту \"%s\"", likerName, postTitle);
+          
+          notificationService.createNotification(
+              post.getAuthor().getId(),
+              "POST_LIKED",
+              "Новый лайк",
+              content,
+              String.format("{\"postId\":%d,\"likerId\":%d,\"likerName\":\"%s\"}", postId.intValue(), userId, likerName)
+          );
+          logger.info("Sent like notification to post author {} for post {}", post.getAuthor().getId(), postId);
+        } catch (Exception e) {
+          logger.error("Failed to send like notification: {}", e.getMessage(), e);
+          // Don't fail like operation if notification fails
+        }
+      }
     }
     postRepository.save(post);
   }
@@ -132,11 +178,34 @@ public class PostService {
                     .findById(postId.intValue())
                     .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
-    if (post.getDislikedUsers().contains(user)) {
+    boolean wasDisliked = post.getDislikedUsers().contains(user);
+    
+    if (wasDisliked) {
       post.getDislikedUsers().remove(user);
     } else {
       post.getLikedUsers().remove(user);
       post.getDislikedUsers().add(user);
+      
+      // Send notification to post author about dislike (only if not disliked by author themselves)
+      if (post.getAuthor() != null && !post.getAuthor().getId().equals(userId)) {
+        try {
+          String dislikerName = user.getName() != null ? user.getName() : user.getUsername();
+          String postTitle = post.getName() != null ? post.getName() : "пост";
+          String content = String.format("%s поставил(а) дизлайк вашему посту \"%s\"", dislikerName, postTitle);
+          
+          notificationService.createNotification(
+              post.getAuthor().getId(),
+              "POST_DISLIKED",
+              "Новый дизлайк",
+              content,
+              String.format("{\"postId\":%d,\"dislikerId\":%d,\"dislikerName\":\"%s\"}", postId.intValue(), userId, dislikerName)
+          );
+          logger.info("Sent dislike notification to post author {} for post {}", post.getAuthor().getId(), postId);
+        } catch (Exception e) {
+          logger.error("Failed to send dislike notification: {}", e.getMessage(), e);
+          // Don't fail dislike operation if notification fails
+        }
+      }
     }
     postRepository.save(post);
   }
@@ -218,6 +287,111 @@ public class PostService {
     } catch (Exception e) {
       logger.error("Error deleting post {}: {}", postId, e.getMessage(), e);
       throw e;
+    }
+  }
+
+  /**
+   * Send notifications to all followers about a new post.
+   */
+  private void sendNewPostNotifications(Post post, User author) {
+    if (author.getFollowers() == null || author.getFollowers().isEmpty()) {
+      logger.debug("Author {} has no followers, skipping new post notifications", author.getId());
+      return;
+    }
+
+    String postTitle = post.getName() != null ? post.getName() : "новый пост";
+    String authorName = author.getName() != null ? author.getName() : author.getUsername();
+    
+    for (User follower : author.getFollowers()) {
+      // Don't send notification to the author themselves
+      if (follower.getId().equals(author.getId())) {
+        continue;
+      }
+      
+      try {
+        String content = String.format("%s опубликовал(а) новый пост: \"%s\"", authorName, postTitle);
+        
+        notificationService.createNotification(
+            follower.getId(),
+            "NEW_POST",
+            "Новый пост",
+            content,
+            String.format("{\"postId\":%d,\"authorId\":%d,\"authorName\":\"%s\"}", post.getId().intValue(), author.getId(), authorName)
+        );
+        logger.debug("Sent new post notification to follower {} for post {}", follower.getId(), post.getId());
+      } catch (Exception e) {
+        logger.error("Failed to send new post notification to follower {}: {}", follower.getId(), e.getMessage(), e);
+        // Continue with other followers
+      }
+    }
+    
+    logger.info("Sent new post notifications to followers of user {}", author.getId());
+  }
+
+  /**
+   * Extract mentions from text and send notifications to mentioned users.
+   * Mentions are in format @username
+   */
+  private void sendMentionNotifications(String text, Long authorId, Long entityId, String entityType) {
+    if (text == null || text.trim().isEmpty()) {
+      return;
+    }
+
+    // Pattern to match @username mentions
+    Pattern mentionPattern = Pattern.compile("@(\\w+)");
+    Matcher matcher = mentionPattern.matcher(text);
+    Set<String> mentionedUsernames = new HashSet<>();
+
+    while (matcher.find()) {
+      String username = matcher.group(1);
+      mentionedUsernames.add(username.toLowerCase());
+    }
+
+    if (mentionedUsernames.isEmpty()) {
+      return;
+    }
+
+    // Find users by username
+    User author = userRepository.findById(authorId)
+        .orElseThrow(() -> new ResourceNotFoundException("Author not found"));
+    String authorName = author.getName() != null ? author.getName() : author.getUsername();
+
+    for (String username : mentionedUsernames) {
+      try {
+        User mentionedUser = userRepository.findByUsername(username);
+        if (mentionedUser == null) {
+          // Try to find by name (case-insensitive)
+          List<User> usersByName = userRepository.findAll().stream()
+              .filter(u -> u.getName() != null && u.getName().toLowerCase().equals(username))
+              .toList();
+          if (usersByName.isEmpty()) {
+            logger.debug("User with username/name '{}' not found, skipping mention notification", username);
+            continue;
+          }
+          mentionedUser = usersByName.get(0);
+        }
+
+        // Don't notify if user mentioned themselves
+        if (mentionedUser.getId().equals(authorId)) {
+          continue;
+        }
+
+        String content = String.format("%s упомянул(а) вас в %s", authorName, 
+            "POST".equals(entityType) ? "посте" : "комментарии");
+        
+        notificationService.createNotification(
+            mentionedUser.getId(),
+            "MENTION",
+            "Вас упомянули",
+            content,
+            String.format("{\"%sId\":%d,\"authorId\":%d,\"authorName\":\"%s\"}", 
+                entityType.toLowerCase(), entityId, authorId, authorName)
+        );
+        logger.debug("Sent mention notification to user {} for {} {}", mentionedUser.getId(), entityType, entityId);
+      } catch (Exception e) {
+        logger.error("Failed to send mention notification for username '{}': {}", username, e.getMessage(), e);
+        // Continue with other mentions
+      }
     }
   }
 }
