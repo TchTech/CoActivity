@@ -4,12 +4,12 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * Request DTO for creating a membership request.
+ * Request DTO for creating a room join request.
  */
 @Data
-public class MembershipRequestRequest {
+public class CreateRoomJoinRequestRequest {
     /**
-     * Optional message from requester (max 500 characters).
+     * Optional message from the requester (max 500 characters).
      */
     @Size(max = 500, message = "Message cannot exceed 500 characters")
     private String message;

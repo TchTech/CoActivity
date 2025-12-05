@@ -81,7 +81,7 @@ public class RoomJoinRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // Validate user is not already a collaborator
-        if (room.getCollaborators().contains(user)) {
+        if (room.getCollaborators() != null && room.getCollaborators().contains(user)) {
             throw new ConflictException("User is already a member of this room");
         }
 
@@ -96,7 +96,7 @@ public class RoomJoinRequestService {
         // This should not happen, but we handle it by auto-rejecting the pending request
         Optional<RoomJoinRequest> existingRequest = roomJoinRequestRepository
                 .findByRoomIdAndUserIdAndStatus(roomId, userId, "pending");
-        if (existingRequest.isPresent() && room.getCollaborators().contains(user)) {
+        if (existingRequest.isPresent() && room.getCollaborators() != null && room.getCollaborators().contains(user)) {
             logger.warn("Found pending request for user {} who is already a collaborator in room {}. Auto-rejecting.", userId, roomId);
             RoomJoinRequest pendingRequest = existingRequest.get();
             pendingRequest.setStatus("rejected");
@@ -183,7 +183,7 @@ public class RoomJoinRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // Validate user is not already a collaborator
-        if (room.getCollaborators().contains(targetUser)) {
+        if (room.getCollaborators() != null && room.getCollaborators().contains(targetUser)) {
             throw new ConflictException("User is already a member of this room");
         }
 
@@ -203,7 +203,7 @@ public class RoomJoinRequestService {
 
         // Check capacity with database lock (already locked via @Lock annotation)
         if (room.getMaxCollaborators() != null) {
-            int currentCollaboratorCount = room.getCollaborators().size();
+            int currentCollaboratorCount = (room.getCollaborators() != null) ? room.getCollaborators().size() : 0;
             if (currentCollaboratorCount >= room.getMaxCollaborators()) {
                 throw new ConflictException("Room has reached maximum capacity");
             }
@@ -219,12 +219,16 @@ public class RoomJoinRequestService {
         // Create history entry
         createHistoryEntry(joinRequest, previousStatus, "approved", admin, "Request approved by admin");
 
-        // Add user to collaborators
+        // Add user to collaborators (ensure list is initialized)
+        if (room.getCollaborators() == null) {
+            room.setCollaborators(new java.util.ArrayList<>());
+        }
         room.getCollaborators().add(targetUser);
         roomRepository.save(room);
 
         // Check if room reached capacity after this approval
         boolean reachedCapacity = room.getMaxCollaborators() != null
+                && room.getCollaborators() != null
                 && room.getCollaborators().size() >= room.getMaxCollaborators();
 
         // If capacity reached, auto-reject all other pending requests
@@ -494,20 +498,10 @@ public class RoomJoinRequestService {
                 room.getName() != null ? room.getName() : room.getDescription());
 
         // Send to room creator
-        notificationService.createNotification(
-                room.getCreatedBy().getId(),
-                "MEMBERSHIP_REQUEST",
-                "Новая заявка на вступление в комнату",
-                content,
-                notificationData,
-                room.getId()
-        );
-
-        // Send to all room admins (excluding creator to avoid duplicate)
-        for (User admin : room.getAdmins()) {
-            if (!admin.getId().equals(room.getCreatedBy().getId())) {
+        try {
+            if (room.getCreatedBy() != null && room.getCreatedBy().getId() != null) {
                 notificationService.createNotification(
-                        admin.getId(),
+                        room.getCreatedBy().getId(),
                         "MEMBERSHIP_REQUEST",
                         "Новая заявка на вступление в комнату",
                         content,
@@ -515,6 +509,40 @@ public class RoomJoinRequestService {
                         room.getId()
                 );
             }
+        } catch (Exception e) {
+            logger.error("Failed to send notification to room creator: {}", e.getMessage(), e);
+            // Don't fail request creation if notification fails
+        }
+
+        // Send to all room admins (excluding creator to avoid duplicate)
+        try {
+            if (room.getAdmins() != null) {
+                for (User admin : room.getAdmins()) {
+                    if (admin != null && admin.getId() != null) {
+                        boolean isCreator = room.getCreatedBy() != null 
+                                && room.getCreatedBy().getId() != null
+                                && admin.getId().equals(room.getCreatedBy().getId());
+                        if (!isCreator) {
+                            try {
+                                notificationService.createNotification(
+                                        admin.getId(),
+                                        "MEMBERSHIP_REQUEST",
+                                        "Новая заявка на вступление в комнату",
+                                        content,
+                                        notificationData,
+                                        room.getId()
+                                );
+                            } catch (Exception e) {
+                                logger.error("Failed to send notification to admin {}: {}", admin.getId(), e.getMessage(), e);
+                                // Continue with other admins
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Failed to send notifications to admins: {}", e.getMessage(), e);
+            // Don't fail request creation if notification fails
         }
     }
 

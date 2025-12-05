@@ -635,9 +635,16 @@ export const roomAPI = {
     })
   },
 
+  /**
+   * Get all pending requests for the current user (applicant view)
+   * GET /api/rooms/my-applications?userId={userId}
+   * 
+   * @param {number} userId - The user ID
+   * @returns {Promise<Array>} List of user's pending RoomJoinRequest
+   */
   async getMyPendingRequests(userId) {
-    // Backend: GET /rooms/my-applications?userId=
-    return request("/rooms/my-applications", {
+    // Backend: GET /api/rooms/my-applications?userId={userId}
+    return request("/api/rooms/my-applications", {
       method: "GET",
       params: { userId },
     })
@@ -648,29 +655,144 @@ export const roomAPI = {
     return request(`/rooms/${roomId}`, { method: "GET" })
   },
 
-  async createMembershipRequest(roomId, userId, message) {
-    // Backend: POST /rooms/{roomId}/requests?userId=
-    return request(`/rooms/${roomId}/requests`, {
+  /**
+   * Create a new room join request
+   * POST /api/rooms/{roomId}/requests?userId={userId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} userId - The user ID requesting to join
+   * @param {Object} request - Optional request with message (max 500 chars)
+   * @param {string} [request.message] - Optional message from requester
+   * @returns {Promise<Object>} Created RoomJoinRequest
+   * @throws {Error} If room is "open" type, user already member, cooldown active, etc.
+   */
+  async createJoinRequest(roomId, userId, request = {}) {
+    // Backend: POST /api/rooms/{roomId}/requests?userId={userId}
+    return request(`/api/rooms/${roomId}/requests`, {
       method: "POST",
       params: { userId },
-      body: message ? { message } : {},
+      body: request,
     })
   },
 
-  async getMembershipRequests(roomId, userId) {
-    // Backend: GET /rooms/{roomId}/requests?userId=
-    return request(`/rooms/${roomId}/requests`, {
+  /**
+   * Get all pending requests for a room (admin/creator view)
+   * GET /api/rooms/{roomId}/requests?userId={userId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} userId - The admin/creator user ID
+   * @returns {Promise<Array>} List of RoomJoinRequest
+   * @throws {Error} If user is not admin/creator (403)
+   */
+  async getPendingRequests(roomId, userId) {
+    // Backend: GET /api/rooms/{roomId}/requests?userId={userId}
+    return request(`/api/rooms/${roomId}/requests`, {
       method: "GET",
       params: { userId },
     })
   },
 
-  async cancelMembershipRequest(roomId, requestId, userId) {
-    // Backend: DELETE /rooms/{roomId}/requests/{requestId}?userId=
-    return request(`/rooms/${roomId}/requests/${requestId}`, {
+  /**
+   * Approve a room join request
+   * POST /api/rooms/{roomId}/requests/{requestId}/approve?targetUserId={targetUserId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} requestId - The request ID
+   * @param {number} targetUserId - The user ID whose request is being approved
+   * @param {Object} approveRequest - Request with adminId
+   * @param {number} approveRequest.adminId - ID of admin approving
+   * @returns {Promise<void>}
+   * @throws {Error} If not admin (403), room at capacity (409), etc.
+   */
+  async approveRequest(roomId, requestId, targetUserId, approveRequest) {
+    // Backend: POST /api/rooms/{roomId}/requests/{requestId}/approve?targetUserId={targetUserId}
+    return request(`/api/rooms/${roomId}/requests/${requestId}/approve`, {
+      method: "POST",
+      params: { targetUserId },
+      body: approveRequest,
+    })
+  },
+
+  /**
+   * Reject a room join request
+   * POST /api/rooms/{roomId}/requests/{requestId}/reject?targetUserId={targetUserId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} requestId - The request ID
+   * @param {number} targetUserId - The user ID whose request is being rejected
+   * @param {Object} rejectRequest - Request with adminId and optional reason
+   * @param {number} rejectRequest.adminId - ID of admin rejecting
+   * @param {string} [rejectRequest.reason] - Optional rejection reason (max 500 chars)
+   * @returns {Promise<void>}
+   * @throws {Error} If not admin (403), request not pending (400), etc.
+   */
+  async rejectRequest(roomId, requestId, targetUserId, rejectRequest) {
+    // Backend: POST /api/rooms/{roomId}/requests/{requestId}/reject?targetUserId={targetUserId}
+    return request(`/api/rooms/${roomId}/requests/${requestId}/reject`, {
+      method: "POST",
+      params: { targetUserId },
+      body: rejectRequest,
+    })
+  },
+
+  /**
+   * Cancel a room join request (user cancels their own request)
+   * DELETE /api/rooms/{roomId}/requests/{requestId}?userId={userId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} requestId - The request ID
+   * @param {number} userId - The user ID (must be request owner)
+   * @returns {Promise<void>}
+   * @throws {Error} If not request owner (403), request not pending (400), etc.
+   */
+  async cancelRequest(roomId, requestId, userId) {
+    // Backend: DELETE /api/rooms/{roomId}/requests/{requestId}?userId={userId}
+    return request(`/api/rooms/${roomId}/requests/${requestId}`, {
       method: "DELETE",
       params: { userId },
     })
+  },
+
+  /**
+   * Manually close a room
+   * POST /api/rooms/{roomId}/close
+   * 
+   * @param {number} roomId - The room ID
+   * @param {Object} closeRequest - Request with userId
+   * @param {number} closeRequest.userId - ID of user closing (must be admin/creator)
+   * @returns {Promise<void>}
+   * @throws {Error} If not admin (403), room already closed (400), etc.
+   */
+  async closeRoom(roomId, closeRequest) {
+    // Backend: POST /api/rooms/{roomId}/close
+    return request(`/api/rooms/${roomId}/close`, {
+      method: "POST",
+      body: closeRequest,
+    })
+  },
+
+  // ========== Legacy Methods (deprecated but maintained for backward compatibility) ==========
+
+  /**
+   * @deprecated Use createJoinRequest instead
+   */
+  async createMembershipRequest(roomId, userId, message) {
+    // Backend: POST /api/rooms/{roomId}/requests?userId={userId}
+    return this.createJoinRequest(roomId, userId, message ? { message } : {})
+  },
+
+  /**
+   * @deprecated Use getPendingRequests instead
+   */
+  async getMembershipRequests(roomId, userId) {
+    return this.getPendingRequests(roomId, userId)
+  },
+
+  /**
+   * @deprecated Use cancelRequest instead
+   */
+  async cancelMembershipRequest(roomId, requestId, userId) {
+    return this.cancelRequest(roomId, requestId, userId)
   },
 
   async pinPost(roomId, postId, userId) {

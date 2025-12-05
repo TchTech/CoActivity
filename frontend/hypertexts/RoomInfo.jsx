@@ -8,6 +8,8 @@ import "../styles/navigation.css"
 import { roomAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import BottomNavigation from "./BottomNavigation"
+import { JoinRequestButton, PendingRequestsList } from "../components/rooms"
+import { handleApiError } from "../types"
 
 function RoomInfo({ onNavigate, roomId, currentPage }) {
   const { currentUser } = useUser()
@@ -17,6 +19,8 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
   const [isMember, setIsMember] = useState(false)
   const [hasPendingRequest, setHasPendingRequest] = useState(false)
   const [pendingRequestId, setPendingRequestId] = useState(null)
+  const [pendingRequest, setPendingRequest] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [activeTab, setActiveTab] = useState("info") // "info" or "posts"
 
   useEffect(() => {
@@ -34,23 +38,38 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
         console.log("[RoomInfo] Members:", data.members)
         setRoomData(data)
         
-        // Check if user is a member
+        // Check if user is a member and admin
         if (currentUser?.id) {
           try {
             const userRooms = await roomAPI.getUserRooms(currentUser.id)
             const isInRoom = Array.isArray(userRooms) && userRooms.some(r => r.id === roomId)
             setIsMember(isInRoom)
             
+            // Check if user is admin/creator
+            const isUserAdmin = data.creatorId === currentUser.id || 
+              (data.members && Array.isArray(data.members) && 
+               data.members.some(m => m.id === currentUser.id && m.isAdmin))
+            setIsAdmin(isUserAdmin)
+            
             // Check for pending request
             if (!isInRoom && data.joinType === "by_application") {
               try {
                 const myRequests = await roomAPI.getMyPendingRequests(currentUser.id)
                 const pending = Array.isArray(myRequests) && myRequests.find(r => 
-                  r.room?.id === roomId && r.status === "pending"
+                  r.roomId === roomId && r.status === "pending"
                 )
                 if (pending) {
                   setHasPendingRequest(true)
                   setPendingRequestId(pending.id)
+                  setPendingRequest(pending)
+                } else {
+                  // Check for rejected request (for cooldown display)
+                  const rejected = Array.isArray(myRequests) && myRequests.find(r => 
+                    r.roomId === roomId && r.status === "rejected"
+                  )
+                  if (rejected) {
+                    setPendingRequest(rejected)
+                  }
                 }
               } catch (err) {
                 console.error("Error checking pending requests:", err)
@@ -71,29 +90,51 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
     loadRoomData()
   }, [roomId, currentUser])
 
-  const handleApply = async () => {
-    if (!currentUser?.id || !roomId) return
-
-    try {
-      const request = await roomAPI.createMembershipRequest(roomId, currentUser.id, "")
-      setHasPendingRequest(true)
-      setPendingRequestId(request.id)
-    } catch (err) {
-      console.error("Ошибка подачи заявки:", err)
-      alert("Не удалось подать заявку: " + (err.message || "Неизвестная ошибка"))
+  const handleRequestCreated = async (request) => {
+    setHasPendingRequest(true)
+    setPendingRequestId(request.id)
+    setPendingRequest(request)
+    // Reload room data to update member count if approved
+    if (request.status === "approved") {
+      const data = await roomAPI.getDetails(roomId)
+      setRoomData(data)
+      setIsMember(true)
     }
   }
 
-  const handleCancelRequest = async () => {
-    if (!currentUser?.id || !roomId || !pendingRequestId) return
+  const handleRequestCancelled = async () => {
+    setHasPendingRequest(false)
+    setPendingRequestId(null)
+    setPendingRequest(null)
+  }
+
+  const handleRequestApproved = async () => {
+    // Reload room data to update member count
+    const data = await roomAPI.getDetails(roomId)
+    setRoomData(data)
+  }
+
+  const handleRequestRejected = async () => {
+    // Refresh pending requests list
+    // The PendingRequestsList component will handle its own refresh
+  }
+
+  const handleCloseRoom = async () => {
+    if (!currentUser?.id || !roomId) return
+    
+    if (!confirm("Вы уверены, что хотите закрыть эту комнату? Все pending заявки будут автоматически отклонены.")) {
+      return
+    }
 
     try {
-      await roomAPI.cancelMembershipRequest(roomId, pendingRequestId, currentUser.id)
-      setHasPendingRequest(false)
-      setPendingRequestId(null)
+      await roomAPI.closeRoom(roomId, { userId: currentUser.id })
+      // Reload room data
+      const data = await roomAPI.getDetails(roomId)
+      setRoomData(data)
+      alert("Комната успешно закрыта")
     } catch (err) {
-      console.error("Ошибка отмены заявки:", err)
-      alert("Не удалось отменить заявку: " + (err.message || "Неизвестная ошибка"))
+      const errorMessage = handleApiError(err)
+      alert("Не удалось закрыть комнату: " + errorMessage)
     }
   }
 
@@ -421,7 +462,7 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
 
             {/* Actions */}
             {currentUser && (
-              <div style={{ display: "flex", gap: "var(--spacing-md)", marginTop: "var(--spacing-lg)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)", marginTop: "var(--spacing-lg)" }}>
                 {isMember ? (
                   <button 
                     className="btn btn-primary" 
@@ -431,38 +472,67 @@ function RoomInfo({ onNavigate, roomId, currentPage }) {
                     Открыть чат
                   </button>
                 ) : (
-                  <>
-                    {(roomData.joinType === "by_application" || roomData.joinType === "REQUEST_ONLY") ? (
-                      hasPendingRequest ? (
-                        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={handleCancelRequest}>
-                          Заявка отправлена (отменить)
+                  <JoinRequestButton
+                    roomId={roomId}
+                    roomJoinType={roomData.joinType || "open"}
+                    isMember={isMember}
+                    hasPendingRequest={hasPendingRequest}
+                    pendingRequestId={pendingRequestId}
+                    pendingRequest={pendingRequest}
+                    userId={currentUser.id}
+                    onRequestCreated={handleRequestCreated}
+                    onRequestCancelled={handleRequestCancelled}
+                    onError={(error) => {
+                      alert(error)
+                    }}
+                  />
+                )}
+
+                {/* Admin Section */}
+                {isAdmin && (
+                  <div style={{ 
+                    marginTop: "var(--spacing-lg)",
+                    paddingTop: "var(--spacing-lg)",
+                    borderTop: "1px solid var(--border-color)"
+                  }}>
+                    <div style={{ 
+                      display: "flex", 
+                      justifyContent: "space-between", 
+                      alignItems: "center",
+                      marginBottom: "var(--spacing-md)"
+                    }}>
+                      <h3 style={{ margin: 0, fontSize: "var(--font-size-lg)" }}>Управление комнатой</h3>
+                      {!roomData.isClosed && (
+                        <button
+                          className="btn btn-outline"
+                          onClick={handleCloseRoom}
+                          style={{ fontSize: "var(--font-size-sm)" }}
+                        >
+                          Закрыть комнату
                         </button>
-                      ) : (
-                        <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleApply}>
-                          Подать заявку
-                        </button>
-                      )
-                    ) : (
-                      <button 
-                        className="btn btn-primary" 
-                        style={{ flex: 1 }}
-                        onClick={async () => {
-                          try {
-                            await roomAPI.joinRoom(roomId, currentUser.id)
-                            setIsMember(true)
-                            // Reload room data to update member count
-                            const data = await roomAPI.getDetails(roomId)
-                            setRoomData(data)
-                          } catch (err) {
-                            console.error("Ошибка присоединения к комнате:", err)
-                            alert("Не удалось присоединиться к комнате: " + (err.message || "Неизвестная ошибка"))
-                          }
-                        }}
-                      >
-                        Присоединиться к комнате
-                      </button>
-                    )}
-                  </>
+                      )}
+                      {roomData.isClosed && (
+                        <span style={{ 
+                          fontSize: "var(--font-size-sm)",
+                          color: "var(--destructive)",
+                          fontWeight: "600"
+                        }}>
+                          Комната закрыта
+                        </span>
+                      )}
+                    </div>
+                    <PendingRequestsList
+                      roomId={roomId}
+                      userId={currentUser.id}
+                      isAdmin={isAdmin}
+                      isRoomClosed={roomData.isClosed || false}
+                      onRequestApproved={handleRequestApproved}
+                      onRequestRejected={handleRequestRejected}
+                      onError={(error) => {
+                        alert(error)
+                      }}
+                    />
+                  </div>
                 )}
               </div>
             )}

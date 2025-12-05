@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { notificationAPI } from "../lib/api"
+import { parseNotificationData, isMembershipRequestType, isMembershipDecisionType } from "../types"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -78,19 +79,33 @@ function NotificationsPanel({ userId, onClose, onNavigate }) {
       handleMarkAsRead(notification.id)
     }
 
-    // Navigate based on notification type
-    try {
-      const data = notification.data ? JSON.parse(notification.data) : {}
-      if (notification.type === "MEMBERSHIP_REQUEST" && data.roomId) {
-        onNavigate("roomInfo", data.roomId)
-      } else if (notification.type === "MEMBERSHIP_APPROVED" && data.roomId) {
-        onNavigate("roomInfo", data.roomId)
-      } else if (notification.type === "POST_PINNED" && data.roomId) {
+    // Navigate based on notification type using parseNotificationData
+    const data = parseNotificationData(notification)
+    
+    if (isMembershipRequestType(notification.type) && data?.roomId) {
+      // For membership requests, navigate to room with requests tab
+      onNavigate("roomInfo", data.roomId)
+    } else if (isMembershipDecisionType(notification.type) && data?.roomId) {
+      // For membership decisions (approved/rejected), navigate to room
+      onNavigate("roomInfo", data.roomId)
+    } else if (notification.type === "POST_PINNED" && data?.roomId) {
+      onNavigate("roomInfo", data.roomId)
+    } else if (notification.type === "COMMENT" && data?.roomId) {
+      // Navigate to post comments if available
+      if (data.postId) {
+        onNavigate("comments", data.postId)
+      } else if (data.roomId) {
         onNavigate("roomInfo", data.roomId)
       }
-    } catch (e) {
-      console.error("Error parsing notification data:", e)
+    } else if (notification.type === "MENTION" && data?.roomId) {
+      // Navigate to the mentioned post or room
+      if (data.postId) {
+        onNavigate("comments", data.postId)
+      } else if (data.roomId) {
+        onNavigate("roomInfo", data.roomId)
+      }
     }
+    
     onClose()
   }
 
