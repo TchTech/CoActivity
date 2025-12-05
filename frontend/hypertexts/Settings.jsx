@@ -227,6 +227,25 @@ function Settings({ onNavigate }) {
           </div>
         </div>
 
+        {/* Безопасность */}
+        <div className="settings-section">
+          <h3 className="settings-section-title">Безопасность</h3>
+
+          <div className="settings-item">
+            <div className="settings-item-info">
+              <div className="settings-item-label">Двухфакторная аутентификация</div>
+              <div className="settings-item-description">Дополнительная защита вашего аккаунта</div>
+            </div>
+            <button
+              className="btn btn-secondary"
+              style={{ padding: "0.5rem 1rem" }}
+              onClick={() => onNavigate("two-factor-settings")}
+            >
+              Настроить
+            </button>
+          </div>
+        </div>
+
         {/* Кнопка сохранения */}
         <button
           className="btn btn-primary"

@@ -24,6 +24,8 @@ function Register({ onNavigate }) {
   const [error, setError] = useState("")
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [registrationSuccess, setRegistrationSuccess] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState("")
 
   const handleChange = (e) => {
     setFormData({
@@ -76,16 +78,12 @@ function Register({ onNavigate }) {
       
       console.log("Пользователь зарегистрирован:", user)
       
-      // Сохраняем пользователя в контекст
-      if (user) {
-        login(user)
-      }
+      // Показываем сообщение о необходимости подтверждения email
+      setRegistrationSuccess(true)
+      setRegisteredEmail(formData.email)
       
-      // TODO: После регистрации нужно заполнить профиль (имя, фамилия, город, о себе)
-      // Это можно сделать через обновление профиля, если есть такой эндпоинт
-      
-      // Переход на главную страницу
-      onNavigate("home")
+      // НЕ сохраняем пользователя в контекст и НЕ переходим на главную
+      // Пользователь должен сначала подтвердить email
     } catch (err) {
       console.error("Ошибка регистрации:", err)
       setError(err.message || "Ошибка при регистрации. Попробуйте еще раз.")
@@ -104,7 +102,52 @@ function Register({ onNavigate }) {
 
         {error && <div className="error-message">{error}</div>}
 
-        {step === 1 ? (
+        {registrationSuccess ? (
+          <div>
+            <div className="success-message" style={{
+              padding: "1.5rem",
+              backgroundColor: "#d4edda",
+              color: "#155724",
+              borderRadius: "4px",
+              marginBottom: "1rem",
+              textAlign: "center"
+            }}>
+              <h3 style={{ marginTop: 0 }}>Регистрация успешна! ✓</h3>
+              <p>
+                На ваш email <strong>{registeredEmail}</strong> было отправлено письмо с ссылкой для подтверждения.
+              </p>
+              <p style={{ marginBottom: 0 }}>
+                Пожалуйста, проверьте вашу почту и перейдите по ссылке для активации аккаунта.
+              </p>
+            </div>
+            <div className="auth-footer" style={{ textAlign: "center" }}>
+              <p>
+                Не получили письмо?{" "}
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    // TODO: Добавить функциональность повторной отправки письма
+                    onNavigate("login")
+                  }}
+                >
+                  Запросить повторную отправку
+                </a>
+              </p>
+              <p>
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    onNavigate("login")
+                  }}
+                >
+                  Вернуться ко входу
+                </a>
+              </p>
+            </div>
+          </div>
+        ) : step === 1 ? (
           <form className="auth-form" onSubmit={handleSubmitStep1}>
             <div className="input-group">
               <label className="input-label">Email *</label>
