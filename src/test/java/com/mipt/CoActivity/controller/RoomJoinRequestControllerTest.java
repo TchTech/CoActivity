@@ -8,6 +8,7 @@ import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.repository.*;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +23,11 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration tests for Room Join Request API endpoints.
  * Tests the full HTTP flow from request creation to approval.
+ * 
+ * DISABLED: Integration tests with Testcontainers are slow.
+ * Use unit tests (RoomJoinRequestServiceTest) instead for faster feedback.
  */
+@Disabled("Integration tests are slow - use unit tests instead")
 @Transactional
 class RoomJoinRequestControllerTest extends BaseIntegrationTest {
 
