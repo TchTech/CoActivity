@@ -3,7 +3,8 @@
 -- Резервная копия данных не создается автоматически.
 
 -- Отключаем проверку внешних ключей для безопасной очистки
-SET session_replication_role = 'replica';
+-- Примечание: Требует права суперпользователя. Если нет прав, CASCADE в TRUNCATE справится сам.
+-- SET session_replication_role = 'replica';
 
 -- Удаляем данные из всех таблиц в правильном порядке (от зависимых к независимым)
 
@@ -78,7 +79,7 @@ TRUNCATE TABLE password_reset_tokens CASCADE;
 TRUNCATE TABLE users CASCADE;
 
 -- Включаем обратно проверку внешних ключей
-SET session_replication_role = 'origin';
+-- SET session_replication_role = 'origin';
 
 -- Сбрасываем последовательности (auto-increment счетчики)
 ALTER SEQUENCE IF EXISTS users_id_seq RESTART WITH 1;

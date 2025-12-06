@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "install:prod": "pnpm install --prod=false"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

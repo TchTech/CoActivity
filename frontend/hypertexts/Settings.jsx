@@ -6,14 +6,17 @@ import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
 import "../styles/navigation.css"
-import { userAPI } from "../lib/api"
+import { userAPI, passwordResetAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { AlertDialog } from "../components/ui/AlertDialog"
+import { ConfirmDialog } from "../components/ui/ConfirmDialog"
+import { ProfileEditSection } from "../components/ProfileEditSection"
 
 function Settings({ onNavigate, currentPage }) {
   const { currentUser } = useUser()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState("profile") // "profile" or "notifications"
   const [settings, setSettings] = useState({
     notificationsEnabled: true,
     emailNotifications: true,
@@ -24,10 +27,40 @@ function Settings({ onNavigate, currentPage }) {
   })
   const [showAlert, setShowAlert] = useState(false)
   const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })
+  
+  // Profile editing state
+  const [profileData, setProfileData] = useState({
+    name: "",
+    email: "",
+    about: "",
+    interests: [],
+  })
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  })
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  
+  // Available interests
+  const availableCategories = [
+    { value: "science", label: "Наука" },
+    { value: "it", label: "Программирование" },
+    { value: "sport", label: "Спорт" },
+    { value: "art", label: "Искусство" },
+    { value: "music", label: "Музыка" },
+    { value: "books", label: "Книги" },
+    { value: "travel", label: "Путешествия" },
+    { value: "cooking", label: "Кулинария" },
+    { value: "photo", label: "Фотография" },
+    { value: "games", label: "Игры" },
+  ]
 
-  // Load current settings
+  // Load current settings and profile data
   useEffect(() => {
-    const loadSettings = async () => {
+    const loadData = async () => {
       if (!currentUser?.id) {
         setLoading(false)
         return
@@ -35,20 +68,42 @@ function Settings({ onNavigate, currentPage }) {
 
       try {
         setLoading(true)
-        const data = await userAPI.getNotificationSettings(currentUser.id)
-        setSettings({
-          notificationsEnabled: data.pushNotifications !== false,
-          emailNotifications: data.emailNotifications !== false,
-          newFollowers: data.newFollowers !== false,
-          newComments: data.newComments !== false,
-          roomInvites: data.roomInvites !== false,
-          roomReminders: data.roomReminders !== false,
-        })
+        
+        // Load notification settings
+        try {
+          const data = await userAPI.getNotificationSettings(currentUser.id)
+          setSettings({
+            notificationsEnabled: data.pushNotifications !== false,
+            emailNotifications: data.emailNotifications !== false,
+            newFollowers: data.newFollowers !== false,
+            newComments: data.newComments !== false,
+            roomInvites: data.roomInvites !== false,
+            roomReminders: data.roomReminders !== false,
+          })
+        } catch (error) {
+          console.error("Ошибка загрузки настроек уведомлений:", error)
+        }
+        
+        // Load profile data
+        try {
+          const profile = await userAPI.getProfile(currentUser.id)
+          const personalInfo = await userAPI.getPersonalInfo(currentUser.id)
+          const aboutData = await userAPI.getAbout(currentUser.id)
+          
+          setProfileData({
+            name: personalInfo?.name || profile?.name || "",
+            email: personalInfo?.email || profile?.email || "",
+            about: aboutData?.about || profile?.about || "",
+            interests: profile?.interests?.map(i => typeof i === "string" ? i : i.name || i) || [],
+          })
+        } catch (error) {
+          console.error("Ошибка загрузки профиля:", error)
+        }
       } catch (error) {
-        console.error("Ошибка загрузки настроек:", error)
+        console.error("Ошибка загрузки данных:", error)
         setAlertData({
           title: "Ошибка",
-          message: "Не удалось загрузить настройки уведомлений",
+          message: "Не удалось загрузить данные",
           variant: "error"
         })
         setShowAlert(true)
@@ -57,7 +112,7 @@ function Settings({ onNavigate, currentPage }) {
       }
     }
 
-    loadSettings()
+    loadData()
   }, [currentUser])
 
   const handleToggle = (key) => {
@@ -123,11 +178,70 @@ function Settings({ onNavigate, currentPage }) {
         <div style={{ width: "40px" }}></div>
       </div>
 
+      {/* Tabs */}
+      <div style={{ 
+        display: "flex", 
+        borderBottom: "2px solid var(--border-primary)",
+        marginBottom: "var(--spacing-md)"
+      }}>
+        <button
+          onClick={() => setActiveTab("profile")}
+          style={{
+            flex: 1,
+            padding: "var(--spacing-md)",
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "profile" ? "3px solid var(--accent-gold)" : "3px solid transparent",
+            color: activeTab === "profile" ? "var(--accent-gold)" : "var(--text-muted)",
+            fontWeight: activeTab === "profile" ? "600" : "400",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            fontSize: "var(--font-size-base)",
+          }}
+        >
+          Профиль
+        </button>
+        <button
+          onClick={() => setActiveTab("notifications")}
+          style={{
+            flex: 1,
+            padding: "var(--spacing-md)",
+            background: "none",
+            border: "none",
+            borderBottom: activeTab === "notifications" ? "3px solid var(--accent-gold)" : "3px solid transparent",
+            color: activeTab === "notifications" ? "var(--accent-gold)" : "var(--text-muted)",
+            fontWeight: activeTab === "notifications" ? "600" : "400",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            fontSize: "var(--font-size-base)",
+          }}
+        >
+          Уведомления
+        </button>
+      </div>
+
       <div style={{ padding: "var(--spacing-lg)", paddingBottom: "80px" }}>
         {loading ? (
           <div style={{ padding: "var(--spacing-lg)", textAlign: "center", color: "var(--text-muted)" }}>
-            Загрузка настроек...
+            Загрузка данных...
           </div>
+        ) : activeTab === "profile" ? (
+          <ProfileEditSection
+            profileData={profileData}
+            setProfileData={setProfileData}
+            passwordData={passwordData}
+            setPasswordData={setPasswordData}
+            editingProfile={editingProfile}
+            setEditingProfile={setEditingProfile}
+            savingProfile={savingProfile}
+            setSavingProfile={setSavingProfile}
+            availableCategories={availableCategories}
+            currentUser={currentUser}
+            setShowAlert={setShowAlert}
+            setAlertData={setAlertData}
+            showPasswordDialog={showPasswordDialog}
+            setShowPasswordDialog={setShowPasswordDialog}
+          />
         ) : (
           <>
             {/* Уведомления */}
@@ -275,6 +389,37 @@ function Settings({ onNavigate, currentPage }) {
         message={alertData.message}
         variant={alertData.variant}
         onClose={() => setShowAlert(false)}
+      />
+
+      {/* Password Change Dialog */}
+      <ConfirmDialog
+        open={showPasswordDialog}
+        title="Изменение пароля"
+        message="Для изменения пароля будет отправлено письмо на ваш email с инструкциями."
+        confirmText="Отправить письмо"
+        cancelText="Отмена"
+        onConfirm={async () => {
+          try {
+            // Используем API для запроса сброса пароля
+            await passwordResetAPI.request(profileData.email)
+            setShowPasswordDialog(false)
+            setAlertData({
+              title: "Успешно",
+              message: "Письмо с инструкциями отправлено на ваш email",
+              variant: "success",
+            })
+            setShowAlert(true)
+          } catch (error) {
+            console.error("Ошибка запроса сброса пароля:", error)
+            setAlertData({
+              title: "Ошибка",
+              message: "Не удалось отправить письмо: " + (error.message || "Неизвестная ошибка"),
+              variant: "error",
+            })
+            setShowAlert(true)
+          }
+        }}
+        onCancel={() => setShowPasswordDialog(false)}
       />
     </div>
   )

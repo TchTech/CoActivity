@@ -12,7 +12,7 @@ import java.sql.Statement;
  * java -cp "target/classes:target/dependency/*" com.mipt.CoActivity.util.StandaloneDatabaseCleaner
  */
 public class StandaloneDatabaseCleaner {
-    private static final String DB_URL = "jdbc:postgresql://localhost:5433/CoPos";
+    private static final String DB_URL = "jdbc:postgresql://localhost:5432/CoPos";
     private static final String DB_USER = "Gr1zBear";
     private static final String DB_PASSWORD = "qwerty";
     
@@ -27,8 +27,13 @@ public class StandaloneDatabaseCleaner {
             
             System.out.println("Подключено к базе данных.");
             
-            // Отключаем проверку внешних ключей
-            stmt.execute("SET session_replication_role = 'replica'");
+            // Отключаем проверку внешних ключей (требует права суперпользователя)
+            // Если нет прав, CASCADE в TRUNCATE справится сам
+            try {
+                stmt.execute("SET session_replication_role = 'replica'");
+            } catch (Exception e) {
+                System.out.println("Предупреждение: нет прав для изменения session_replication_role, продолжаем без этого...");
+            }
             
             // Очищаем таблицы
             String[] tables = {
@@ -72,7 +77,11 @@ public class StandaloneDatabaseCleaner {
             }
             
             // Включаем обратно проверку внешних ключей
-            stmt.execute("SET session_replication_role = 'origin'");
+            try {
+                stmt.execute("SET session_replication_role = 'origin'");
+            } catch (Exception e) {
+                // Игнорируем ошибку, если нет прав
+            }
             
             // Сбрасываем последовательности
             String[] sequences = {

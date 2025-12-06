@@ -26,8 +26,13 @@ public class DatabaseCleanupUtil {
         logger.warn("Начинается очистка базы данных...");
         
         try {
-            // Отключаем проверку внешних ключей
-            entityManager.createNativeQuery("SET session_replication_role = 'replica'").executeUpdate();
+            // Отключаем проверку внешних ключей (требует права суперпользователя)
+            // Если нет прав, CASCADE в TRUNCATE справится сам
+            try {
+                entityManager.createNativeQuery("SET session_replication_role = 'replica'").executeUpdate();
+            } catch (Exception e) {
+                logger.warn("Нет прав для изменения session_replication_role, продолжаем без этого...");
+            }
             
             // Очищаем таблицы в правильном порядке
             String[] tables = {
@@ -71,7 +76,11 @@ public class DatabaseCleanupUtil {
             }
             
             // Включаем обратно проверку внешних ключей
-            entityManager.createNativeQuery("SET session_replication_role = 'origin'").executeUpdate();
+            try {
+                entityManager.createNativeQuery("SET session_replication_role = 'origin'").executeUpdate();
+            } catch (Exception e) {
+                // Игнорируем ошибку, если нет прав
+            }
             
             // Сбрасываем последовательности
             String[] sequences = {

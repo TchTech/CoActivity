@@ -1,41 +1,57 @@
 package com.mipt.CoActivity.service;
 
-import com.mipt.CoActivity.model.Room;
-import com.mipt.CoActivity.model.User;
-import com.mipt.CoActivity.repository.RoomRepository;
-import com.mipt.CoActivity.repository.UserRepository;
+// Imports commented out as default room creation is disabled
+// import com.mipt.CoActivity.model.Room;
+// import com.mipt.CoActivity.model.User;
+// import com.mipt.CoActivity.repository.RoomRepository;
+// import com.mipt.CoActivity.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+// import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+// import java.util.List;
 
 @Service
 @Order(1) // Run early in startup
 public class DefaultRoomService implements CommandLineRunner {
     private static final Logger logger = LoggerFactory.getLogger(DefaultRoomService.class);
     
-    private final RoomRepository roomRepository;
-    private final UserRepository userRepository;
+    // Fields commented out as default room creation is disabled
+    // private final RoomRepository roomRepository;
+    // private final UserRepository userRepository;
     
-    @Autowired
-    public DefaultRoomService(RoomRepository roomRepository, UserRepository userRepository) {
-        this.roomRepository = roomRepository;
-        this.userRepository = userRepository;
+    // Constructor simplified as dependencies are no longer needed
+    // @Autowired
+    // public DefaultRoomService(RoomRepository roomRepository, UserRepository userRepository) {
+    //     this.roomRepository = roomRepository;
+    //     this.userRepository = userRepository;
+    // }
+    
+    public DefaultRoomService() {
+        // No dependencies needed as default room creation is disabled
     }
     
     @Override
     @Transactional
     public void run(String... args) {
-        initializeDefaultRoom();
+        // Default room creation disabled - users should create rooms manually
+        // initializeDefaultRoom();
+        logger.info("Default room service initialized (automatic room creation disabled)");
     }
     
     @Transactional
+    @Deprecated
     public void initializeDefaultRoom() {
+        // This method is disabled - default room creation has been removed
+        // Users should create rooms manually through the UI
+        logger.debug("Default room creation is disabled");
+        return;
+        
+        /* DISABLED - Default room creation removed per user request
         // Check if default room exists
         Room defaultRoom = roomRepository.findByIsDefaultTrue().orElse(null);
         
@@ -85,6 +101,7 @@ public class DefaultRoomService implements CommandLineRunner {
                 logger.info("Default room updated, now has {} members", defaultRoom.getCollaborators().size());
             }
         }
+        */
     }
 }
 

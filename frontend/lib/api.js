@@ -395,12 +395,25 @@ export const userAPI = {
     })
   },
 
+  async updateEmail(userId, emailRequest) {
+    // Backend: PUT /users/{userId}/profile/personal-info/email
+    return request(`/users/${userId}/profile/personal-info/email`, {
+      method: "PUT",
+      body: emailRequest,
+    })
+  },
+
   async updateAddress(userId, addressRequest) {
     // Backend: PUT /users/{userId}/profile/personal-info/address
     return request(`/users/${userId}/profile/personal-info/address`, {
       method: "PUT",
       body: addressRequest,
     })
+  },
+
+  async getPersonalInfo(userId) {
+    // Backend: GET /users/{userId}/profile/personal-info
+    return request(`/users/${userId}/profile/personal-info`, { method: "GET" })
   },
 
   async updateAbout(userId, aboutRequest) {

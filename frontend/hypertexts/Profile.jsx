@@ -1,8 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
-import { getUserById } from "../scripts/usersData"
-import { getPostsByUserId } from "../scripts/postsData"
+// Mock data imports removed - using API only
 import { userAPI, postAPI, profileAPI, imageAPI, externalLinksAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
@@ -383,9 +382,7 @@ function Profile({ onNavigate, userId, currentPage }) {
           setUserPosts(sortedPosts)
         } catch (error) {
           console.error("Ошибка загрузки постов пользователя:", error)
-          // Fallback на моковые данные
-          const posts = getPostsByUserId(profileUserId)
-          setUserPosts(posts)
+          setUserPosts([])
         }
 
         // Загрузка подписок и подписчиков
@@ -449,15 +446,8 @@ function Profile({ onNavigate, userId, currentPage }) {
         }
       } catch (error) {
         console.error("Ошибка загрузки профиля:", error)
-        // Fallback на моковые данные только для собственного профиля
-        if (isOwnProfile) {
-          const mockUser = getUserById(profileUserId) || defaultUser
-          setUserData(mockUser)
-          setUserPosts(getPostsByUserId(mockUser.id))
-        } else {
-          setUserData(null)
-          setUserPosts([])
-        }
+        setUserData(null)
+        setUserPosts([])
         setSubscriptions([])
         setFollowers([])
       } finally {
@@ -843,6 +833,8 @@ function Profile({ onNavigate, userId, currentPage }) {
                         .then(() => {
                           setIsEditingAbout(false)
                           setUserData({ ...userData, about: aboutText })
+                          setAlertData({ title: "Успешно", message: "Описание обновлено", variant: "success" })
+                          setShowAlert(true)
                         })
                         .catch(err => {
                           console.error("Ошибка сохранения about:", err)
@@ -854,8 +846,19 @@ function Profile({ onNavigate, userId, currentPage }) {
                       setIsEditingAbout(true)
                     }
                   }}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "var(--font-size-sm)",
+                    border: "2px solid var(--accent-gold)",
+                    borderRadius: "8px",
+                    backgroundColor: "transparent",
+                    color: "var(--accent-gold)",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
                 >
-                  {isEditingAbout ? "Сохранить" : "Редактировать"}
+                  {isEditingAbout ? "✓ Сохранить" : "✏️ Редактировать"}
                 </button>
               )}
             </div>
@@ -864,28 +867,98 @@ function Profile({ onNavigate, userId, currentPage }) {
                 value={aboutText}
                 onChange={(e) => setAboutText(e.target.value)}
                 placeholder="Расскажите о себе..."
-                maxLength={2000}
+                maxLength={500}
                 style={{
                   width: "100%",
-                  minHeight: "100px",
-                  padding: "var(--spacing-sm)",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-color)",
+                  minHeight: "120px",
+                  padding: "12px 16px",
+                  borderRadius: "8px",
+                  border: "2px solid var(--accent-gold)",
                   fontSize: "var(--font-size-base)",
                   fontFamily: "inherit",
                   resize: "vertical",
+                  backgroundColor: "var(--bg-primary)",
+                  color: "var(--text-primary)",
+                  transition: "all 0.2s ease",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => {
+                  e.target.style.boxShadow = "0 0 0 3px rgba(255, 215, 0, 0.1)"
+                }}
+                onBlur={(e) => {
+                  e.target.style.boxShadow = "none"
                 }}
               />
             ) : (
-              <p className="profile-about-text">{aboutText || userData.about || "информация не указана"}</p>
+              <p className="profile-about-text" style={{
+                padding: "var(--spacing-md)",
+                backgroundColor: "var(--bg-secondary)",
+                borderRadius: "8px",
+                border: "1px solid var(--border-primary)",
+                minHeight: "60px",
+                lineHeight: "1.6",
+              }}>
+                {aboutText || userData.about || "информация не указана"}
+              </p>
             )}
 
-            <div className="profile-tags">
-              {(userData.interests || []).map((interest, index) => (
-                <span key={index} className="tag">
-                  {typeof interest === "object" ? interest.name || interest : interest}
-                </span>
-              ))}
+            {/* Интересы с возможностью редактирования */}
+            <div style={{ marginTop: "var(--spacing-lg)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-md)" }}>
+                <h3 style={{ fontSize: "var(--font-size-lg)", margin: 0 }}>Интересы</h3>
+                {isOwnProfile && (
+                  <button
+                    onClick={() => onNavigate("settings")}
+                    style={{
+                      padding: "6px 12px",
+                      fontSize: "var(--font-size-sm)",
+                      border: "2px solid var(--accent-gold)",
+                      borderRadius: "6px",
+                      backgroundColor: "transparent",
+                      color: "var(--accent-gold)",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    ✏️ Изменить
+                  </button>
+                )}
+              </div>
+              <div className="profile-tags" style={{ 
+                display: "flex", 
+                flexWrap: "wrap", 
+                gap: "var(--spacing-sm)",
+                padding: userData.interests?.length > 0 ? "var(--spacing-md)" : "var(--spacing-sm)",
+                backgroundColor: "var(--bg-secondary)",
+                borderRadius: "8px",
+                border: "1px solid var(--border-primary)",
+                minHeight: "50px",
+              }}>
+                {(userData.interests && userData.interests.length > 0) ? (
+                  userData.interests.map((interest, index) => (
+                    <span 
+                      key={index} 
+                      className="tag"
+                      style={{
+                        padding: "8px 16px",
+                        backgroundColor: "var(--accent-gold)",
+                        color: "var(--bg-primary)",
+                        borderRadius: "20px",
+                        fontSize: "var(--font-size-sm)",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {typeof interest === "object" ? interest.name || interest : interest}
+                    </span>
+                  ))
+                ) : (
+                  <span style={{ color: "var(--text-muted)", fontSize: "var(--font-size-sm)" }}>
+                    Интересы не указаны
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* External Links */}
