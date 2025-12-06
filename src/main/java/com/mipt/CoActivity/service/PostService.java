@@ -1,7 +1,11 @@
 package com.mipt.CoActivity.service;
 
+import com.mipt.CoActivity.dto.PostRecommendationRequest;
+import com.mipt.CoActivity.dto.PostRecommendationResponse;
+import com.mipt.CoActivity.dto.RecommendedPostsResponse;
 import com.mipt.CoActivity.exception.ResourceNotFoundException;
 import com.mipt.CoActivity.model.Image;
+import com.mipt.CoActivity.model.Interest;
 import com.mipt.CoActivity.model.Post;
 import com.mipt.CoActivity.model.Room;
 import com.mipt.CoActivity.model.RoomPostPin;
@@ -18,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;

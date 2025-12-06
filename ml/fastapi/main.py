@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -42,6 +42,36 @@ class RecommendationRequest(BaseModel):
 
 class RecommendationResponse(BaseModel):
     recommended_rooms: List[Room]
+    similarity_scores: List[float]
+    message: str
+
+
+# Модели для рекомендаций постов
+class Post(BaseModel):
+    id: int
+    name: str
+    text: str
+    author_name: Optional[str] = Field(None, alias="authorName")  # Поддержка camelCase от Java
+    author_id: Optional[int] = Field(None, alias="authorId")  # ID автора для проверки подписок
+    author_interests: Optional[List[str]] = Field(None, alias="authorInterests")
+    room_name: Optional[str] = Field(None, alias="roomName")
+    room_category: Optional[str] = Field(None, alias="roomCategory")
+    
+    class Config:
+        populate_by_name = True  # Разрешает использование обоих имен (snake_case и camelCase)
+
+
+class PostRecommendationRequest(BaseModel):
+    user_interests: Optional[List[str]] = Field(None, alias="userInterests")
+    posts: List[Post]
+    subscribed_user_ids: Optional[List[int]] = Field(None, alias="subscribedUserIds")
+    
+    class Config:
+        populate_by_name = True
+
+
+class PostRecommendationResponse(BaseModel):
+    recommended_posts: List[Post]
     similarity_scores: List[float]
     message: str
 
@@ -157,6 +187,13 @@ class RecommendationService:
             min_df=1,
             max_features=100
         )
+        # Отдельный векторizer для постов
+        self.post_tfidf_vectorizer = TfidfVectorizer(
+            stop_words=valid_stop_words if valid_stop_words else None,
+            ngram_range=(1, 2),
+            min_df=1,
+            max_features=100
+        )
 
     def prepare_text_data(self, rooms: List[Room]) -> List[str]:
         """Подготавливает текстовые данные из комнат для TF-IDF"""
@@ -246,6 +283,108 @@ class RecommendationService:
         
         return result
 
+    def prepare_post_text_data(self, posts: List[Post]) -> List[str]:
+        """Подготавливает текстовые данные из постов для TF-IDF"""
+        texts = []
+        for post in posts:
+            # Собираем текст из названия, содержимого поста, интересов автора и категории комнаты
+            text_parts = [post.name or "", post.text or ""]
+            if post.author_interests:
+                text_parts.extend(post.author_interests)
+            if post.room_category:
+                text_parts.append(post.room_category)
+            if post.room_name:
+                text_parts.append(post.room_name)
+            text = " ".join(text_parts)
+            texts.append(text)
+        return texts
+
+    def recommend_posts(self, user_interests: List[str], posts: List[Post], 
+                       subscribed_user_ids: Optional[List[int]] = None) -> List[tuple]:
+        """Рекомендует посты на основе интересов пользователя или подписок"""
+        if not posts:
+            return []
+        
+        subscribed_ids_set = set(subscribed_user_ids) if subscribed_user_ids else set()
+        has_subscriptions = len(subscribed_ids_set) > 0
+        
+        # Если есть подписки - используем логику на основе подписок
+        if has_subscriptions:
+            # Создаем профиль пользователя из интересов и постов от подписок
+            subscribed_posts = [p for p in posts if p.author_id and p.author_id in subscribed_ids_set]
+            
+            # Подготавливаем тексты для всех постов
+            post_texts = self.prepare_post_text_data(posts)
+            post_vectors = self.post_tfidf_vectorizer.fit_transform(post_texts)
+            
+            # Формируем профиль пользователя: интересы + содержимое постов от подписок
+            user_profile_parts = []
+            if user_interests:
+                user_profile_parts.extend(user_interests)
+            
+            # Добавляем содержимое постов от подписок в профиль
+            for post in subscribed_posts:
+                post_parts = [post.name or "", post.text or ""]
+                if post.author_interests:
+                    post_parts.extend(post.author_interests)
+                if post.room_category:
+                    post_parts.append(post.room_category)
+                user_profile_parts.extend(post_parts)
+            
+            if not user_profile_parts:
+                # Если нет интересов и постов от подписок, используем только посты от подписок
+                # Приоритизируем их выше остальных
+                post_scores = []
+                for post in posts:
+                    if post.author_id and post.author_id in subscribed_ids_set:
+                        post_scores.append((post, 2.0))  # Высокий приоритет для постов от подписок
+                    else:
+                        post_scores.append((post, 0.5))  # Низкий приоритет для остальных
+                post_scores.sort(key=lambda x: x[1], reverse=True)
+                return post_scores
+            
+            user_text = " ".join(user_profile_parts)
+            user_vector = self.post_tfidf_vectorizer.transform([user_text])
+            similarities = cosine_similarity(user_vector, post_vectors)[0]
+            
+            # Увеличиваем вес постов от подписок
+            post_scores = []
+            for i, post in enumerate(posts):
+                base_score = float(similarities[i])
+                
+                # Если это пост от подписки - значительно увеличиваем вес
+                if post.author_id and post.author_id in subscribed_ids_set:
+                    final_score = base_score * 2.0 + 1.0  # Значительное увеличение веса
+                else:
+                    final_score = base_score
+                
+                post_scores.append((post, final_score))
+        
+        else:
+            # Если нет подписок - используем только интересы пользователя
+            if not user_interests:
+                # Если нет интересов, возвращаем все посты с одинаковым весом
+                return [(post, 1.0) for post in posts]
+            
+            # Подготавливаем тексты для всех постов
+            post_texts = self.prepare_post_text_data(posts)
+            post_vectors = self.post_tfidf_vectorizer.fit_transform(post_texts)
+            
+            # Формируем профиль пользователя только из интересов
+            user_text = " ".join(user_interests)
+            user_vector = self.post_tfidf_vectorizer.transform([user_text])
+            similarities = cosine_similarity(user_vector, post_vectors)[0]
+            
+            post_scores = []
+            for i, post in enumerate(posts):
+                base_score = float(similarities[i])
+                post_scores.append((post, base_score))
+        
+        # Сортируем по убыванию оценки
+        post_scores.sort(key=lambda x: x[1], reverse=True)
+        
+        return post_scores
+
 
 recommendation_service = RecommendationService()
 
@@ -329,6 +468,59 @@ async def get_recommendations_from_sample(user_interests: UserInterests):
         history_of_users_rooms=None
     )
     return await get_recommendations(request)
+
+
+@app.post("/recommend-posts", response_model=PostRecommendationResponse)
+async def get_post_recommendations(request: PostRecommendationRequest):
+    """Получает рекомендации постов на основе интересов пользователя или подписок"""
+    try:
+        # Pydantic автоматически заполняет поля из alias, если они были переданы
+        user_interests = request.user_interests or []
+        posts = request.posts
+        subscribed_user_ids = request.subscribed_user_ids or []
+
+        if not posts:
+            return PostRecommendationResponse(
+                recommended_posts=[],
+                similarity_scores=[],
+                message="Нет постов для рекомендации"
+            )
+
+        # Если нет интересов и подписок, возвращаем все посты
+        if not user_interests and not subscribed_user_ids:
+            return PostRecommendationResponse(
+                recommended_posts=posts[:50],  # Ограничиваем до 50 постов
+                similarity_scores=[1.0] * min(len(posts), 50),
+                message=f"Возвращено {min(len(posts), 50)} постов (нет интересов и подписок)"
+            )
+
+        recommendations = recommendation_service.recommend_posts(
+            user_interests=user_interests,
+            posts=posts,
+            subscribed_user_ids=subscribed_user_ids
+        )
+
+        # Ограничиваем количество рекомендаций (до 50)
+        recommendations = recommendations[:50]
+
+        if not recommendations:
+            return PostRecommendationResponse(
+                recommended_posts=[],
+                similarity_scores=[],
+                message="Не найдено подходящих постов"
+            )
+
+        recommended_posts = [rec[0] for rec in recommendations]
+        similarity_scores = [float(rec[1]) for rec in recommendations]
+
+        return PostRecommendationResponse(
+            recommended_posts=recommended_posts,
+            similarity_scores=similarity_scores,
+            message=f"Найдено {len(recommended_posts)} рекомендаций"
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении рекомендаций постов: {str(e)}")
 
 
 @app.get("/health")

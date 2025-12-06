@@ -49,7 +49,7 @@ class AuthControllerUnitTest {
         registerRequest.setPassword("password123");
 
         loginRequest = new LoginRequest();
-        loginRequest.setEmail("test@example.com");
+        loginRequest.setLogin("test@example.com");
         loginRequest.setPassword("password123");
     }
 
@@ -126,7 +126,7 @@ class AuthControllerUnitTest {
                 .thenThrow(new UnauthorizedException("Invalid email or password"));
 
         LoginRequest invalidLogin = new LoginRequest();
-        invalidLogin.setEmail("nonexistent@example.com");
+        invalidLogin.setLogin("nonexistent@example.com");
         invalidLogin.setPassword("wrongpassword");
 
         mockMvc.perform(post("/auth/login")

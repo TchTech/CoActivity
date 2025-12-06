@@ -296,8 +296,15 @@ function Feed({ onNavigate, currentPage }) {
     const loadPosts = async () => {
       setLoading(true)
       try {
-        // Fetch all posts from backend
-        const allPosts = await postAPI.getAll()
+        // Используем рекомендации вместо всех постов
+        let allPosts = []
+        if (currentUser?.id) {
+          // Если пользователь авторизован - получаем рекомендации
+          allPosts = await postAPI.getRecommended(currentUser.id)
+        } else {
+          // Если не авторизован - получаем все посты
+          allPosts = await postAPI.getAll()
+        }
         console.log("[Feed] Loaded posts from API:", allPosts)
         console.log("[Feed] Posts type:", typeof allPosts, "isArray:", Array.isArray(allPosts), "length:", Array.isArray(allPosts) ? allPosts.length : 'N/A')
         
@@ -320,16 +327,18 @@ function Feed({ onNavigate, currentPage }) {
           }
           setPosts(sortedPosts)
         } else {
-          // Show posts from subscribed users only
+          // Для вкладки подписок используем рекомендации (они уже включают посты от подписок)
+          // или фильтруем по подпискам, если рекомендации не получены
           const subscribedIds = subscribedUsers.map(u => u.id || u)
           if (subscribedIds.length === 0) {
             setPosts([])
           } else {
+            // Если есть рекомендации - используем их (они уже содержат посты от подписок)
+            // Если нет - фильтруем все посты по подпискам
             const subscriptionPosts = postsArray.length > 0
               ? postsArray.filter(post => {
                   const authorId = post.author?.id || post.authorId
-                  const matches = subscribedIds.includes(authorId)
-                  return matches
+                  return subscribedIds.includes(authorId)
                 }).sort((a, b) => {
                   const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
                   const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
@@ -350,7 +359,7 @@ function Feed({ onNavigate, currentPage }) {
     }
 
     loadPosts()
-  }, [activeTab, subscribedUsers])
+  }, [activeTab, subscribedUsers, currentUser])
 
   const handleSubscribe = async (userId) => {
     if (!currentUser) {

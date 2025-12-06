@@ -4,7 +4,6 @@ import com.mipt.CoActivity.dto.LoginRequest;
 import com.mipt.CoActivity.dto.LoginResponse;
 import com.mipt.CoActivity.dto.RegisterRequest;
 import com.mipt.CoActivity.exception.BadRequestException;
-import com.mipt.CoActivity.exception.ResourceNotFoundException;
 import com.mipt.CoActivity.exception.UnauthorizedException;
 import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.repository.UserRepository;
@@ -54,9 +53,32 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse loginUser(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail());
+        // Поддержка входа по email или username
+        User user = null;
+        String login = request.getLogin(); // Используем поле login
+        
+        if (login == null || login.trim().isEmpty()) {
+            throw new BadRequestException("Login cannot be empty");
+        }
+        
+        if (request.getPassword() == null || request.getPassword().isEmpty()) {
+            throw new BadRequestException("Password cannot be empty");
+        }
+        
+        // Определяем, является ли login email или username
+        boolean isEmail = login.contains("@");
+        if (isEmail) {
+            user = userRepository.findByEmail(login);
+        } else {
+            user = userRepository.findByUsername(login);
+        }
         
         if (user == null) {
+            throw new UnauthorizedException("Invalid email or password");
+        }
+
+        // Проверяем, что у пользователя есть хэш пароля
+        if (user.getPasswordHash() == null || user.getPasswordHash().isEmpty()) {
             throw new UnauthorizedException("Invalid email or password");
         }
 
@@ -64,12 +86,16 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Invalid email or password");
         }
 
-        // TODO: Generate JWT token - for now using a placeholder
-        String token = generateToken(user);
+        // Проверяем, включена ли 2FA
+        Boolean requiresTwoFactor = Boolean.TRUE.equals(user.getTwoFactorEnabled());
+        
+        // Если 2FA включена, не возвращаем токен - фронтенд запросит код
+        String token = requiresTwoFactor ? null : generateToken(user);
         
         return LoginResponse.builder()
             .token(token)
             .userId(user.getId())
+            .requiresTwoFactor(requiresTwoFactor)
             .build();
     }
 
