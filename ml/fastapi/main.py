@@ -246,25 +246,37 @@ class RecommendationService:
         return filtered
 
     def first_step_recomendation(self, history_of_users_rooms: List[Room], user_interests: List[str]) -> dict:
-        """Вычисляет веса категорий на основе истории и интересов пользователя"""
+        """
+        First step recommendation: 
+        Берутся понравившиеся категории и нормализуются по отметке, чтобы в сумме было 1
+        """
         counter_dict = {
             "IT": 0, "Science": 0, "Business": 0, "Sport": 0,
             "Art": 0, "Entertainment": 0, "LifeStyle": 0, "Other": 0
         }
+        
+        # Учитываем интересы пользователя (понравившиеся категории)
         for category in counter_dict.keys():
             if category in user_interests:
-                counter_dict[category] = 1 / (len(user_interests) * 2) if len(user_interests) > 0 else 0
+                counter_dict[category] = 1.0  # Отметка за интерес к категории
+        
+        # Учитываем историю комнат пользователя (дополнительные отметки)
         n = 0
         for room in history_of_users_rooms:
             if room.interest_type in counter_dict:
                 counter_dict[room.interest_type] += 1
                 n += 1
+        
+        # Нормализуем так, чтобы сумма всех весов была равна 1
+        total_sum = sum(counter_dict.values())
         scores_dict = {}
-        for key in counter_dict:
-            if n > 0:
-                scores_dict[key] = counter_dict[key] / (n * 2)
-            else:
-                scores_dict[key] = counter_dict[key]
+        if total_sum > 0:
+            for key in counter_dict:
+                scores_dict[key] = counter_dict[key] / total_sum
+        else:
+            # Если все нули, устанавливаем равномерное распределение
+            for key in counter_dict:
+                scores_dict[key] = 1.0 / len(counter_dict)
         
         return scores_dict
 
@@ -301,12 +313,21 @@ class RecommendationService:
 
     def recommend_posts(self, user_interests: List[str], posts: List[Post], 
                        subscribed_user_ids: Optional[List[int]] = None) -> List[tuple]:
-        """Рекомендует посты на основе интересов пользователя или подписок"""
+        """
+        Рекомендует посты используя двухшаговый алгоритм:
+        1. First step: нормализованные веса категорий на основе интересов пользователя
+        2. Second step: TF-IDF векторы для оценки семантики постов и сравнения стоит ли пользователю посетить комнату
+        """
         if not posts:
             return []
         
         subscribed_ids_set = set(subscribed_user_ids) if subscribed_user_ids else set()
         has_subscriptions = len(subscribed_ids_set) > 0
+        
+        # First step: вычисляем нормализованные веса категорий из интересов пользователя
+        # Создаем пустую историю комнат (для постов используем только интересы)
+        empty_history: List[Room] = []
+        category_weights = self.first_step_recomendation(empty_history, user_interests)
         
         # Если есть подписки - используем логику на основе подписок
         if has_subscriptions:
@@ -345,18 +366,34 @@ class RecommendationService:
             
             user_text = " ".join(user_profile_parts)
             user_vector = self.post_tfidf_vectorizer.transform([user_text])
+            # Second step: используя векторы оценивает семантику постов
             similarities = cosine_similarity(user_vector, post_vectors)[0]
             
-            # Увеличиваем вес постов от подписок
+            # Комбинируем first step (веса категорий) и second step (семантическая оценка)
             post_scores = []
             for i, post in enumerate(posts):
+                # Second step: базовая семантическая оценка
                 base_score = float(similarities[i])
+                
+                # First step: учитываем вес категории комнаты (если есть)
+                category_score = 0.0
+                if post.room_category:
+                    # Пытаемся найти категорию комнаты в весах категорий
+                    for cat_key in category_weights.keys():
+                        if cat_key.lower() in post.room_category.lower() or post.room_category.lower() in cat_key.lower():
+                            category_score = category_weights[cat_key]
+                            break
+                    # Если точное совпадение не найдено, используем максимальный вес для категорий
+                    if category_score == 0.0 and category_weights:
+                        # Берем средний вес категорий как базовый
+                        category_score = sum(category_weights.values()) / len(category_weights)
+                
+                # Комбинируем семантическую оценку с весом категории
+                final_score = base_score * (1 + category_score)
                 
                 # Если это пост от подписки - значительно увеличиваем вес
                 if post.author_id and post.author_id in subscribed_ids_set:
-                    final_score = base_score * 2.0 + 1.0  # Значительное увеличение веса
-                else:
-                    final_score = base_score
+                    final_score = final_score * 2.0 + 1.0  # Значительное увеличение веса
                 
                 post_scores.append((post, final_score))
         
@@ -373,12 +410,32 @@ class RecommendationService:
             # Формируем профиль пользователя только из интересов
             user_text = " ".join(user_interests)
             user_vector = self.post_tfidf_vectorizer.transform([user_text])
+            # Second step: используя векторы оценивает семантику постов
             similarities = cosine_similarity(user_vector, post_vectors)[0]
             
+            # Комбинируем first step (веса категорий) и second step (семантическая оценка)
             post_scores = []
             for i, post in enumerate(posts):
+                # Second step: базовая семантическая оценка
                 base_score = float(similarities[i])
-                post_scores.append((post, base_score))
+                
+                # First step: учитываем вес категории комнаты (если есть)
+                category_score = 0.0
+                if post.room_category:
+                    # Пытаемся найти категорию комнаты в весах категорий
+                    for cat_key in category_weights.keys():
+                        if cat_key.lower() in post.room_category.lower() or post.room_category.lower() in cat_key.lower():
+                            category_score = category_weights[cat_key]
+                            break
+                    # Если точное совпадение не найдено, используем средний вес категорий
+                    if category_score == 0.0 and category_weights:
+                        category_score = sum(category_weights.values()) / len(category_weights)
+                
+                # Комбинируем семантическую оценку с весом категории
+                # Сравниваем стоит ли пользователю посетить комнату на основе семантики и категории
+                final_score = base_score * (1 + category_score)
+                
+                post_scores.append((post, final_score))
         
         # Сортируем по убыванию оценки
         post_scores.sort(key=lambda x: x[1], reverse=True)
