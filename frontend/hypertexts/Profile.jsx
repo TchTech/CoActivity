@@ -8,6 +8,7 @@ import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog"
 import { MyApplicationsList } from "../components/rooms"
+import PostRoomJoinButton from "../components/PostRoomJoinButton"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -160,63 +161,67 @@ function ProfilePostCard({ post, userData, ratingSummary, onNavigate, currentUse
 
       {/* Show room label if post is attached to a room */}
       {post.room && (
-        <div style={{ 
-          marginTop: "var(--spacing-sm)", 
-          marginBottom: "var(--spacing-sm)",
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--spacing-xs)"
-        }}>
-          <div
-            style={{
-              backgroundColor: "#FFD700", // Yellow background like in the image
-              color: "var(--text-primary)",
-              padding: "var(--spacing-xs) var(--spacing-sm)",
-              borderRadius: "var(--radius-md)",
-              fontSize: "var(--font-size-sm)",
-              fontWeight: "500",
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--spacing-xs)",
-              cursor: "pointer",
-              transition: "opacity 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = "0.8"
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = "1"
-            }}
-            onClick={(e) => {
-              e.stopPropagation()
-              const roomId = typeof post.room === "object" 
-                ? (post.room?.id || post.roomId || null) 
-                : post.roomId
-              if (roomId) {
-                onNavigate("roomInfo", roomId)
-              }
-            }}
-          >
-            <span style={{ fontSize: "16px" }}>📌</span>
-            <span>
-              Закреплено в:{" "}
-              {typeof post.room === "object" && post.room?.name ? (
-                <span
-                  style={{
-                    color: "var(--accent-blue)",
-                    textDecoration: "underline",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  {post.room.name}
-                </span>
-              ) : (
-                <span>Комната</span>
-              )}
-            </span>
+        <>
+          <div style={{ 
+            marginTop: "var(--spacing-sm)", 
+            marginBottom: "var(--spacing-sm)",
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--spacing-xs)"
+          }}>
+            <div
+              style={{
+                backgroundColor: "#FFD700", // Yellow background like in the image
+                color: "var(--text-primary)",
+                padding: "var(--spacing-xs) var(--spacing-sm)",
+                borderRadius: "var(--radius-md)",
+                fontSize: "var(--font-size-sm)",
+                fontWeight: "500",
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--spacing-xs)",
+                cursor: "pointer",
+                transition: "opacity 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "0.8"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1"
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                const roomId = typeof post.room === "object" 
+                  ? (post.room?.id || post.roomId || null) 
+                  : post.roomId
+                if (roomId) {
+                  onNavigate("roomInfo", roomId)
+                }
+              }}
+            >
+              <span style={{ fontSize: "16px" }}>📌</span>
+              <span>
+                Закреплено в:{" "}
+                {typeof post.room === "object" && post.room?.name ? (
+                  <span
+                    style={{
+                      color: "var(--accent-blue)",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      fontWeight: "600",
+                    }}
+                  >
+                    {post.room.name}
+                  </span>
+                ) : (
+                  <span>Комната</span>
+                )}
+              </span>
+            </div>
           </div>
-        </div>
+          {/* Кнопка присоединения к комнате */}
+          <PostRoomJoinButton post={post} onNavigate={onNavigate} />
+        </>
       )}
 
       {post.image && (
@@ -363,8 +368,6 @@ function Profile({ onNavigate, userId, currentPage }) {
   const [externalLinks, setExternalLinks] = useState([])
   const [activeTab, setActiveTab] = useState("posts") // "posts", "about", "applications"
   const [ratingSummary, setRatingSummary] = useState({ average: null, count: 0 })
-  const [showRatingModal, setShowRatingModal] = useState(false)
-  const [ratingValue, setRatingValue] = useState(5)
   const [isEditingAbout, setIsEditingAbout] = useState(false)
   const [aboutText, setAboutText] = useState("")
 
@@ -765,9 +768,6 @@ function Profile({ onNavigate, userId, currentPage }) {
               <button className={`btn ${isSubscribed ? "btn-secondary" : "btn-primary"}`} onClick={handleSubscription}>
                 {isSubscribed ? "Отписаться" : "Подписаться"}
               </button>
-              <button className="btn btn-secondary" onClick={() => setShowRatingModal(true)}>
-                Оценить пользователя
-              </button>
             </div>
           )}
 
@@ -934,94 +934,6 @@ function Profile({ onNavigate, userId, currentPage }) {
       </div>
 
       {isOwnProfile && <BottomNavigation currentPage={currentPage || "profile"} onNavigate={onNavigate} />}
-
-      {/* Rating Modal */}
-      {showRatingModal && !isOwnProfile && currentUser && (
-        <RatingModal
-          currentRating={ratingValue}
-          onRatingChange={setRatingValue}
-          onClose={() => setShowRatingModal(false)}
-          onSubmit={async () => {
-            try {
-              await userAPI.createRating(profileUserId, currentUser.id, ratingValue)
-              // Reload rating summary
-              const summary = await userAPI.getRatingSummary(profileUserId)
-              if (summary && typeof summary === 'object') {
-                setRatingSummary({
-                  average: summary.average != null && !isNaN(summary.average) ? Number(summary.average) : null,
-                  count: summary.count != null ? Number(summary.count) : 0
-                })
-              }
-              setShowRatingModal(false)
-              alert("Рейтинг сохранен")
-            } catch (error) {
-              console.error("Ошибка сохранения рейтинга:", error)
-              const errorMsg = error.message || "Не удалось сохранить рейтинг"
-              if (errorMsg.includes("cannot rate themselves") || errorMsg.includes("самого себя")) {
-                alert("Вы не можете оценить самого себя")
-              } else {
-                alert("Не удалось сохранить рейтинг: " + errorMsg)
-              }
-            }
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-function RatingModal({ currentRating, onRatingChange, onClose, onSubmit }) {
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          padding: "var(--spacing-lg)",
-          borderRadius: "var(--radius-lg)",
-          maxWidth: "400px",
-          width: "90%",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 style={{ marginBottom: "var(--spacing-md)", fontSize: "var(--font-size-lg)" }}>Оценить пользователя</h3>
-        <div style={{ marginBottom: "var(--spacing-md)" }}>
-          <input
-            type="range"
-            min="0"
-            max="10"
-            step="0.5"
-            value={currentRating}
-            onChange={(e) => onRatingChange(parseFloat(e.target.value))}
-            style={{ width: "100%" }}
-          />
-          <div style={{ textAlign: "center", marginTop: "var(--spacing-sm)", fontSize: "var(--font-size-lg)", fontWeight: "600" }}>
-            {currentRating.toFixed(1)} / 10
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
-          <button className="btn btn-primary" onClick={onSubmit} style={{ flex: 1 }}>
-            Сохранить
-          </button>
-          <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1 }}>
-            Отмена
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

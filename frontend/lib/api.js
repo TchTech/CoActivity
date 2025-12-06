@@ -1025,6 +1025,23 @@ export const roomAPI = {
     })
   },
 
+  /**
+   * Remove user from room (user can remove themselves)
+   * DELETE /api/rooms/{roomId}/participants/remove?userId={userId}
+   * 
+   * @param {number} roomId - The room ID
+   * @param {number} userId - The user ID to remove (can be themselves)
+   * @returns {Promise<void>}
+   * @throws {Error} If user not found (404), etc.
+   */
+  async removeUserFromRoom(roomId, userId) {
+    // Backend: DELETE /api/rooms/{roomId}/participants/remove?userId={userId}
+    return request(`/api/rooms/${roomId}/participants/remove`, {
+      method: "DELETE",
+      params: { userId },
+    })
+  },
+
   async createRatingRequest(roomId, requestedUserId, requesterUserId) {
     // Backend: POST /api/rooms/{roomId}/rating-requests?requestedUserId=&requesterUserId=
     return request(`/api/rooms/${roomId}/rating-requests`, {

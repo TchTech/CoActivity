@@ -5,6 +5,7 @@ import BottomNavigation from "./BottomNavigation"
 import { postAPI, imageAPI, notificationAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
+import PostRoomJoinButton from "../components/PostRoomJoinButton"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -83,63 +84,67 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
 
       {/* Show room label if post is attached to a room */}
       {post.room && (
-        <div style={{ 
-          marginTop: "var(--spacing-sm)", 
-          marginBottom: "var(--spacing-sm)",
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--spacing-xs)"
-        }}>
-          <div
-            style={{
-              backgroundColor: "#FFD700", // Yellow background like in the image
-              color: "var(--text-primary)",
-              padding: "var(--spacing-xs) var(--spacing-sm)",
-              borderRadius: "var(--radius-md)",
-              fontSize: "var(--font-size-sm)",
-              fontWeight: "500",
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--spacing-xs)",
-              cursor: "pointer",
-              transition: "opacity 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = "0.8"
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = "1"
-            }}
-            onClick={(e) => {
-              e.stopPropagation()
-              const roomId = typeof post.room === "object" 
-                ? (post.room?.id || post.roomId || null) 
-                : post.roomId
-              if (roomId) {
-                onNavigate("roomInfo", roomId)
-              }
-            }}
-          >
-            <span style={{ fontSize: "16px" }}>📌</span>
-            <span>
-              Закреплено в:{" "}
-              {typeof post.room === "object" && post.room?.name ? (
-                <span
-                  style={{
-                    color: "var(--accent-blue)",
-                    textDecoration: "underline",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  {post.room.name}
-                </span>
-              ) : (
-                <span>Комната</span>
-              )}
-            </span>
+        <>
+          <div style={{ 
+            marginTop: "var(--spacing-sm)", 
+            marginBottom: "var(--spacing-sm)",
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--spacing-xs)"
+          }}>
+            <div
+              style={{
+                backgroundColor: "#FFD700", // Yellow background like in the image
+                color: "var(--text-primary)",
+                padding: "var(--spacing-xs) var(--spacing-sm)",
+                borderRadius: "var(--radius-md)",
+                fontSize: "var(--font-size-sm)",
+                fontWeight: "500",
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--spacing-xs)",
+                cursor: "pointer",
+                transition: "opacity 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "0.8"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1"
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                const roomId = typeof post.room === "object" 
+                  ? (post.room?.id || post.roomId || null) 
+                  : post.roomId
+                if (roomId) {
+                  onNavigate("roomInfo", roomId)
+                }
+              }}
+            >
+              <span style={{ fontSize: "16px" }}>📌</span>
+              <span>
+                Закреплено в:{" "}
+                {typeof post.room === "object" && post.room?.name ? (
+                  <span
+                    style={{
+                      color: "var(--accent-blue)",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      fontWeight: "600",
+                    }}
+                  >
+                    {post.room.name}
+                  </span>
+                ) : (
+                  <span>Комната</span>
+                )}
+              </span>
+            </div>
           </div>
-        </div>
+          {/* Кнопка присоединения к комнате */}
+          <PostRoomJoinButton post={post} onNavigate={onNavigate} />
+        </>
       )}
 
 

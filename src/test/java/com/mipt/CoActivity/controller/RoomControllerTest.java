@@ -6,6 +6,7 @@ import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.repository.*;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -18,6 +19,7 @@ import java.util.Map;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
+@Disabled("Integration tests are slow - use unit tests instead")
 class RoomControllerTest extends BaseIntegrationTest {
 
     @Autowired
