@@ -24,8 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class PostService {
@@ -37,7 +39,7 @@ public class PostService {
   private final ImageRepository imageRepository;
   private final RoomPostPinRepository roomPostPinRepository;
   private final CommentRepository commentRepository;
-  private final PostRecommendationService postRecommendationService;
+  private final NotificationService notificationService;
 
   @Autowired
   public PostService(
@@ -47,14 +49,14 @@ public class PostService {
           ImageRepository imageRepository,
           RoomPostPinRepository roomPostPinRepository,
           CommentRepository commentRepository,
-          PostRecommendationService postRecommendationService) {
+          NotificationService notificationService) {
     this.postRepository = postRepository;
     this.userRepository = userRepository;
     this.roomRepository = roomRepository;
     this.imageRepository = imageRepository;
     this.roomPostPinRepository = roomPostPinRepository;
     this.commentRepository = commentRepository;
-    this.postRecommendationService = postRecommendationService;
+    this.notificationService = notificationService;
   }
 
   @Transactional
@@ -108,6 +110,22 @@ public class PostService {
       }
     }
     
+    // Send notifications to followers about new post
+    try {
+      sendNewPostNotifications(savedPost, author);
+    } catch (Exception e) {
+      logger.error("Failed to send new post notifications: {}", e.getMessage(), e);
+      // Don't fail post creation if notification fails
+    }
+    
+    // Send notifications for mentions in post text
+    try {
+      sendMentionNotifications(savedPost.getText(), author.getId(), savedPost.getId().longValue(), "POST");
+    } catch (Exception e) {
+      logger.error("Failed to send mention notifications: {}", e.getMessage(), e);
+      // Don't fail post creation if notification fails
+    }
+    
     return savedPost;
   }
 
@@ -122,11 +140,34 @@ public class PostService {
                     .findById(postId.intValue())
                     .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
-    if (post.getLikedUsers().contains(user)) {
+    boolean wasLiked = post.getLikedUsers().contains(user);
+    
+    if (wasLiked) {
       post.getLikedUsers().remove(user);
     } else {
       post.getDislikedUsers().remove(user);
       post.getLikedUsers().add(user);
+      
+      // Send notification to post author about like (only if not liked by author themselves)
+      if (post.getAuthor() != null && !post.getAuthor().getId().equals(userId)) {
+        try {
+          String likerName = user.getName() != null ? user.getName() : user.getUsername();
+          String postTitle = post.getName() != null ? post.getName() : "пост";
+          String content = String.format("%s поставил(а) лайк вашему посту \"%s\"", likerName, postTitle);
+          
+          notificationService.createNotification(
+              post.getAuthor().getId(),
+              "POST_LIKED",
+              "Новый лайк",
+              content,
+              String.format("{\"postId\":%d,\"likerId\":%d,\"likerName\":\"%s\"}", postId.intValue(), userId, likerName)
+          );
+          logger.info("Sent like notification to post author {} for post {}", post.getAuthor().getId(), postId);
+        } catch (Exception e) {
+          logger.error("Failed to send like notification: {}", e.getMessage(), e);
+          // Don't fail like operation if notification fails
+        }
+      }
     }
     postRepository.save(post);
   }
@@ -142,11 +183,34 @@ public class PostService {
                     .findById(postId.intValue())
                     .orElseThrow(() -> new ResourceNotFoundException("Post not found"));
 
-    if (post.getDislikedUsers().contains(user)) {
+    boolean wasDisliked = post.getDislikedUsers().contains(user);
+    
+    if (wasDisliked) {
       post.getDislikedUsers().remove(user);
     } else {
       post.getLikedUsers().remove(user);
       post.getDislikedUsers().add(user);
+      
+      // Send notification to post author about dislike (only if not disliked by author themselves)
+      if (post.getAuthor() != null && !post.getAuthor().getId().equals(userId)) {
+        try {
+          String dislikerName = user.getName() != null ? user.getName() : user.getUsername();
+          String postTitle = post.getName() != null ? post.getName() : "пост";
+          String content = String.format("%s поставил(а) дизлайк вашему посту \"%s\"", dislikerName, postTitle);
+          
+          notificationService.createNotification(
+              post.getAuthor().getId(),
+              "POST_DISLIKED",
+              "Новый дизлайк",
+              content,
+              String.format("{\"postId\":%d,\"dislikerId\":%d,\"dislikerName\":\"%s\"}", postId.intValue(), userId, dislikerName)
+          );
+          logger.info("Sent dislike notification to post author {} for post {}", post.getAuthor().getId(), postId);
+        } catch (Exception e) {
+          logger.error("Failed to send dislike notification: {}", e.getMessage(), e);
+          // Don't fail dislike operation if notification fails
+        }
+      }
     }
     postRepository.save(post);
   }
@@ -158,9 +222,13 @@ public class PostService {
 
   public List<Post> getAllPosts() {
     List<Post> posts = postRepository.findAll();
-    // Load pinned rooms for each post
+    // Load room and pinned rooms for each post
     for (Post post : posts) {
-      // This will be lazy-loaded when accessed
+      // Trigger lazy loading for room
+      if (post.getRoom() != null) {
+        post.getRoom().getName(); // Trigger lazy loading
+      }
+      // Trigger lazy loading for pinned rooms
       if (post.getPinnedToRooms() != null) {
         post.getPinnedToRooms().size(); // Trigger lazy loading
       }
@@ -232,182 +300,107 @@ public class PostService {
   }
 
   /**
-   * Получает рекомендуемые посты для пользователя.
-   * Если у пользователя есть подписки - использует посты от подписок.
-   * Если подписок нет - использует интересы пользователя для рекомендаций.
-   * 
-   * @param userId ID пользователя
-   * @return Список рекомендуемых постов
+   * Send notifications to all followers about a new post.
    */
-  @Transactional(readOnly = true)
-  public List<Post> getRecommendedPosts(Long userId) {
-    RecommendedPostsResponse response = getRecommendedPostsWithScores(userId);
-    return response.getPosts();
+  private void sendNewPostNotifications(Post post, User author) {
+    if (author.getFollowers() == null || author.getFollowers().isEmpty()) {
+      logger.debug("Author {} has no followers, skipping new post notifications", author.getId());
+      return;
+    }
+
+    String postTitle = post.getName() != null ? post.getName() : "новый пост";
+    String authorName = author.getName() != null ? author.getName() : author.getUsername();
+    
+    for (User follower : author.getFollowers()) {
+      // Don't send notification to the author themselves
+      if (follower.getId().equals(author.getId())) {
+        continue;
+      }
+      
+      try {
+        String content = String.format("%s опубликовал(а) новый пост: \"%s\"", authorName, postTitle);
+        
+        notificationService.createNotification(
+            follower.getId(),
+            "NEW_POST",
+            "Новый пост",
+            content,
+            String.format("{\"postId\":%d,\"authorId\":%d,\"authorName\":\"%s\"}", post.getId().intValue(), author.getId(), authorName)
+        );
+        logger.debug("Sent new post notification to follower {} for post {}", follower.getId(), post.getId());
+      } catch (Exception e) {
+        logger.error("Failed to send new post notification to follower {}: {}", follower.getId(), e.getMessage(), e);
+        // Continue with other followers
+      }
+    }
+    
+    logger.info("Sent new post notifications to followers of user {}", author.getId());
   }
-  
+
   /**
-   * Получает рекомендуемые посты для пользователя со scores.
-   * 
-   * @param userId ID пользователя
-   * @return Ответ с постами и similarity scores
+   * Extract mentions from text and send notifications to mentioned users.
+   * Mentions are in format @username
    */
-  @Transactional(readOnly = true)
-  public RecommendedPostsResponse getRecommendedPostsWithScores(Long userId) {
-    User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-    
-    List<Post> candidatePosts;
-    List<String> userInterests = new ArrayList<>();
-    List<Integer> subscribedUserIds = new ArrayList<>();
-    
-    // Проверяем, есть ли у пользователя подписки
-    List<User> subscriptions = user.getSubscriptions();
-    if (subscriptions != null && !subscriptions.isEmpty()) {
-      // Если есть подписки - используем все посты, но приоритизируем посты от подписок
-      logger.info("User {} has {} subscriptions, prioritizing subscription posts in recommendations", 
-              userId, subscriptions.size());
-      
-      List<Long> subscribedIds = subscriptions.stream()
-              .map(User::getId)
-              .collect(Collectors.toList());
-      
-      // Используем ВСЕ посты, но приоритизируем посты от подписок через Python API
-      candidatePosts = getAllPosts();
-      subscribedUserIds = subscribedIds.stream()
-              .map(Long::intValue)
-              .collect(Collectors.toList());
-      
-      // Также собираем интересы пользователя для улучшения рекомендаций
-      if (user.getInterests() != null) {
-        userInterests = user.getInterests().stream()
-                .map(Interest::getName)
-                .collect(Collectors.toList());
-      }
-    } else {
-      // Если подписок нет - используем все посты и интересы пользователя
-      logger.info("User {} has no subscriptions, using interests for recommendations", userId);
-      
-      candidatePosts = getAllPosts();
-      
-      // Получаем интересы пользователя
-      if (user.getInterests() != null && !user.getInterests().isEmpty()) {
-        userInterests = user.getInterests().stream()
-                .map(Interest::getName)
-                .collect(Collectors.toList());
-      }
-      
-      // Если нет интересов, возвращаем все посты без рекомендаций
-      if (userInterests.isEmpty()) {
-        logger.warn("User {} has no interests, returning all posts without recommendations", userId);
-        List<Post> sortedPosts = candidatePosts.stream()
-                .sorted((a, b) -> {
-                  // Сортируем по дате создания (новые первыми)
-                  if (a.getId() != null && b.getId() != null) {
-                    return b.getId().compareTo(a.getId());
-                  }
-                  return 0;
-                })
-                .collect(Collectors.toList());
-        // Возвращаем с нулевыми scores
-        List<Double> defaultScores = sortedPosts.stream().map(p -> 1.0).collect(Collectors.toList());
-        return new RecommendedPostsResponse(sortedPosts, defaultScores, "No interests, returning all posts");
-      }
+  private void sendMentionNotifications(String text, Long authorId, Long entityId, String entityType) {
+    if (text == null || text.trim().isEmpty()) {
+      return;
     }
-    
-    if (candidatePosts.isEmpty()) {
-      logger.info("No candidate posts found for user {}", userId);
-      return new RecommendedPostsResponse(new ArrayList<>(), new ArrayList<>(), "No posts available");
+
+    // Pattern to match @username mentions
+    Pattern mentionPattern = Pattern.compile("@(\\w+)");
+    Matcher matcher = mentionPattern.matcher(text);
+    Set<String> mentionedUsernames = new HashSet<>();
+
+    while (matcher.find()) {
+      String username = matcher.group(1);
+      mentionedUsernames.add(username.toLowerCase());
     }
-    
-    // Преобразуем посты в формат для Python API
-    List<PostRecommendationRequest.PostData> postDataList = candidatePosts.stream()
-            .map(post -> {
-              PostRecommendationRequest.PostData postData = new PostRecommendationRequest.PostData();
-              postData.setId(post.getId());
-              postData.setName(post.getName() != null ? post.getName() : "");
-              postData.setText(post.getText() != null ? post.getText() : "");
-              
-              // Информация об авторе
-              if (post.getAuthor() != null) {
-                postData.setAuthorId(post.getAuthor().getId() != null ? 
-                        post.getAuthor().getId().intValue() : null);
-                postData.setAuthorName(post.getAuthor().getName() != null ? 
-                        post.getAuthor().getName() : post.getAuthor().getUsername());
-                
-                // Собираем интересы автора
-                if (post.getAuthor().getInterests() != null) {
-                  List<String> authorInterests = post.getAuthor().getInterests().stream()
-                          .map(Interest::getName)
-                          .collect(Collectors.toList());
-                  postData.setAuthorInterests(authorInterests);
-                }
-              }
-              
-              // Информация о комнате
-              if (post.getRoom() != null) {
-                postData.setRoomName(post.getRoom().getName());
-                postData.setRoomCategory(post.getRoom().getCategory());
-              }
-              
-              return postData;
-            })
-            .collect(Collectors.toList());
-    
-    // Формируем запрос к Python API
-    PostRecommendationRequest request = new PostRecommendationRequest();
-    request.setUserInterests(userInterests);
-    request.setPosts(postDataList);
-    request.setSubscribedUserIds(subscribedUserIds);
-    
-    // Получаем рекомендации от Python API
-    PostRecommendationResponse response = postRecommendationService.getRecommendations(request);
-    
-    if (response == null || response.getRecommendedPosts() == null || response.getRecommendedPosts().isEmpty()) {
-      logger.warn("No recommendations received from Python API for user {}, returning all candidate posts", userId);
-      // Возвращаем все посты, отсортированные по дате
-      List<Post> sortedPosts = candidatePosts.stream()
-              .sorted((a, b) -> {
-                if (a.getId() != null && b.getId() != null) {
-                  return b.getId().compareTo(a.getId());
-                }
-                return 0;
-              })
-              .collect(Collectors.toList());
-      // Возвращаем с нулевыми scores
-      List<Double> defaultScores = sortedPosts.stream().map(p -> 1.0).collect(Collectors.toList());
-      return new RecommendedPostsResponse(sortedPosts, defaultScores, "No recommendations from Python API, returning all posts");
+
+    if (mentionedUsernames.isEmpty()) {
+      return;
     }
-    
-    // Создаем Map для быстрого поиска постов по ID
-    Map<Integer, Post> postMap = candidatePosts.stream()
-            .collect(Collectors.toMap(Post::getId, post -> post));
-    
-    // Преобразуем рекомендации обратно в Post объекты
-    List<Post> recommendedPosts = response.getRecommendedPosts().stream()
-            .map(postData -> postMap.get(postData.getId()))
-            .filter(post -> post != null)
-            .collect(Collectors.toList());
-    
-    logger.info("Received {} recommended posts from Python API for user {}", 
-            recommendedPosts.size(), userId);
-    
-    // Логируем scores в консоль Java
-    if (response.getSimilarityScores() != null && !response.getSimilarityScores().isEmpty()) {
-      logger.info("Similarity scores for user {}: {}", userId, response.getSimilarityScores());
-      for (int i = 0; i < recommendedPosts.size() && i < response.getSimilarityScores().size(); i++) {
-        logger.info("Post {} (ID: {}) - Similarity Score: {}", 
-            i + 1, 
-            recommendedPosts.get(i).getId(), 
-            response.getSimilarityScores().get(i));
+
+    // Find users by username
+    User author = userRepository.findById(authorId)
+        .orElseThrow(() -> new ResourceNotFoundException("Author not found"));
+    String authorName = author.getName() != null ? author.getName() : author.getUsername();
+
+    for (String username : mentionedUsernames) {
+      try {
+        User mentionedUser = userRepository.findByUsername(username);
+        if (mentionedUser == null) {
+          // Try to find by name (case-insensitive)
+          List<User> usersByName = userRepository.findAll().stream()
+              .filter(u -> u.getName() != null && u.getName().toLowerCase().equals(username))
+              .toList();
+          if (usersByName.isEmpty()) {
+            logger.debug("User with username/name '{}' not found, skipping mention notification", username);
+            continue;
+          }
+          mentionedUser = usersByName.get(0);
+        }
+
+        // Don't notify if user mentioned themselves
+        if (mentionedUser.getId().equals(authorId)) {
+          continue;
+        }
+
+        String content = String.format("%s упомянул(а) вас в %s", authorName, 
+            "POST".equals(entityType) ? "посте" : "комментарии");
+        
+        notificationService.createNotification(
+            mentionedUser.getId(),
+            "MENTION",
+            "Вас упомянули",
+            content,
+            String.format("{\"%sId\":%d,\"authorId\":%d,\"authorName\":\"%s\"}", 
+                entityType.toLowerCase(), entityId, authorId, authorName)
+        );
+        logger.debug("Sent mention notification to user {} for {} {}", mentionedUser.getId(), entityType, entityId);
+      } catch (Exception e) {
+        logger.error("Failed to send mention notification for username '{}': {}", username, e.getMessage(), e);
+        // Continue with other mentions
       }
     }
-    
-    RecommendedPostsResponse result = new RecommendedPostsResponse(
-        recommendedPosts,
-        response.getSimilarityScores() != null ? response.getSimilarityScores() : new ArrayList<>(),
-        response.getMessage() != null ? response.getMessage() : "Recommendations received"
-    );
-    
-    return result;
   }
 }

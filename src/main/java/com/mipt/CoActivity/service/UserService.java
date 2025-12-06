@@ -5,7 +5,6 @@ import com.mipt.CoActivity.exception.*;
 import com.mipt.CoActivity.model.*;
 import com.mipt.CoActivity.repository.*;
 import com.mipt.CoActivity.repository.ExternalLinkRepository;
-import com.mipt.CoActivity.service.ImageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

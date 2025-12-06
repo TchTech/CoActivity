@@ -18,6 +18,28 @@ function RoomsList({ onNavigate, currentPage }) {
   const [isSearching, setIsSearching] = useState(false)
   const [activeTab, setActiveTab] = useState("all") // "all" or "mine"
   const [refreshKey, setRefreshKey] = useState(0)
+  const [filters, setFilters] = useState({
+    category: "",
+    startDate: "",
+    endDate: "",
+    location: ""
+  })
+  const [showFilters, setShowFilters] = useState(false)
+  
+  // Available categories (matching CreateRoom.jsx)
+  const categories = [
+    { value: "", label: "Все категории" },
+    { value: "science", label: "Наука" },
+    { value: "it", label: "Программирование" },
+    { value: "sport", label: "Спорт" },
+    { value: "art", label: "Искусство" },
+    { value: "music", label: "Музыка" },
+    { value: "books", label: "Книги" },
+    { value: "travel", label: "Путешествия" },
+    { value: "cooking", label: "Кулинария" },
+    { value: "photo", label: "Фотография" },
+    { value: "games", label: "Игры" }
+  ]
 
   // Function to refresh room list (can be called from child components)
   const refreshRoomList = () => {
@@ -36,9 +58,14 @@ function RoomsList({ onNavigate, currentPage }) {
     }
   }, [])
 
+  // Load rooms for "mine" tab
   useEffect(() => {
+    if (activeTab !== "mine") {
+      return
+    }
+    
     const loadRooms = async () => {
-      if (!currentUser?.id && activeTab === "mine") {
+      if (!currentUser?.id) {
         console.log("[RoomsList] No currentUser.id, skipping load")
         setLoading(false)
         return
@@ -47,26 +74,21 @@ function RoomsList({ onNavigate, currentPage }) {
       setLoading(true)
       setError("")
       try {
-        let data
-        if (activeTab === "all") {
-          console.log("[RoomsList] Loading all rooms")
-          data = await roomAPI.getAllRooms(0, 50)
-        } else {
-          console.log("[RoomsList] Loading rooms for user:", currentUser.id)
-          data = await roomAPI.getUserRooms(currentUser.id)
-        }
+        console.log("[RoomsList] Loading rooms for user:", currentUser.id)
+        const data = await roomAPI.getUserRooms(currentUser.id)
         console.log("[RoomsList] Loaded rooms from API:", data)
         console.log("[RoomsList] Rooms type:", typeof data, "isArray:", Array.isArray(data), "length:", Array.isArray(data) ? data.length : 'N/A')
         
         // Ensure we have an array
-        const roomsArray = Array.isArray(data) ? data : (data ? [data] : [])
-        console.log("[RoomsList] Rooms array after normalization:", roomsArray.length)
+        let roomsArray = Array.isArray(data) ? data : (data ? [data] : [])
         
-        // Log first room's creator data for debugging
-        if (roomsArray.length > 0 && roomsArray[0]) {
-          console.log("[RoomsList] First room sample:", roomsArray[0])
-          console.log("[RoomsList] First room createdBy:", roomsArray[0].createdBy)
-          console.log("[RoomsList] First room createdBy.avatar:", roomsArray[0].createdBy?.avatar)
+        // Filter by search query if present
+        if (searchQuery.trim().length > 0) {
+          const query = searchQuery.trim().toLowerCase()
+          roomsArray = roomsArray.filter(room => 
+            (room.name && room.name.toLowerCase().includes(query)) ||
+            (room.description && room.description.toLowerCase().includes(query))
+          )
         }
         
         // Sort rooms by creation date (newest first)
@@ -78,9 +100,6 @@ function RoomsList({ onNavigate, currentPage }) {
             })
           : []
         console.log("[RoomsList] Sorted rooms:", sortedRooms.length)
-        if (sortedRooms.length > 0) {
-          console.log("[RoomsList] First room sample:", sortedRooms[0])
-        }
         setRooms(sortedRooms)
       } catch (err) {
         console.error("Ошибка загрузки комнат:", err)
@@ -92,16 +111,45 @@ function RoomsList({ onNavigate, currentPage }) {
     }
 
     loadRooms()
-  }, [currentUser, activeTab])
+  }, [currentUser, activeTab, searchQuery, refreshKey])
 
-  // Search rooms when query changes
+  // Search rooms when query or filters change (only for "all" tab)
   useEffect(() => {
-    if (searchQuery.trim().length > 0) {
+    if (activeTab !== "all") {
+      return // Don't search when on "mine" tab
+    }
+    
+    const hasSearchQuery = searchQuery.trim().length > 0
+    const hasFilters = filters.category || filters.startDate || filters.endDate || filters.location
+    
+    if (hasSearchQuery || hasFilters) {
       const searchRooms = async () => {
         setIsSearching(true)
+        setError("")
         try {
-          console.log("[RoomsList] Searching rooms with query:", searchQuery.trim())
-          const data = await roomAPI.search(searchQuery.trim())
+          // Prepare filter parameters
+          const searchFilters = {}
+          if (filters.category) {
+            searchFilters.category = filters.category
+          }
+          if (filters.startDate) {
+            // Convert to ISO string for backend
+            const startDate = new Date(filters.startDate)
+            startDate.setHours(0, 0, 0, 0) // Start of day
+            searchFilters.startDate = startDate.toISOString()
+          }
+          if (filters.endDate) {
+            // Convert to ISO string for backend
+            const endDate = new Date(filters.endDate)
+            endDate.setHours(23, 59, 59, 999) // End of day
+            searchFilters.endDate = endDate.toISOString()
+          }
+          if (filters.location) {
+            searchFilters.location = filters.location
+          }
+          
+          console.log("[RoomsList] Searching rooms with query:", searchQuery.trim(), "filters:", searchFilters)
+          const data = await roomAPI.search(searchQuery.trim() || undefined, searchFilters)
           console.log("[RoomsList] Search results:", data)
           console.log("[RoomsList] Search results type:", typeof data, "isArray:", Array.isArray(data), "length:", Array.isArray(data) ? data.length : 'N/A')
           
@@ -132,45 +180,44 @@ function RoomsList({ onNavigate, currentPage }) {
       const timeoutId = setTimeout(searchRooms, 300) // Debounce search
       return () => clearTimeout(timeoutId)
     } else {
-      // If search is empty, load user's rooms
-      if (currentUser?.id) {
-        const loadRooms = async () => {
-          setLoading(true)
-          setError("")
-          try {
-            console.log("[RoomsList] Reloading rooms for user:", currentUser.id)
-            const data = await roomAPI.getUserRooms(currentUser.id)
-            console.log("[RoomsList] Reloaded rooms:", data)
-            console.log("[RoomsList] Reloaded rooms type:", typeof data, "isArray:", Array.isArray(data), "length:", Array.isArray(data) ? data.length : 'N/A')
-            
-            // Ensure we have an array
-            const roomsArray = Array.isArray(data) ? data : (data ? [data] : [])
-            console.log("[RoomsList] Reloaded rooms array after normalization:", roomsArray.length)
-            
-            const sortedRooms = roomsArray.length > 0
-              ? roomsArray.sort((a, b) => {
-                  const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
-                  const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
-                  return dateB - dateA
-                })
-              : []
-            console.log("[RoomsList] Reloaded sorted rooms:", sortedRooms.length)
-            if (sortedRooms.length > 0) {
-              console.log("[RoomsList] First reloaded room sample:", sortedRooms[0])
-            }
-            setRooms(sortedRooms)
-          } catch (err) {
-            console.error("Ошибка загрузки комнат:", err)
-            setError(err.message || "Не удалось загрузить комнаты")
-            setRooms([])
-          } finally {
-            setLoading(false)
-          }
+      // If no search query and no filters, reload all rooms
+      const loadRooms = async () => {
+        setLoading(true)
+        setError("")
+        try {
+          console.log("[RoomsList] Loading all rooms")
+          const data = await roomAPI.getAllRooms(0, 50)
+          console.log("[RoomsList] Loaded rooms:", data)
+          
+          const roomsArray = Array.isArray(data) ? data : (data ? [data] : [])
+          const sortedRooms = roomsArray.length > 0
+            ? roomsArray.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+                return dateB - dateA
+              })
+            : []
+          setRooms(sortedRooms)
+        } catch (err) {
+          console.error("Ошибка загрузки комнат:", err)
+          setError(err.message || "Не удалось загрузить комнаты")
+          setRooms([])
+        } finally {
+          setLoading(false)
         }
-        loadRooms()
       }
+      loadRooms()
     }
-  }, [searchQuery, currentUser, refreshKey])
+  }, [searchQuery, filters, activeTab, refreshKey])
+  
+  // Reset filters when switching tabs
+  useEffect(() => {
+    if (activeTab === "mine") {
+      setFilters({ category: "", startDate: "", endDate: "", location: "" })
+      setSearchQuery("")
+      setShowFilters(false)
+    }
+  }, [activeTab])
 
 
   return (
@@ -242,24 +289,206 @@ function RoomsList({ onNavigate, currentPage }) {
         </button>
       </div>
 
-      {/* Поиск */}
-      <div style={{ padding: "var(--spacing-md)", paddingBottom: "var(--spacing-sm)" }}>
-        <input
-          type="text"
-          placeholder="Поиск комнат по названию..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "var(--spacing-sm) var(--spacing-md)",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--border-color)",
-            fontSize: "var(--font-size-base)",
-            backgroundColor: "var(--bg-secondary)",
-            color: "var(--text-primary)",
-          }}
-        />
-      </div>
+      {/* Поиск и фильтры */}
+      {activeTab === "all" && (
+        <div style={{ padding: "var(--spacing-md)", paddingBottom: "var(--spacing-sm)" }}>
+          <div style={{ display: "flex", gap: "var(--spacing-sm)", marginBottom: "var(--spacing-sm)" }}>
+            <input
+              type="text"
+              placeholder="Поиск по названию, описанию или локации..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                flex: 1,
+                padding: "var(--spacing-sm) var(--spacing-md)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-color)",
+                fontSize: "var(--font-size-base)",
+                backgroundColor: "var(--bg-secondary)",
+                color: "var(--text-primary)",
+              }}
+            />
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              style={{
+                padding: "var(--spacing-sm) var(--spacing-md)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-color)",
+                backgroundColor: showFilters ? "var(--accent-blue)" : "var(--bg-secondary)",
+                color: showFilters ? "white" : "var(--text-primary)",
+                cursor: "pointer",
+                fontSize: "var(--font-size-sm)",
+                fontWeight: "500",
+                whiteSpace: "nowrap"
+              }}
+            >
+              {showFilters ? "Скрыть фильтры" : "Фильтры"}
+            </button>
+          </div>
+          
+          {showFilters && (
+            <div style={{
+              padding: "var(--spacing-md)",
+              backgroundColor: "var(--bg-tertiary)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-color)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--spacing-md)"
+            }}>
+              <div>
+                <label style={{
+                  display: "block",
+                  marginBottom: "var(--spacing-xs)",
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: "500",
+                  color: "var(--text-primary)"
+                }}>
+                  Категория интересов
+                </label>
+                <select
+                  value={filters.category}
+                  onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                  style={{
+                    width: "100%",
+                    padding: "var(--spacing-sm) var(--spacing-md)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-color)",
+                    fontSize: "var(--font-size-base)",
+                    backgroundColor: "var(--bg-secondary)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {categories.map((cat) => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label style={{
+                  display: "block",
+                  marginBottom: "var(--spacing-xs)",
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: "500",
+                  color: "var(--text-primary)"
+                }}>
+                  Дата начала (от)
+                </label>
+                <input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                  style={{
+                    width: "100%",
+                    padding: "var(--spacing-sm) var(--spacing-md)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-color)",
+                    fontSize: "var(--font-size-base)",
+                    backgroundColor: "var(--bg-secondary)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{
+                  display: "block",
+                  marginBottom: "var(--spacing-xs)",
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: "500",
+                  color: "var(--text-primary)"
+                }}>
+                  Дата окончания (до)
+                </label>
+                <input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                  min={filters.startDate || undefined}
+                  style={{
+                    width: "100%",
+                    padding: "var(--spacing-sm) var(--spacing-md)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-color)",
+                    fontSize: "var(--font-size-base)",
+                    backgroundColor: "var(--bg-secondary)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{
+                  display: "block",
+                  marginBottom: "var(--spacing-xs)",
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: "500",
+                  color: "var(--text-primary)"
+                }}>
+                  Локация (город, адрес)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Введите город или адрес..."
+                  value={filters.location}
+                  onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                  style={{
+                    width: "100%",
+                    padding: "var(--spacing-sm) var(--spacing-md)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-color)",
+                    fontSize: "var(--font-size-base)",
+                    backgroundColor: "var(--bg-secondary)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+              </div>
+              
+              {(filters.category || filters.startDate || filters.endDate || filters.location) && (
+                <button
+                  onClick={() => setFilters({ category: "", startDate: "", endDate: "", location: "" })}
+                  style={{
+                    padding: "var(--spacing-sm) var(--spacing-md)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-color)",
+                    backgroundColor: "var(--error-color)",
+                    color: "white",
+                    cursor: "pointer",
+                    fontSize: "var(--font-size-sm)",
+                    fontWeight: "500"
+                  }}
+                >
+                  Сбросить фильтры
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Поиск для вкладки "Мои комнаты" */}
+      {activeTab === "mine" && (
+        <div style={{ padding: "var(--spacing-md)", paddingBottom: "var(--spacing-sm)" }}>
+          <input
+            type="text"
+            placeholder="Поиск по названию, описанию или локации..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "var(--spacing-sm) var(--spacing-md)",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-color)",
+              fontSize: "var(--font-size-base)",
+              backgroundColor: "var(--bg-secondary)",
+              color: "var(--text-primary)",
+            }}
+          />
+        </div>
+      )}
 
       <div className="rooms-list-container">
         {(loading || isSearching) ? (

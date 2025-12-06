@@ -790,22 +790,33 @@ export const roomAPI = {
     })
   },
 
-  async sendMessage(roomId, senderId, content) {
-    // Backend: POST /api/rooms/{roomId}/chat/messages with { senderId, content }
+  async sendMessage(roomId, senderId, content, imageId = null) {
+    // Backend: POST /api/rooms/{roomId}/chat/messages with { senderId, content, imageId? }
+    const body = {
+      senderId,
+      content,
+    }
+    if (imageId) {
+      body.imageId = imageId
+    }
     return request(`/api/rooms/${roomId}/chat/messages`, {
       method: "POST",
-      body: {
-        senderId,
-        content,
-      },
+      body,
     })
   },
 
-  async search(query) {
-    // Backend: GET /api/rooms/search?query=
+  async search(query, filters = {}) {
+    // Backend: GET /api/rooms/search?query=&category=&startDate=&endDate=&location=
+    const params = {}
+    if (query) params.query = query
+    if (filters.category) params.category = filters.category
+    if (filters.startDate) params.startDate = filters.startDate
+    if (filters.endDate) params.endDate = filters.endDate
+    if (filters.location) params.location = filters.location
+    
     return request("/api/rooms/search", {
       method: "GET",
-      params: { query },
+      params,
     })
   },
 

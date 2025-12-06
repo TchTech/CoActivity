@@ -23,16 +23,20 @@ const nextConfig = {
         destination: 'http://localhost:8080/users/:path*',
       },
       {
-        source: '/images/:path*',
-        destination: 'http://localhost:8080/images/:path*',
-      },
-      {
         source: '/posts/:path*',
         destination: 'http://localhost:8080/posts/:path*',
       },
       {
-        source: '/rooms/:path*',
-        destination: 'http://localhost:8080/api/rooms/:path*',
+        source: '/images/:path*',
+        destination: 'http://localhost:8080/images/:path*',
+      },
+      {
+        source: '/password-reset/:path*',
+        destination: 'http://localhost:8080/password-reset/:path*',
+      },
+      {
+        source: '/email-verification/:path*',
+        destination: 'http://localhost:8080/email-verification/:path*',
       },
     ]
   },

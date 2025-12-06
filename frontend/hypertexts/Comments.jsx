@@ -27,6 +27,59 @@ function Comments({ onNavigate, postId, currentPage }) {
   // Hook for post interactions (likes/dislikes)
   const postInteractions = usePostInteractions(postData)
 
+  // Function to load only comments (for real-time updates)
+  const fetchComments = async () => {
+    try {
+      const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+      if (!postIdValue) {
+        return
+      }
+      
+      console.log("[Comments] Loading comments for post:", postIdValue)
+      const apiComments = await commentAPI.getByPost(postIdValue)
+      console.log("[Comments] Loaded comments from API:", apiComments)
+      
+      // Map and sort comments by creation date (oldest first for chronological order)
+      const sortedComments = Array.isArray(apiComments) && apiComments.length > 0
+        ? apiComments.map(c => {
+            const authorId = c.author?.id || c.authorId
+            const authorName = c.author?.name || c.author?.username || "Пользователь"
+            
+            return {
+              id: c.id,
+              userId: authorId,
+              author: {
+                id: authorId,
+                name: authorName,
+                username: c.author?.username,
+                avatar: c.author?.avatar,
+                rating: c.author?.rating,
+              },
+              text: c.text || c.content || "",
+              createdAt: c.createdAt || c.created_at,
+              time: "",
+              likes: c.likedUsers?.length || 0,
+              likedUsers: c.likedUsers || [],
+              dislikedUsers: c.dislikedUsers || [],
+              dislikes: c.dislikedUsers?.length || 0,
+              isLiked: false,
+              isDisliked: false,
+            }
+          }).sort((a, b) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+            return dateA - dateB
+          })
+        : []
+      
+      console.log("[Comments] Mapped and sorted comments:", sortedComments.length)
+      setComments(sortedComments)
+      setPostComments(sortedComments.length)
+    } catch (error) {
+      console.error("Ошибка загрузки комментариев:", error)
+    }
+  }
+
   const fetchPostData = async () => {
     setLoading(true)
     try {
@@ -55,75 +108,7 @@ function Comments({ onNavigate, postId, currentPage }) {
       }
       
       // Load comments from backend
-      try {
-        const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
-        console.log("[Comments] Loading comments for post:", postIdValue)
-        const apiComments = await commentAPI.getByPost(postIdValue)
-        console.log("[Comments] Loaded comments from API:", apiComments)
-        // Map and sort comments by creation date (oldest first for chronological order)
-        // Маппинг комментариев (без ответов - только корневые комментарии)
-        const sortedComments = Array.isArray(apiComments) && apiComments.length > 0
-          ? apiComments.map(c => {
-              const authorId = c.author?.id || c.authorId
-              const authorName = c.author?.name || c.author?.username || "Пользователь"
-              
-              return {
-                id: c.id,
-                userId: authorId,
-                author: {
-                  id: authorId,
-                  name: authorName,
-                  username: c.author?.username,
-                  avatar: c.author?.avatar, // Сохраняем объект avatar с id, если он есть
-                  rating: c.author?.rating,
-                },
-                text: c.text || c.content || "",
-                createdAt: c.createdAt || c.created_at,
-                time: "", // Время комментария не отображается
-                likes: c.likedUsers?.length || 0,
-                likedUsers: c.likedUsers || [],
-                dislikedUsers: c.dislikedUsers || [],
-                dislikes: c.dislikedUsers?.length || 0,
-                isLiked: false,
-                isDisliked: false,
-              }
-            }).sort((a, b) => {
-              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
-              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
-              return dateA - dateB
-            })
-          : []
-        console.log("[Comments] Mapped and sorted comments:", sortedComments.length)
-        setComments(sortedComments)
-        setPostComments(sortedComments.length)
-      } catch (error) {
-        console.error("Ошибка загрузки комментариев:", error)
-        // Fallback: use comments from post object if available
-        const postComments = post.comments || []
-        if (Array.isArray(postComments) && postComments.length > 0) {
-          const mappedComments = postComments.map(c => ({
-            id: c.id,
-            userId: c.author?.id || c.authorId,
-            author: {
-              id: c.author?.id || c.authorId,
-              name: c.author?.name || c.author?.username || "Пользователь",
-              avatar: c.author?.avatar || "/placeholder.svg",
-            },
-            text: c.text || c.content || "",
-            createdAt: c.createdAt,
-            likes: c.likedUsers?.length || 0,
-            likedUsers: c.likedUsers || [],
-            isLiked: false,
-            commentCount: 0,
-            replies: [],
-          }))
-          setComments(mappedComments)
-          setPostComments(mappedComments.length)
-        } else {
-          setComments([])
-          setPostComments(0)
-        }
-      }
+      await fetchComments()
     } catch (error) {
       console.error("Ошибка загрузки поста:", error)
       // Если пост не найден (404), редиректим на главную страницу
@@ -163,6 +148,44 @@ function Comments({ onNavigate, postId, currentPage }) {
       setLoading(false)
     }
   }, [postId, isDeleted])
+
+  // Real-time comments update (polling)
+  useEffect(() => {
+    // Не обновляем комментарии, если пост был удален или еще загружается
+    if (isDeleted || loading || !postData) {
+      return
+    }
+    
+    const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+    if (!postIdValue) {
+      return
+    }
+
+    // Initial load
+    fetchComments()
+    
+    // Poll every 5 seconds for real-time updates
+    const interval = setInterval(fetchComments, 5000)
+    
+    // Also reload when window gains focus (user switches back to tab)
+    const handleFocus = () => {
+      fetchComments()
+    }
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchComments()
+      }
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [postId, isDeleted, loading, postData])
 
   if (loading) {
     return (
@@ -286,87 +309,13 @@ function Comments({ onNavigate, postId, currentPage }) {
       }
 
       // Создание комментария через API
-      const newComment = await commentAPI.create(postIdValue, commentData)
+      await commentAPI.create(postIdValue, commentData)
 
-      // Optimistically update UI with the new comment
-      const uiComment = {
-        id: newComment?.id || Date.now(),
-        userId: currentUser.id,
-        author: {
-          id: currentUser.id,
-          name: currentUser.name || currentUser.username || "Вы",
-          avatar: currentUser.avatar, // Сохраняем аватарку текущего пользователя
-          rating: currentUser.rating,
-        },
-        text: commentText,
-        createdAt: new Date().toISOString(),
-        time: "", // Не показываем время для новых комментариев
-        likes: 0,
-        likedUsers: [],
-        isLiked: false,
-        commentCount: 0,
-        replies: [],
-      }
-
-      // Add new comment to the list
-      setComments([...comments, uiComment])
-      setPostComments(postComments + 1)
-
+      // Clear comment input
       setCommentText("")
       
-      // Refresh comments from server to get the actual comment data
-      // This ensures we have the correct ID and any server-side formatting
-      // Use a small delay to ensure the server has processed the comment
-      setTimeout(async () => {
-        try {
-          const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
-          if (!postIdValue) {
-            console.error("[Comments] Invalid postId for refresh:", postId)
-            return
-          }
-          const refreshedComments = await commentAPI.getByPost(postIdValue)
-          if (Array.isArray(refreshedComments) && refreshedComments.length > 0) {
-            // Маппинг комментариев (без ответов - только корневые комментарии)
-            const sortedComments = refreshedComments.map(c => {
-              const authorId = c.author?.id || c.authorId
-              const authorName = c.author?.name || c.author?.username || "Пользователь"
-              
-              return {
-                id: c.id,
-                userId: authorId,
-                author: {
-                  id: authorId,
-                  name: authorName,
-                  username: c.author?.username,
-                  avatar: c.author?.avatar, // Сохраняем объект avatar с id, если он есть
-                  rating: c.author?.rating,
-                },
-                text: c.text || c.content || "",
-                createdAt: c.createdAt || c.created_at,
-                time: "", // Время комментария не отображается
-                likes: c.likedUsers?.length || 0,
-                likedUsers: c.likedUsers || [],
-                dislikedUsers: c.dislikedUsers || [],
-                dislikes: c.dislikedUsers?.length || 0,
-                isLiked: false,
-                isDisliked: false,
-              }
-            }).sort((a, b) => {
-              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0
-              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0
-              return dateA - dateB
-            })
-            setComments(sortedComments)
-            setPostComments(sortedComments.length)
-          } else {
-            // If refresh returns empty, keep the optimistic update
-            console.warn("Comment refresh returned empty, keeping optimistic update")
-          }
-        } catch (error) {
-          console.error("Ошибка обновления комментариев:", error)
-          // Keep the optimistic update if refresh fails
-        }
-      }, 500)
+      // Reload comments to get the latest from server (including the new one)
+      await fetchComments()
     } catch (error) {
       console.error("Ошибка при создании комментария:", error)
       // Можно показать уведомление об ошибке
@@ -606,6 +555,42 @@ function Comments({ onNavigate, postId, currentPage }) {
                     />
                     {comment.dislikedUsers?.length || comment.dislikes || 0}
                   </button>
+                  {currentUser && (authorId === currentUser.id) && (
+                    <button
+                      className="comment-action"
+                      onClick={async () => {
+                        if (confirm("Удалить этот комментарий?")) {
+                          try {
+                            const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+                            const commentIdValue = typeof comment.id === "object" ? (comment.id?.id || comment.id?.commentId || null) : comment.id
+                            const userIdValue = typeof currentUser.id === "object" ? (currentUser.id?.id || currentUser.id?.userId || null) : currentUser.id
+                            
+                            if (!postIdValue || !commentIdValue || !userIdValue) {
+                              console.error("[Comments] Invalid IDs for delete:", { postId, commentId: comment.id, userId: currentUser.id })
+                              return
+                            }
+                            
+                            await commentAPI.delete(postIdValue, commentIdValue, userIdValue)
+                            // Remove comment from local state
+                            setComments((prev) => prev.filter((c) => c.id !== comment.id))
+                            setPostComments((prev) => Math.max(0, prev - 1))
+                          } catch (error) {
+                            console.error("Ошибка при удалении комментария:", error)
+                            alert("Не удалось удалить комментарий: " + (error.message || "Неизвестная ошибка"))
+                          }
+                        }
+                      }}
+                      style={{ 
+                        marginLeft: "auto",
+                        color: "var(--error-color, #dc3545)",
+                        fontSize: "var(--font-size-sm)",
+                        padding: "4px 8px"
+                      }}
+                      title="Удалить комментарий"
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

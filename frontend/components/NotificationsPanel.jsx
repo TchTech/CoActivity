@@ -36,8 +36,20 @@ function NotificationsPanel({ userId, onClose, onNavigate, onNotificationUpdate 
     }
 
     loadNotifications()
-    const interval = setInterval(loadNotifications, 30000) // Poll every 30s
-    return () => clearInterval(interval)
+    
+    // Poll every 5 seconds for real-time updates
+    const interval = setInterval(loadNotifications, 5000)
+    
+    // Also reload when window gains focus (user switches back to tab)
+    const handleFocus = () => {
+      loadNotifications()
+    }
+    window.addEventListener('focus', handleFocus)
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [userId])
 
   const handleMarkAsRead = async (notificationId) => {
@@ -128,6 +140,12 @@ function NotificationsPanel({ userId, onClose, onNavigate, onNotificationUpdate 
       } else if (data.roomId) {
         onNavigate("roomInfo", data.roomId)
       }
+    } else if (notification.type === "NEW_POST" && data?.postId) {
+      onNavigate("comments", data.postId)
+    } else if ((notification.type === "POST_LIKED" || notification.type === "POST_DISLIKED" || notification.type === "POST_COMMENTED") && data?.postId) {
+      onNavigate("comments", data.postId)
+    } else if (notification.type === "COMMENT_REPLY" && data?.postId) {
+      onNavigate("comments", data.postId)
     }
     
     onClose()
