@@ -7,6 +7,8 @@ import com.mipt.CoActivity.exception.BadRequestException;
 import com.mipt.CoActivity.exception.UnauthorizedException;
 import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -14,13 +16,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthServiceImpl implements AuthService {
+    private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
+    
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final EmailVerificationService emailVerificationService;
 
     @Autowired
-    public AuthServiceImpl(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
+    public AuthServiceImpl(UserRepository userRepository, 
+                          BCryptPasswordEncoder passwordEncoder,
+                          EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Override
@@ -47,8 +55,23 @@ public class AuthServiceImpl implements AuthService {
         String hashedPassword = passwordEncoder.encode(request.getPassword());
         User newUser = new User(request.getName(), request.getEmail(), hashedPassword);
         newUser.setName(request.getName());
+        // Устанавливаем emailVerified = false при регистрации (по умолчанию уже false)
+        newUser.setEmailVerified(false);
         
-        return userRepository.save(newUser);
+        User savedUser = userRepository.save(newUser);
+        
+        // Отправляем письмо подтверждения email
+        try {
+            logger.info("Sending verification email to newly registered user: {}", savedUser.getEmail());
+            emailVerificationService.sendVerificationEmail(savedUser);
+            logger.info("Verification email sent successfully to user: {}", savedUser.getEmail());
+        } catch (Exception e) {
+            logger.error("Failed to send verification email to user: {}", savedUser.getEmail(), e);
+            // Не блокируем регистрацию, но логируем ошибку
+            // Пользователь сможет запросить повторную отправку через /email-verification/resend
+        }
+        
+        return savedUser;
     }
 
     @Override
@@ -84,6 +107,12 @@ public class AuthServiceImpl implements AuthService {
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new UnauthorizedException("Invalid email or password");
+        }
+
+        // Проверяем, подтвержден ли email (обязательное условие для входа)
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            logger.warn("Login attempt for unverified email: {}", user.getEmail());
+            throw new UnauthorizedException("Email not verified. Please check your email and verify your account before logging in.");
         }
 
         // Проверяем, включена ли 2FA

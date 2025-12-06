@@ -32,6 +32,18 @@
   color: var(--text-muted);
 }
 
+.post-own-label {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  display: inline-block;
+}
+
 .post-title {
   font-size: var(--font-size-lg);
   font-weight: 600;

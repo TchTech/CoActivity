@@ -6,6 +6,7 @@ import { postAPI, imageAPI, notificationAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
 import PostRoomJoinButton from "../components/PostRoomJoinButton"
+import { getAvatarEmoji } from "../utils/avatarUtils"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -20,6 +21,11 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
   // Safe: hook is called at the top level of this component,
   // not inside a loop in another component.
   const postInteractions = usePostInteractions(post)
+  const { currentUser } = useUser()
+  
+  // Проверяем, является ли пост собственным
+  const authorId = post.userId || post.author?.id
+  const isOwnPost = currentUser && authorId && currentUser.id === authorId
 
   return (
     <div key={post.id} className="post-card" style={{ marginBottom: "var(--spacing-md)" }}>
@@ -39,14 +45,29 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
           />
         ) : (
           <div
-            className="avatar avatar-md"
+            className="avatar avatar-md avatar-clickable"
             style={{
-              backgroundColor: "transparent",
-              border: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "var(--bg-tertiary)",
+              border: "1px solid var(--border-primary)",
+              borderRadius: "50%",
+              fontSize: "var(--font-size-base)",
               width: "40px",
-              height: "40px"
+              height: "40px",
+              cursor: "pointer"
             }}
-          />
+            onClick={(e) => {
+              e.stopPropagation()
+              const userId = post.userId || post.author?.id
+              if (userId) {
+                onNavigate("profile", userId)
+              }
+            }}
+          >
+            {getAvatarEmoji(post.userId || post.author?.id)}
+          </div>
         )}
         <div className="post-user-info">
           <div className="post-username">
@@ -60,23 +81,29 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
               (post.createdAt ? new Date(post.createdAt).toLocaleDateString("ru-RU") : "")}
           </div>
         </div>
-        <button
-          className={`btn ${
-            subscribedUsers.some(
-              (u) => (u.id || u) === (post.userId || post.author?.id)
-            )
-              ? "btn-secondary"
-              : "btn-primary"
-          }`}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleSubscribe(post.userId || post.author?.id)
-          }}
-        >
-          {subscribedUsers.some((u) => (u.id || u) === (post.userId || post.author?.id))
-            ? "отписаться"
-            : "подписаться"}
-        </button>
+        {isOwnPost ? (
+          <div className="post-own-label">
+            Мой пост
+          </div>
+        ) : (
+          <button
+            className={`btn ${
+              subscribedUsers.some(
+                (u) => (u.id || u) === (post.userId || post.author?.id)
+              )
+                ? "btn-secondary"
+                : "btn-primary"
+            }`}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleSubscribe(post.userId || post.author?.id)
+            }}
+          >
+            {subscribedUsers.some((u) => (u.id || u) === (post.userId || post.author?.id))
+              ? "отписаться"
+              : "подписаться"}
+          </button>
+        )}
       </div>
 
       <h3 className="post-title">{post.name || post.title}</h3>
@@ -84,67 +111,7 @@ function FeedPostCard({ post, onNavigate, subscribedUsers, handleSubscribe }) {
 
       {/* Show room label if post is attached to a room */}
       {post.room && (
-        <>
-          <div style={{ 
-            marginTop: "var(--spacing-sm)", 
-            marginBottom: "var(--spacing-sm)",
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--spacing-xs)"
-          }}>
-            <div
-              style={{
-                backgroundColor: "#FFD700", // Yellow background like in the image
-                color: "var(--text-primary)",
-                padding: "var(--spacing-xs) var(--spacing-sm)",
-                borderRadius: "var(--radius-md)",
-                fontSize: "var(--font-size-sm)",
-                fontWeight: "500",
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--spacing-xs)",
-                cursor: "pointer",
-                transition: "opacity 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = "0.8"
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = "1"
-              }}
-              onClick={(e) => {
-                e.stopPropagation()
-                const roomId = typeof post.room === "object" 
-                  ? (post.room?.id || post.roomId || null) 
-                  : post.roomId
-                if (roomId) {
-                  onNavigate("roomInfo", roomId)
-                }
-              }}
-            >
-              <span style={{ fontSize: "16px" }}>📌</span>
-              <span>
-                Закреплено в:{" "}
-                {typeof post.room === "object" && post.room?.name ? (
-                  <span
-                    style={{
-                      color: "var(--accent-blue)",
-                      textDecoration: "underline",
-                      cursor: "pointer",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {post.room.name}
-                  </span>
-                ) : (
-                  <span>Комната</span>
-                )}
-              </span>
-            </div>
-          </div>
-          {/* Кнопка присоединения к комнате */}
-          <PostRoomJoinButton post={post} onNavigate={onNavigate} />
-        </>
+        <PostRoomJoinButton post={post} onNavigate={onNavigate} />
       )}
 
 

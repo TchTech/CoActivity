@@ -37,6 +37,7 @@ public class NotificationService {
   private final RoomNotificationSettingsRepository roomNotificationSettingsRepository;
   private final NotificationDeduplicationLogRepository deduplicationLogRepository;
   private final RoomRepository roomRepository;
+  private final EmailService emailService;
 
   @Autowired
   public NotificationService(
@@ -45,13 +46,15 @@ public class NotificationService {
           UserSettingsRepository userSettingsRepository,
           RoomNotificationSettingsRepository roomNotificationSettingsRepository,
           NotificationDeduplicationLogRepository deduplicationLogRepository,
-          RoomRepository roomRepository) {
+          RoomRepository roomRepository,
+          EmailService emailService) {
     this.notificationRepository = notificationRepository;
     this.userRepository = userRepository;
     this.userSettingsRepository = userSettingsRepository;
     this.roomNotificationSettingsRepository = roomNotificationSettingsRepository;
     this.deduplicationLogRepository = deduplicationLogRepository;
     this.roomRepository = roomRepository;
+    this.emailService = emailService;
   }
 
   public List<Notification> getUserNotifications(Long userId) {
@@ -162,6 +165,10 @@ public class NotificationService {
     logDeduplication(deduplicationHash, user, type);
 
     logger.debug("Created notification {} for user {} type {}", savedNotification.getId(), userId, type);
+    
+    // Send email notification if enabled
+    sendEmailNotificationIfEnabled(user, type, title, content, savedNotification);
+    
     return savedNotification;
   }
 
@@ -421,6 +428,96 @@ public class NotificationService {
     int deletedCount = deduplicationLogRepository.deleteOlderThan(cutoffTime);
     logger.info("Cleaned up {} old deduplication log entries (older than 1 hour)", deletedCount);
     return deletedCount;
+  }
+
+  /**
+   * Send email notification if user has email notifications enabled and email is verified.
+   * This is called asynchronously after creating a notification to avoid blocking the main flow.
+   */
+  private void sendEmailNotificationIfEnabled(User user, String type, String title, String content, Notification notification) {
+    try {
+      // Check if user has email verified
+      if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+        logger.debug("Skipping email notification for user {} - email not verified", user.getId());
+        return;
+      }
+
+      // Check if user has email address
+      if (user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+        logger.debug("Skipping email notification for user {} - no email address", user.getId());
+        return;
+      }
+
+      // Check user settings for email notifications
+      Optional<UserSettings> userSettingsOpt = userSettingsRepository.findByUserId(user.getId());
+      if (userSettingsOpt.isPresent()) {
+        UserSettings settings = userSettingsOpt.get();
+        // Check if email notifications are disabled
+        if (settings.getEmailNotifications() != null && !settings.getEmailNotifications()) {
+          logger.debug("Skipping email notification for user {} - email notifications disabled in settings", user.getId());
+          return;
+        }
+      }
+
+      // Generate email subject and body
+      String emailSubject = "CoActivity: " + title;
+      String emailBody = buildEmailNotificationBody(type, title, content, notification);
+
+      // Send email asynchronously (don't block notification creation)
+      try {
+        emailService.sendSimpleEmail(user.getEmail(), emailSubject, emailBody);
+        logger.info("Email notification sent to user {} ({}) for notification type {}", 
+            user.getId(), user.getEmail(), type);
+      } catch (Exception e) {
+        // Log error but don't fail notification creation
+        logger.error("Failed to send email notification to user {} ({}) for type {}: {}", 
+            user.getId(), user.getEmail(), type, e.getMessage(), e);
+      }
+    } catch (Exception e) {
+      // Log error but don't fail notification creation
+      logger.error("Error checking email notification settings for user {}: {}", 
+          user.getId(), e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Build email body for notification based on type and content.
+   */
+  private String buildEmailNotificationBody(String type, String title, String content, Notification notification) {
+    StringBuilder body = new StringBuilder();
+    body.append("Здравствуйте!\n\n");
+    body.append(title).append("\n\n");
+    
+    if (content != null && !content.trim().isEmpty()) {
+      body.append(content).append("\n\n");
+    }
+
+    // Add type-specific information
+    if ("MEMBERSHIP_APPROVED".equals(type)) {
+      body.append("Вы можете открыть комнату и начать общение с участниками.\n\n");
+    } else if ("MEMBERSHIP_REJECTED".equals(type)) {
+      body.append("Вы можете подать заявку в другие комнаты по вашим интересам.\n\n");
+    } else if ("MEMBERSHIP_REQUEST".equals(type)) {
+      body.append("Перейдите в раздел комнаты, чтобы рассмотреть заявку.\n\n");
+    } else if ("COMMENT".equals(type) || "POST_COMMENTED".equals(type)) {
+      body.append("Перейдите к посту, чтобы увидеть комментарий.\n\n");
+    } else if ("MENTION".equals(type)) {
+      body.append("Вас упомянули в посте или комментарии. Перейдите, чтобы посмотреть.\n\n");
+    } else if ("POST_LIKED".equals(type)) {
+      body.append("Кто-то оценил ваш пост!\n\n");
+    } else if ("FOLLOW".equals(type)) {
+      body.append("На вас подписался новый пользователь.\n\n");
+    } else if (type != null && type.startsWith("EVENT_REMINDER")) {
+      body.append("Не забудьте о предстоящем событии!\n\n");
+    }
+
+    body.append("С уважением,\n");
+    body.append("Команда CoActivity\n\n");
+    body.append("---\n");
+    body.append("Вы получили это письмо, потому что у вас включены email-уведомления. ");
+    body.append("Вы можете отключить их в настройках профиля.");
+
+    return body.toString();
   }
 }
 

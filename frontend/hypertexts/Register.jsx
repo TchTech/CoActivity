@@ -209,9 +209,15 @@ function Register({ onNavigate }) {
       })
       
       // Регистрация пользователя (шаг 1 - создание аккаунта)
-      const user = await userAPI.register(formData.nickname, formData.email, formData.password)
+      // Ответ: { user, emailVerificationRequired, message }
+      const registrationResponse = await userAPI.register(formData.nickname, formData.email, formData.password)
       
-      console.log("Пользователь зарегистрирован:", user)
+      console.log("Ответ регистрации:", registrationResponse)
+      
+      // Извлекаем пользователя из ответа (может быть напрямую или в поле user)
+      const user = registrationResponse?.user || registrationResponse
+      const emailVerificationRequired = registrationResponse?.emailVerificationRequired !== false
+      const registrationMessage = registrationResponse?.message
       
       if (!user) {
         setAlert({ visible: true, message: "Ошибка: пользователь не был создан", type: "error" })
@@ -266,60 +272,26 @@ function Register({ onNavigate }) {
         }
       }
       
-      // После успешной регистрации автоматически входим в систему
-      try {
-        // Проверяем, что email и password доступны
-        // Используем email из формы или из объекта user
-        const loginEmail = formData.email?.trim() || user?.email?.trim()
-        const loginPassword = formData.password
-        
-        console.log("Данные для автоматического входа:", {
-          formDataEmail: formData.email,
-          userEmail: user?.email,
-          loginEmail: loginEmail,
-          passwordLength: loginPassword?.length,
-          formDataKeys: Object.keys(formData)
-        })
-        
-        if (!loginEmail) {
-          console.error("Email не найден для автоматического входа. formData:", formData, "user:", user)
-          throw new Error("Email отсутствует для автоматического входа")
-        }
-        
-        if (!loginPassword) {
-          console.error("Пароль не найден для автоматического входа")
-          throw new Error("Пароль отсутствует для автоматического входа")
-        }
-        
-        console.log("Вызываем userAPI.login с:", { login: loginEmail, passwordLength: loginPassword.length })
-        const loginResponse = await userAPI.login(loginEmail, loginPassword)
-        console.log("Автоматический вход после регистрации:", loginResponse)
-        
-        if (loginResponse && loginResponse.token) {
-          login(loginResponse)
-          // Переход на главную страницу
-          onNavigate("home")
-        } else {
-          // Если автоматический вход не удался, показываем сообщение об успешной регистрации
-          setAlert({ 
-            visible: true, 
-            message: "Регистрация завершена успешно! Теперь вы можете войти в систему.", 
-            type: "success" 
-          })
-          // Предлагаем перейти на страницу входа через 3 секунды
-          setTimeout(() => {
-            onNavigate("login")
-          }, 3000)
-        }
-      } catch (loginError) {
-        console.error("Ошибка автоматического входа после регистрации:", loginError)
-        // Регистрация успешна, но автоматический вход не удался
+      // Показываем сообщение об успешной регистрации и необходимости подтвердить email
+      if (emailVerificationRequired) {
+        const message = registrationMessage || 
+          "Регистрация завершена! Пожалуйста, проверьте вашу почту и перейдите по ссылке для подтверждения email. После подтверждения вы сможете войти в систему."
         setAlert({ 
           visible: true, 
-          message: "Регистрация завершена успешно! Теперь вы можете войти в систему.", 
+          message: message, 
           type: "success" 
         })
-        // Предлагаем перейти на страницу входа через 3 секунды
+        // Переходим на страницу входа через 5 секунд (с возможностью подтвердить email)
+        setTimeout(() => {
+          onNavigate("login")
+        }, 5000)
+      } else {
+        // Если подтверждение не требуется (не должно происходить при текущей настройке)
+        setAlert({ 
+          visible: true, 
+          message: registrationMessage || "Регистрация завершена успешно!", 
+          type: "success" 
+        })
         setTimeout(() => {
           onNavigate("login")
         }, 3000)

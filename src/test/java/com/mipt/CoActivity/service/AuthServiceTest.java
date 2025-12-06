@@ -28,6 +28,9 @@ class AuthServiceTest {
     @Mock
     private BCryptPasswordEncoder passwordEncoder;
 
+    @Mock
+    private EmailVerificationService emailVerificationService;
+
     @InjectMocks
     private AuthServiceImpl authService;
 
@@ -38,14 +41,18 @@ class AuthServiceTest {
         testUser = new User("testuser", "test@test.com", "encodedPassword");
         testUser.setId(1L);
         testUser.setName("Test User");
+        testUser.setEmailVerified(true); // По умолчанию email подтвержден для существующих тестов
     }
 
     @Test
     void testLoginUser_Success() {
         // Given
         LoginRequest request = new LoginRequest();
-        request.setEmail("test@test.com");
+        request.setLogin("test@test.com");
         request.setPassword("password");
+        
+        // Устанавливаем emailVerified = true для успешного входа
+        testUser.setEmailVerified(true);
         
         when(userRepository.findByEmail("test@test.com")).thenReturn(testUser);
         when(passwordEncoder.matches("password", testUser.getPasswordHash())).thenReturn(true);
@@ -63,7 +70,7 @@ class AuthServiceTest {
     void testLoginUser_ThrowsExceptionWhenUserNotFound() {
         // Given
         LoginRequest request = new LoginRequest();
-        request.setEmail("nonexistent@test.com");
+        request.setLogin("nonexistent@test.com");
         request.setPassword("password");
         
         when(userRepository.findByEmail("nonexistent@test.com")).thenReturn(null);
@@ -78,11 +85,32 @@ class AuthServiceTest {
     void testLoginUser_ThrowsExceptionWhenPasswordIncorrect() {
         // Given
         LoginRequest request = new LoginRequest();
-        request.setEmail("test@test.com");
+        request.setLogin("test@test.com");
         request.setPassword("wrongpassword");
+        
+        testUser.setEmailVerified(true);
         
         when(userRepository.findByEmail("test@test.com")).thenReturn(testUser);
         when(passwordEncoder.matches("wrongpassword", testUser.getPasswordHash())).thenReturn(false);
+
+        // When & Then
+        assertThrows(UnauthorizedException.class, () -> {
+            authService.loginUser(request);
+        });
+    }
+    
+    @Test
+    void testLoginUser_ThrowsExceptionWhenEmailNotVerified() {
+        // Given
+        LoginRequest request = new LoginRequest();
+        request.setLogin("test@test.com");
+        request.setPassword("password");
+        
+        // Устанавливаем emailVerified = false (не подтвержден)
+        testUser.setEmailVerified(false);
+        
+        when(userRepository.findByEmail("test@test.com")).thenReturn(testUser);
+        when(passwordEncoder.matches("password", testUser.getPasswordHash())).thenReturn(true);
 
         // When & Then
         assertThrows(UnauthorizedException.class, () -> {
@@ -101,6 +129,8 @@ class AuthServiceTest {
         when(userRepository.findByEmail("newuser@test.com")).thenReturn(null);
         when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenReturn(testUser);
+        // Мокируем отправку email при регистрации
+        doNothing().when(emailVerificationService).sendVerificationEmail(any(User.class));
 
         // When
         User result = authService.registerNewUser(request);
@@ -108,6 +138,7 @@ class AuthServiceTest {
         // Then
         assertNotNull(result);
         verify(userRepository, times(1)).save(any(User.class));
+        verify(emailVerificationService, times(1)).sendVerificationEmail(any(User.class));
     }
 
     @Test

@@ -161,7 +161,10 @@ function Login({ onNavigate }) {
       const errorMessage = parseError(err)
       
       // Проверяем, является ли ошибка связанной с неподтвержденным email
-      if (errorMessage.includes("Email not verified") || errorMessage.includes("не подтвержден")) {
+      if (errorMessage.toLowerCase().includes("email not verified") || 
+          errorMessage.toLowerCase().includes("не подтвержден") ||
+          errorMessage.toLowerCase().includes("verify") ||
+          errorMessage.toLowerCase().includes("подтвержден")) {
         setEmailNotVerified(true)
         setPendingEmail(formData.login)
         setAlert({ visible: false, message: "", type: "error" })

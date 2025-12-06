@@ -32,7 +32,7 @@ function ForgotPassword({ onNavigate }) {
     setSuccess(false)
 
     try {
-      await passwordResetAPI.requestReset(email)
+      await passwordResetAPI.request(email)
       setSuccess(true)
     } catch (err) {
       console.error("Ошибка запроса сброса пароля:", err)

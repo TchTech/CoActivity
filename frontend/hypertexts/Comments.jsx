@@ -7,6 +7,9 @@ import { useUser } from "../context/UserContext"
 import { usePostInteractions } from "../hooks/usePostInteractions"
 import { useCommentInteractions } from "../hooks/useCommentInteractions"
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog"
+import { getAvatarEmoji } from "../utils/avatarUtils"
+import { AlertDialog } from "../components/ui/AlertDialog"
+import { ConfirmDialog } from "../components/ui/ConfirmDialog"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -23,6 +26,10 @@ function Comments({ onNavigate, postId, currentPage }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDeleted, setIsDeleted] = useState(false)
+  const [showAlert, setShowAlert] = useState(false)
+  const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })
+  const [showDeleteCommentConfirm, setShowDeleteCommentConfirm] = useState(false)
+  const [commentToDelete, setCommentToDelete] = useState(null)
   
   // Hook for post interactions (likes/dislikes)
   const postInteractions = usePostInteractions(postData)
@@ -292,6 +299,34 @@ function Comments({ onNavigate, postId, currentPage }) {
     }
   }
 
+  const confirmDeleteComment = async () => {
+    if (!commentToDelete || !currentUser) return
+
+    setShowDeleteCommentConfirm(false)
+    try {
+      const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+      const commentIdValue = typeof commentToDelete.id === "object" ? (commentToDelete.id?.id || commentToDelete.id?.commentId || null) : commentToDelete.id
+      const userIdValue = typeof currentUser.id === "object" ? (currentUser.id?.id || currentUser.id?.userId || null) : currentUser.id
+      
+      if (!postIdValue || !commentIdValue || !userIdValue) {
+        console.error("[Comments] Invalid IDs for delete:", { postId, commentId: commentToDelete.id, userId: currentUser.id })
+        setAlertData({ title: "Ошибка", message: "Не удалось удалить комментарий: некорректные данные", variant: "error" })
+        setShowAlert(true)
+        return
+      }
+      
+      await commentAPI.delete(postIdValue, commentIdValue, userIdValue)
+      // Remove comment from local state
+      setComments((prev) => prev.filter((c) => c.id !== commentToDelete.id))
+      setPostComments((prev) => Math.max(0, prev - 1))
+      setCommentToDelete(null)
+    } catch (error) {
+      console.error("Ошибка при удалении комментария:", error)
+      setAlertData({ title: "Ошибка", message: "Не удалось удалить комментарий: " + (error.message || "Неизвестная ошибка"), variant: "error" })
+      setShowAlert(true)
+    }
+  }
+
   const handleCommentSubmit = async () => {
     if (!commentText.trim() || !currentUser) return
 
@@ -348,14 +383,26 @@ function Comments({ onNavigate, postId, currentPage }) {
               />
             ) : (
               <div
-                className="avatar avatar-md"
+                className="avatar avatar-md avatar-clickable"
                 style={{
-                  backgroundColor: "transparent",
-                  border: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "var(--bg-tertiary)",
+                  border: "1px solid var(--border-primary)",
+                  borderRadius: "50%",
+                  fontSize: "var(--font-size-base)",
                   width: "40px",
-                  height: "40px"
+                  height: "40px",
+                  cursor: "pointer"
                 }}
-              />
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate("profile", postData.userId || postData.author?.id)
+                }}
+              >
+                {getAvatarEmoji(postData.userId || postData.author?.id)}
+              </div>
             )}
             <div className="post-user-info">
               <div className="post-username">
@@ -404,7 +451,8 @@ function Comments({ onNavigate, postId, currentPage }) {
                           setShowDeleteDialog(false)
                           onNavigate("home")
                         } else {
-                          alert("Не удалось удалить пост. Попробуйте еще раз.")
+                          setAlertData({ title: "Ошибка", message: "Не удалось удалить пост. Попробуйте еще раз.", variant: "error" })
+                          setShowAlert(true)
                         }
                       } finally {
                         setIsDeleting(false)
@@ -413,7 +461,13 @@ function Comments({ onNavigate, postId, currentPage }) {
                   />
                 </>
               )}
-              <button className="btn btn-primary">подписаться</button>
+              {currentUser && (postData.author?.id === currentUser.id || postData.userId === currentUser.id) ? (
+                <div className="post-own-label">
+                  Мой пост
+                </div>
+              ) : (
+                <button className="btn btn-primary">подписаться</button>
+              )}
             </div>
           </div>
 
@@ -506,16 +560,27 @@ function Comments({ onNavigate, postId, currentPage }) {
                         }}
                       />
                     ) : (
-                      // Если аватарки нет, показываем пустое место
+                      // Если аватарки нет, показываем эмодзи-аватар
                       <div 
-                        className="avatar avatar-md"
-                        style={{ 
-                          backgroundColor: "transparent",
-                          border: "none",
-                          width: "40px",
-                          height: "40px"
+                        className="avatar avatar-md avatar-clickable"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "var(--bg-tertiary)",
+                          border: "1px solid var(--border-primary)",
+                          borderRadius: "50%",
+                          fontSize: "var(--font-size-base)",
+                          cursor: "pointer"
                         }}
-                      />
+                        onClick={() => {
+                          if (authorId) {
+                            onNavigate("profile", authorId)
+                          }
+                        }}
+                      >
+                        {getAvatarEmoji(authorId)}
+                      </div>
                     )}
                     <div style={{ flex: 1 }}>
                       <div className="post-username">
@@ -558,27 +623,9 @@ function Comments({ onNavigate, postId, currentPage }) {
                   {currentUser && (authorId === currentUser.id) && (
                     <button
                       className="comment-action"
-                      onClick={async () => {
-                        if (confirm("Удалить этот комментарий?")) {
-                          try {
-                            const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
-                            const commentIdValue = typeof comment.id === "object" ? (comment.id?.id || comment.id?.commentId || null) : comment.id
-                            const userIdValue = typeof currentUser.id === "object" ? (currentUser.id?.id || currentUser.id?.userId || null) : currentUser.id
-                            
-                            if (!postIdValue || !commentIdValue || !userIdValue) {
-                              console.error("[Comments] Invalid IDs for delete:", { postId, commentId: comment.id, userId: currentUser.id })
-                              return
-                            }
-                            
-                            await commentAPI.delete(postIdValue, commentIdValue, userIdValue)
-                            // Remove comment from local state
-                            setComments((prev) => prev.filter((c) => c.id !== comment.id))
-                            setPostComments((prev) => Math.max(0, prev - 1))
-                          } catch (error) {
-                            console.error("Ошибка при удалении комментария:", error)
-                            alert("Не удалось удалить комментарий: " + (error.message || "Неизвестная ошибка"))
-                          }
-                        }
+                      onClick={() => {
+                        setCommentToDelete(comment)
+                        setShowDeleteCommentConfirm(true)
                       }}
                       style={{ 
                         marginLeft: "auto",
@@ -627,6 +674,30 @@ function Comments({ onNavigate, postId, currentPage }) {
       </div>
 
       <BottomNavigation currentPage={currentPage || "home"} onNavigate={onNavigate} />
+
+      {/* Alert Dialog */}
+      <AlertDialog
+        open={showAlert}
+        title={alertData.title}
+        message={alertData.message}
+        variant={alertData.variant}
+        onClose={() => setShowAlert(false)}
+      />
+
+      {/* Confirm Dialog for deleting comment */}
+      <ConfirmDialog
+        open={showDeleteCommentConfirm}
+        title="Удалить комментарий"
+        message="Удалить этот комментарий?"
+        confirmText="Удалить"
+        cancelText="Отмена"
+        confirmVariant="destructive"
+        onConfirm={confirmDeleteComment}
+        onCancel={() => {
+          setShowDeleteCommentConfirm(false)
+          setCommentToDelete(null)
+        }}
+      />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { postAPI, imageAPI, roomAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { AlertDialog } from "../components/ui/AlertDialog"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -24,6 +25,7 @@ function CreatePost({ onNavigate, currentPage }) {
   const [error, setError] = useState("")
   const [userRooms, setUserRooms] = useState([])
   const [loadingRooms, setLoadingRooms] = useState(true)
+  const [alertDialog, setAlertDialog] = useState({ open: false, title: "", message: "", variant: "info" })
 
   useEffect(() => {
     const loadUserRooms = async () => {
@@ -58,7 +60,12 @@ function CreatePost({ onNavigate, currentPage }) {
     const file = e.target.files[0]
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        alert("Размер файла не должен превышать 10 МБ")
+        setAlertDialog({
+          open: true,
+          title: "Ошибка",
+          message: "Размер файла не должен превышать 10 МБ",
+          variant: "error"
+        })
         return
       }
       setFormData({ ...formData, image: file })
@@ -292,6 +299,14 @@ function CreatePost({ onNavigate, currentPage }) {
       </div>
 
       <BottomNavigation currentPage={currentPage || "createPost"} onNavigate={onNavigate} />
+      
+      <AlertDialog
+        open={alertDialog.open}
+        title={alertDialog.title}
+        message={alertDialog.message}
+        variant={alertDialog.variant}
+        onClose={() => setAlertDialog({ ...alertDialog, open: false })}
+      />
     </div>
   )
 }

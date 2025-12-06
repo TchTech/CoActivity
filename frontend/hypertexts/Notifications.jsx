@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { notificationAPI, userAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { AlertDialog } from "../components/ui/AlertDialog"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -16,6 +17,7 @@ function Notifications({ onNavigate, currentPage }) {
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [ratingModalData, setRatingModalData] = useState(null)
   const [ratingValue, setRatingValue] = useState(5)
+  const [alertDialog, setAlertDialog] = useState({ open: false, title: "", message: "", variant: "info" })
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -138,10 +140,42 @@ function Notifications({ onNavigate, currentPage }) {
     return date.toLocaleDateString("ru-RU")
   }
 
+  const handleMarkAllAsRead = async () => {
+    if (!currentUser?.id || notifications.length === 0) return
+    
+    try {
+      await notificationAPI.markAllAsRead(currentUser.id)
+      // Обновляем все уведомления как прочитанные
+      setNotifications(notifications.map(n => ({ ...n, isRead: true })))
+      setUnreadCount(0)
+    } catch (error) {
+      console.error("Ошибка при отметке всех уведомлений как прочитанных:", error)
+      setAlertDialog({
+        open: true,
+        title: "Ошибка",
+        message: "Не удалось отметить все уведомления как прочитанные",
+        variant: "error"
+      })
+    }
+  }
+
   return (
     <div>
       <div className="top-nav">
         <div className="top-nav-title">Уведомления</div>
+        {notifications.length > 0 && (
+          <button
+            className="btn btn-secondary"
+            onClick={handleMarkAllAsRead}
+            style={{
+              fontSize: "var(--font-size-sm)",
+              padding: "var(--spacing-xs) var(--spacing-sm)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Убрать все
+          </button>
+        )}
       </div>
 
       <div style={{ padding: "var(--spacing-md)", paddingBottom: "80px" }}>
@@ -292,7 +326,12 @@ function Notifications({ onNavigate, currentPage }) {
                 onClick={async () => {
                   try {
                     await userAPI.createRating(ratingModalData.userId, currentUser.id, ratingValue)
-                    alert("Оценка сохранена")
+                    setAlertDialog({
+                      open: true,
+                      title: "Успех",
+                      message: "Оценка сохранена",
+                      variant: "success"
+                    })
                     // Помечаем уведомление как прочитанное
                     if (ratingModalData.notificationId) {
                       const notification = notifications.find(n => n.id === ratingModalData.notificationId)
@@ -304,7 +343,12 @@ function Notifications({ onNavigate, currentPage }) {
                     setRatingModalData(null)
                   } catch (error) {
                     console.error("Ошибка при оценке пользователя:", error)
-                    alert("Не удалось сохранить оценку: " + (error.message || "Неизвестная ошибка"))
+                    setAlertDialog({
+                      open: true,
+                      title: "Ошибка",
+                      message: "Не удалось сохранить оценку: " + (error.message || "Неизвестная ошибка"),
+                      variant: "error"
+                    })
                   }
                 }} 
                 style={{ flex: 1 }}
@@ -325,6 +369,14 @@ function Notifications({ onNavigate, currentPage }) {
           </div>
         </div>
       )}
+      
+      <AlertDialog
+        open={alertDialog.open}
+        title={alertDialog.title}
+        message={alertDialog.message}
+        variant={alertDialog.variant}
+        onClose={() => setAlertDialog({ ...alertDialog, open: false })}
+      />
     </div>
   )
 }

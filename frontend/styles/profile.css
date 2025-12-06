@@ -21,6 +21,38 @@
   margin-bottom: var(--spacing-md);
 }
 
+.avatar-upload-button {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--accent-gold);
+  border: 3px solid var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.avatar-upload-button:hover {
+  transform: scale(1.1);
+  background-color: var(--accent-gold-dark, #d4af37);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.avatar-upload-button:active {
+  transform: scale(0.95);
+}
+
+.avatar-upload-button svg {
+  pointer-events: none;
+}
+
 .profile-rating {
   position: absolute;
   bottom: 0;

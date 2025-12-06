@@ -12,6 +12,7 @@ import { JoinRequestButton, PendingRequestsList } from "../components/rooms"
 import { handleApiError } from "../types"
 import { ConfirmDialog } from "../components/ui/ConfirmDialog"
 import { AlertDialog } from "../components/ui/AlertDialog"
+import { getAvatarEmoji } from "../utils/avatarUtils"
 
 function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
   const { currentUser } = useUser()
@@ -25,8 +26,13 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
   const [isAdmin, setIsAdmin] = useState(false)
   const [activeTab, setActiveTab] = useState("info") // "info" or "posts"
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [showAlert, setShowAlert] = useState(false)
   const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [showPromoteConfirm, setShowPromoteConfirm] = useState(false)
+  const [showKickConfirm, setShowKickConfirm] = useState(false)
+  const [selectedMember, setSelectedMember] = useState(null)
 
   useEffect(() => {
     const loadRoomData = async () => {
@@ -99,6 +105,24 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
   }, [roomId, currentUser])
 
   const handleRequestCreated = async (request) => {
+    // For open rooms, request might be empty object (direct join)
+    if (!request || !request.id) {
+      // Direct join to open room - reload room data and set as member
+      try {
+        const data = await roomAPI.getDetails(roomId)
+        setRoomData(data)
+        const members = data.members || []
+        const isInRoom = members.some(m => (m.id || m.userId) === currentUser.id)
+        setIsMember(isInRoom)
+      } catch (err) {
+        console.error("Error reloading room data after join:", err)
+        // Still set as member if join was successful
+        setIsMember(true)
+      }
+      return
+    }
+    
+    // For application-based rooms
     setHasPendingRequest(true)
     setPendingRequestId(request.id)
     setPendingRequest(request)
@@ -173,6 +197,115 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
       variant: "error"
     })
     setShowAlert(true)
+  }
+
+  const handleLeaveRoom = () => {
+    if (!currentUser?.id || !roomId) return
+    setShowLeaveConfirm(true)
+  }
+
+  const confirmLeaveRoom = async () => {
+    setShowLeaveConfirm(false)
+    setIsLeaving(true)
+    
+    try {
+      await roomAPI.removeUserFromRoom(roomId, currentUser.id)
+      
+      // Reload room data
+      const data = await roomAPI.getDetails(roomId)
+      setRoomData(data)
+      setIsMember(false)
+      
+      // Dispatch custom event to notify RoomsList to refresh
+      window.dispatchEvent(new CustomEvent('roomUpdated', { detail: { roomId } }))
+      
+      // Also call callback if provided
+      if (onRoomUpdated) {
+        onRoomUpdated()
+      }
+      
+      setAlertData({
+        title: "Успешно",
+        message: "Вы покинули комнату",
+        variant: "success"
+      })
+      setShowAlert(true)
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setAlertData({
+        title: "Ошибка",
+        message: "Не удалось покинуть комнату: " + errorMessage,
+        variant: "error"
+      })
+      setShowAlert(true)
+    } finally {
+      setIsLeaving(false)
+    }
+  }
+
+  const confirmPromoteToAdmin = async () => {
+    if (!selectedMember || !currentUser?.id || !roomId) return
+
+    setShowPromoteConfirm(false)
+    
+    try {
+      await roomAPI.promoteToAdmin(roomId, selectedMember.id, currentUser.id)
+      
+      // Reload room data to update member list
+      const data = await roomAPI.getDetails(roomId)
+      setRoomData(data)
+      
+      // Update admin status if current user was involved
+      if (currentUser.id === selectedMember.id) {
+        setIsAdmin(true)
+      }
+      
+      setAlertData({
+        title: "Успешно",
+        message: `${selectedMember.name || selectedMember.username} назначен администратором`,
+        variant: "success"
+      })
+      setShowAlert(true)
+      setSelectedMember(null)
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setAlertData({
+        title: "Ошибка",
+        message: "Не удалось назначить администратором: " + errorMessage,
+        variant: "error"
+      })
+      setShowAlert(true)
+    }
+  }
+
+  const confirmKickUser = async () => {
+    if (!selectedMember || !currentUser?.id || !roomId) return
+
+    setShowKickConfirm(false)
+    
+    try {
+      await roomAPI.kickUserFromRoom(roomId, selectedMember.id, currentUser.id)
+      
+      // Reload room data to update member list
+      const data = await roomAPI.getDetails(roomId)
+      setRoomData(data)
+      
+      setAlertData({
+        title: "Успешно",
+        message: `${selectedMember.name || selectedMember.username} исключен из комнаты`,
+        variant: "success"
+      })
+      setShowAlert(true)
+      setSelectedMember(null)
+    } catch (err) {
+      const errorMessage = handleApiError(err)
+      setAlertData({
+        title: "Ошибка",
+        message: "Не удалось исключить пользователя: " + errorMessage,
+        variant: "error"
+      })
+      setShowAlert(true)
+    }
   }
 
   const handleRequestRating = async () => {
@@ -455,13 +588,20 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                           <div
                             className="avatar avatar-md"
                             style={{
-                              backgroundColor: "transparent",
-                              border: "none",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: "var(--bg-tertiary)",
+                              border: "1px solid var(--border-primary)",
+                              borderRadius: "50%",
+                              fontSize: "var(--font-size-base)",
                               width: "40px",
                               height: "40px",
                               flexShrink: 0
                             }}
-                          />
+                          >
+                            {getAvatarEmoji(member.id)}
+                          </div>
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ 
@@ -508,20 +648,10 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                                   fontSize: "var(--font-size-xs)",
                                   padding: "var(--spacing-xs) var(--spacing-sm)"
                                 }}
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.stopPropagation()
-                                  if (confirm(`Назначить ${member.name || member.username} администратором?`)) {
-                                    try {
-                                      await roomAPI.promoteToAdmin(roomId, member.id, currentUser.id)
-                                      // Reload room data
-                                      const updatedData = await roomAPI.getDetails(roomId)
-                                      setRoomData(updatedData)
-                                      alert("Пользователь назначен администратором")
-                                    } catch (err) {
-                                      console.error("Ошибка назначения администратора:", err)
-                                      alert("Не удалось назначить администратора: " + (err.message || "Неизвестная ошибка"))
-                                    }
-                                  }
+                                  setSelectedMember(member)
+                                  setShowPromoteConfirm(true)
                                 }}
                               >
                                 Сделать админом
@@ -535,20 +665,10 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                                 backgroundColor: "var(--error)",
                                 color: "white"
                               }}
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation()
-                                if (confirm(`Выгнать ${member.name || member.username} из комнаты?`)) {
-                                  try {
-                                    await roomAPI.kickUserFromRoom(roomId, member.id, currentUser.id)
-                                    // Reload room data
-                                    const updatedData = await roomAPI.getDetails(roomId)
-                                    setRoomData(updatedData)
-                                    alert("Пользователь исключен из комнаты")
-                                  } catch (err) {
-                                    console.error("Ошибка выгона пользователя:", err)
-                                    alert("Не удалось выгнать пользователя: " + (err.message || "Неизвестная ошибка"))
-                                  }
-                                }
+                                setSelectedMember(member)
+                                setShowKickConfirm(true)
                               }}
                             >
                               Выгнать
@@ -637,13 +757,78 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                     </div>
                   </div>
                 ) : isMember ? (
-                  <button 
-                    className="btn btn-primary" 
-                    style={{ flex: 1 }}
-                    onClick={() => onNavigate("chat", roomId)}
-                  >
-                    Открыть чат
-                  </button>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)" }}>
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ width: "100%" }}
+                      onClick={() => onNavigate("chat", roomId)}
+                    >
+                      Открыть чат
+                    </button>
+                    
+                    {/* Кнопка выхода из комнаты в стиле Material Design */}
+                    <button
+                      onClick={handleLeaveRoom}
+                      disabled={isLeaving || roomData.creatorId === currentUser.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "var(--spacing-xs)",
+                        padding: "var(--spacing-sm) var(--spacing-md)",
+                        borderRadius: "var(--radius-md)",
+                        border: "1px solid var(--border-color)",
+                        backgroundColor: "transparent",
+                        color: roomData.creatorId === currentUser.id ? "var(--text-muted)" : "var(--text-secondary)",
+                        fontSize: "var(--font-size-sm)",
+                        fontWeight: "500",
+                        cursor: roomData.creatorId === currentUser.id ? "not-allowed" : (isLeaving ? "wait" : "pointer"),
+                        transition: "all 0.2s ease",
+                        opacity: isLeaving ? 0.6 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (roomData.creatorId !== currentUser.id && !isLeaving) {
+                          e.currentTarget.style.backgroundColor = "var(--bg-secondary)"
+                          e.currentTarget.style.borderColor = "var(--text-muted)"
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (roomData.creatorId !== currentUser.id) {
+                          e.currentTarget.style.backgroundColor = "transparent"
+                          e.currentTarget.style.borderColor = "var(--border-color)"
+                        }
+                      }}
+                      title={roomData.creatorId === currentUser.id ? "Создатель комнаты не может покинуть её" : "Покинуть комнату"}
+                    >
+                      {/* Иконка выхода */}
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      <span>{isLeaving ? "Выход..." : "Покинуть комнату"}</span>
+                    </button>
+                    
+                    {roomData.creatorId === currentUser.id && (
+                      <div style={{ 
+                        fontSize: "var(--font-size-xs)", 
+                        color: "var(--text-muted)", 
+                        textAlign: "center",
+                        fontStyle: "italic"
+                      }}>
+                        Создатель комнаты не может покинуть её
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <JoinRequestButton
                     roomId={roomId}
@@ -660,6 +845,7 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
                     onRequestCreated={handleRequestCreated}
                     onRequestCancelled={handleRequestCancelled}
                     onError={showErrorAlert}
+                    onNavigate={onNavigate}
                   />
                 )}
 
@@ -733,7 +919,7 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
 
       <BottomNavigation currentPage={currentPage || "rooms"} onNavigate={onNavigate} />
 
-      {/* Confirmation Dialog */}
+      {/* Confirmation Dialog for closing room */}
       <ConfirmDialog
         open={showCloseConfirm}
         title="Закрыть комнату"
@@ -745,6 +931,18 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
         onCancel={() => setShowCloseConfirm(false)}
       />
 
+      {/* Confirmation Dialog for leaving room */}
+      <ConfirmDialog
+        open={showLeaveConfirm}
+        title="Покинуть комнату"
+        message="Вы уверены, что хотите покинуть эту комнату? Вы потеряете доступ к чату и всем материалам комнаты."
+        confirmText="Покинуть"
+        cancelText="Отмена"
+        confirmVariant="destructive"
+        onConfirm={confirmLeaveRoom}
+        onCancel={() => setShowLeaveConfirm(false)}
+      />
+
       {/* Alert Dialog */}
       <AlertDialog
         open={showAlert}
@@ -752,6 +950,35 @@ function RoomInfo({ onNavigate, roomId, currentPage, onRoomUpdated }) {
         message={alertData.message}
         variant={alertData.variant}
         onClose={() => setShowAlert(false)}
+      />
+
+      {/* Confirm Dialog for promoting to admin */}
+      <ConfirmDialog
+        open={showPromoteConfirm}
+        title="Назначить администратором"
+        message={selectedMember ? `Назначить ${selectedMember.name || selectedMember.username} администратором?` : ""}
+        confirmText="Назначить"
+        cancelText="Отмена"
+        onConfirm={confirmPromoteToAdmin}
+        onCancel={() => {
+          setShowPromoteConfirm(false)
+          setSelectedMember(null)
+        }}
+      />
+
+      {/* Confirm Dialog for kicking user */}
+      <ConfirmDialog
+        open={showKickConfirm}
+        title="Исключить из комнаты"
+        message={selectedMember ? `Выгнать ${selectedMember.name || selectedMember.username} из комнаты?` : ""}
+        confirmText="Выгнать"
+        cancelText="Отмена"
+        confirmVariant="destructive"
+        onConfirm={confirmKickUser}
+        onCancel={() => {
+          setShowKickConfirm(false)
+          setSelectedMember(null)
+        }}
       />
     </div>
   )
@@ -835,17 +1062,32 @@ function RoomPostsTab({ roomId, onNavigate, currentUser }) {
                   }
                 }}
               />
-            ) : (
-              <div
-                className="avatar avatar-md"
-                style={{
-                  backgroundColor: "transparent",
-                  border: "none",
-                  width: "40px",
-                  height: "40px"
-                }}
-              />
-            )}
+              ) : (
+                <div
+                  className="avatar avatar-md avatar-clickable"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "var(--bg-tertiary)",
+                    border: "1px solid var(--border-primary)",
+                    borderRadius: "50%",
+                    fontSize: "var(--font-size-base)",
+                    width: "40px",
+                    height: "40px",
+                    cursor: "pointer"
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const userId = post.author?.id
+                    if (userId) {
+                      onNavigate("profile", userId)
+                    }
+                  }}
+                >
+                  {getAvatarEmoji(post.author?.id)}
+                </div>
+              )}
             <div className="post-user-info">
               <div className="post-username">
                 {post.author?.name || post.author?.username || "Пользователь"}
@@ -860,34 +1102,15 @@ function RoomPostsTab({ roomId, onNavigate, currentUser }) {
           <p className="post-content">{post.text || post.content}</p>
 
           {/* Show room label if post is attached to a room (different from current room) */}
-          {post.room && post.room.id !== roomId && (
+          {post.room && (typeof post.room === "object" ? post.room.id !== roomId : true) && (
             <div style={{ 
               marginTop: "var(--spacing-sm)", 
               marginBottom: "var(--spacing-sm)",
               display: "flex",
               alignItems: "center",
-              gap: "var(--spacing-xs)"
+              gap: "var(--spacing-sm)"
             }}>
-              <div
-                style={{
-                  backgroundColor: "#FFD700", // Yellow background like in the image
-                  color: "var(--text-primary)",
-                  padding: "var(--spacing-xs) var(--spacing-sm)",
-                  borderRadius: "var(--radius-md)",
-                  fontSize: "var(--font-size-sm)",
-                  fontWeight: "500",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--spacing-xs)",
-                  cursor: "pointer",
-                  transition: "opacity 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = "0.8"
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = "1"
-                }}
+              <button
                 onClick={(e) => {
                   e.stopPropagation()
                   const attachedRoomId = typeof post.room === "object" 
@@ -897,26 +1120,48 @@ function RoomPostsTab({ roomId, onNavigate, currentUser }) {
                     onNavigate("roomInfo", attachedRoomId)
                   }
                 }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--spacing-xs)",
+                  padding: "var(--spacing-xs) var(--spacing-md)",
+                  borderRadius: "20px", // Овальная форма
+                  border: "2px solid var(--accent-gold)",
+                  backgroundColor: "transparent",
+                  color: "var(--accent-gold)",
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: "500",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--accent-gold)"
+                  e.currentTarget.style.color = "var(--bg-primary)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent"
+                  e.currentTarget.style.color = "var(--accent-gold)"
+                }}
               >
-                <span style={{ fontSize: "16px" }}>📌</span>
+                {/* Иконка двери (вход в комнату) */}
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
                 <span>
-                  Закреплено в:{" "}
-                  {typeof post.room === "object" && post.room?.name ? (
-                    <span
-                      style={{
-                        color: "var(--accent-blue)",
-                        textDecoration: "underline",
-                        cursor: "pointer",
-                        fontWeight: "600",
-                      }}
-                    >
-                      {post.room.name}
-                    </span>
-                  ) : (
-                    <span>Комната</span>
-                  )}
+                  {typeof post.room === "object" && post.room?.name ? post.room.name : "Комната"}
                 </span>
-              </div>
+              </button>
             </div>
           )}
 

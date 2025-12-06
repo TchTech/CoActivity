@@ -3,6 +3,7 @@ package com.mipt.CoActivity.controller;
 import com.mipt.CoActivity.dto.LoginRequest;
 import com.mipt.CoActivity.dto.LoginResponse;
 import com.mipt.CoActivity.dto.RegisterRequest;
+import com.mipt.CoActivity.dto.RegisterResponse;
 import com.mipt.CoActivity.exception.BadRequestException;
 import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.service.AuthService;
@@ -28,15 +29,23 @@ public class AuthController {
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public ResponseEntity<User> registerNewUser(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<RegisterResponse> registerNewUser(@Valid @RequestBody RegisterRequest request) {
         logger.info("Registration request received: name={}, email={}, passwordLength={}", 
             request.getName(), request.getEmail(), 
             request.getPassword() != null ? request.getPassword().length() : 0);
         
         try {
             User user = authService.registerNewUser(request);
-            logger.info("User registered successfully: id={}, username={}", user.getId(), user.getUsername());
-            return ResponseEntity.status(HttpStatus.CREATED).body(user);
+            logger.info("User registered successfully: id={}, username={}, email={}", 
+                user.getId(), user.getUsername(), user.getEmail());
+            
+            RegisterResponse response = RegisterResponse.builder()
+                .user(user)
+                .emailVerificationRequired(true)
+                .message("Registration successful! Please check your email to verify your account before logging in.")
+                .build();
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
             logger.error("Error during registration: ", e);
             throw e;

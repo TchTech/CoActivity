@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { roomAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { getAvatarEmoji } from "../utils/avatarUtils"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -549,10 +550,10 @@ function RoomsList({ onNavigate, currentPage }) {
                         />
                       )
                     } catch (err) {
-                      // If getImageUrl fails, show placeholder
+                      // If getImageUrl fails, show emoji avatar
                       return (
                         <div
-                          className="avatar avatar-md"
+                          className="avatar avatar-md avatar-clickable"
                           style={{
                             backgroundColor: "var(--bg-tertiary)",
                             border: "1px solid var(--border-color)",
@@ -561,18 +562,24 @@ function RoomsList({ onNavigate, currentPage }) {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            color: "var(--text-muted)",
-                            fontSize: "var(--font-size-xs)"
+                            fontSize: "var(--font-size-base)",
+                            cursor: "pointer"
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (roomId) {
+                              onNavigate("roomInfo", roomId)
+                            }
                           }}
                         >
-                          {room.createdBy?.name?.[0]?.toUpperCase() || room.createdBy?.username?.[0]?.toUpperCase() || "?"}
+                          {getAvatarEmoji(room.createdBy?.id)}
                         </div>
                       )
                     }
                   } else {
                     return (
                       <div
-                        className="avatar avatar-md"
+                        className="avatar avatar-md avatar-clickable"
                         style={{
                           backgroundColor: "var(--bg-tertiary)",
                           border: "1px solid var(--border-color)",
@@ -581,11 +588,17 @@ function RoomsList({ onNavigate, currentPage }) {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          color: "var(--text-muted)",
-                          fontSize: "var(--font-size-xs)"
+                          fontSize: "var(--font-size-base)",
+                          cursor: "pointer"
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (roomId) {
+                            onNavigate("roomInfo", roomId)
+                          }
                         }}
                       >
-                        {room.createdBy?.name?.[0]?.toUpperCase() || room.createdBy?.username?.[0]?.toUpperCase() || "?"}
+                        {getAvatarEmoji(room.createdBy?.id)}
                       </div>
                     )
                   }

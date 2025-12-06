@@ -19,6 +19,7 @@ interface JoinRequestButtonProps {
   onRequestCreated?: (request: RoomJoinRequest) => void
   onRequestCancelled?: () => void
   onError?: (error: string) => void
+  onNavigate?: (page: string, id?: number) => void
 }
 
 /**
@@ -36,6 +37,7 @@ export function JoinRequestButton({
   onRequestCreated,
   onRequestCancelled,
   onError,
+  onNavigate,
 }: JoinRequestButtonProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -100,6 +102,13 @@ export function JoinRequestButton({
     }
   }
 
+  // Handle opening chat
+  const handleOpenChat = () => {
+    if (onNavigate) {
+      onNavigate("chat", roomId)
+    }
+  }
+
   // Handle creating a join request for "by_application" rooms
   const handleCreateRequest = async () => {
     if (isMember || hasPendingRequest) return
@@ -155,9 +164,18 @@ export function JoinRequestButton({
     }
   }
 
-  // Don't show button if user is already a member
+  // If user is already a member, show "Open Chat" button
   if (isMember) {
-    return null
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)" }}>
+        <button
+          className="btn btn-primary"
+          onClick={handleOpenChat}
+        >
+          Открыть чат
+        </button>
+      </div>
+    )
   }
 
   // Handle "open" room type - direct join

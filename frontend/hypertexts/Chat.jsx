@@ -7,6 +7,9 @@ import "../styles/components.css"
 import "../styles/rooms.css"
 import { roomAPI, imageAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { getAvatarEmoji } from "../utils/avatarUtils"
+import { AlertDialog } from "../components/ui/AlertDialog"
+import { ConfirmDialog } from "../components/ui/ConfirmDialog"
 
 function Chat({ onNavigate, roomId }) {
   const { currentUser } = useUser()
@@ -20,6 +23,31 @@ function Chat({ onNavigate, roomId }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [showAlert, setShowAlert] = useState(false)
+  const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })
+  const [showDeleteMessageConfirm, setShowDeleteMessageConfirm] = useState(false)
+  const [messageToDelete, setMessageToDelete] = useState(null)
+
+  const confirmDeleteMessage = async () => {
+    if (!messageToDelete || !currentUser?.id || !roomId) return
+
+    setShowDeleteMessageConfirm(false)
+    try {
+      if (!messageToDelete.id) {
+        setAlertData({ title: "Ошибка", message: "Не удалось удалить сообщение: отсутствует ID сообщения", variant: "error" })
+        setShowAlert(true)
+        return
+      }
+      await roomAPI.deleteMessage(roomId, messageToDelete.id, currentUser.id)
+      // Remove message from local state
+      setMessages((prev) => prev.filter((m) => m.id !== messageToDelete.id))
+      setMessageToDelete(null)
+    } catch (err) {
+      console.error("Ошибка удаления сообщения:", err)
+      setAlertData({ title: "Ошибка", message: "Не удалось удалить сообщение: " + (err.message || "Неизвестная ошибка"), variant: "error" })
+      setShowAlert(true)
+    }
+  }
 
   // Polling for messages (fallback instead of websockets)
   useEffect(() => {
@@ -191,13 +219,15 @@ function Chat({ onNavigate, roomId }) {
 
     // Validate file size (max 25MB for chat as per requirements)
     if (file.size > 25 * 1024 * 1024) {
-      alert("Размер файла не должен превышать 25 МБ")
+      setAlertData({ title: "Ошибка", message: "Размер файла не должен превышать 25 МБ", variant: "error" })
+      setShowAlert(true)
       return
     }
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      alert("Файл должен быть изображением")
+      setAlertData({ title: "Ошибка", message: "Файл должен быть изображением", variant: "error" })
+      setShowAlert(true)
       return
     }
 
@@ -338,17 +368,24 @@ function Chat({ onNavigate, roomId }) {
               />
             )
           } else {
-            console.log("[Chat] No avatar, rendering empty div")
+            console.log("[Chat] No avatar, rendering emoji avatar")
             return (
               <div
                 className="avatar avatar-md"
                 style={{
-                  backgroundColor: "transparent",
-                  border: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "var(--bg-tertiary)",
+                  border: "1px solid var(--border-primary)",
+                  borderRadius: "50%",
+                  fontSize: "var(--font-size-base)",
                   width: "40px",
                   height: "40px"
                 }}
-              />
+              >
+                {getAvatarEmoji(roomCreator?.id)}
+              </div>
             )
           }
         })()}
@@ -404,14 +441,28 @@ function Chat({ onNavigate, roomId }) {
                   />
                 ) : (
                   <div
-                    className="avatar avatar-md"
+                    className="avatar avatar-md avatar-clickable"
                     style={{
-                      backgroundColor: "transparent",
-                      border: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "var(--bg-tertiary)",
+                      border: "1px solid var(--border-primary)",
+                      borderRadius: "50%",
+                      fontSize: "var(--font-size-base)",
                       width: "40px",
-                      height: "40px"
+                      height: "40px",
+                      cursor: "pointer"
                     }}
-                  />
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (message.senderId) {
+                        onNavigate("profile", message.senderId)
+                      }
+                    }}
+                  >
+                    {getAvatarEmoji(message.senderId)}
+                  </div>
                 )}
                 <div className="message-content">
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", justifyContent: "space-between" }}>
@@ -454,22 +505,10 @@ function Chat({ onNavigate, roomId }) {
                           color: "var(--error)",
                           opacity: 0.7
                         }}
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation()
-                          if (confirm("Удалить это сообщение?")) {
-                            try {
-                              if (!message.id) {
-                                alert("Не удалось удалить сообщение: отсутствует ID сообщения")
-                                return
-                              }
-                              await roomAPI.deleteMessage(roomId, message.id, currentUser.id)
-                              // Remove message from local state
-                              setMessages((prev) => prev.filter((m) => m.id !== message.id))
-                            } catch (err) {
-                              console.error("Ошибка удаления сообщения:", err)
-                              alert("Не удалось удалить сообщение: " + (err.message || "Неизвестная ошибка"))
-                            }
-                          }
+                          setMessageToDelete(message)
+                          setShowDeleteMessageConfirm(true)
                         }}
                         title="Удалить сообщение"
                       >
@@ -560,6 +599,30 @@ function Chat({ onNavigate, roomId }) {
           ➤
         </button>
       </div>
+
+      {/* Alert Dialog */}
+      <AlertDialog
+        open={showAlert}
+        title={alertData.title}
+        message={alertData.message}
+        variant={alertData.variant}
+        onClose={() => setShowAlert(false)}
+      />
+
+      {/* Confirm Dialog for deleting message */}
+      <ConfirmDialog
+        open={showDeleteMessageConfirm}
+        title="Удалить сообщение"
+        message="Удалить это сообщение?"
+        confirmText="Удалить"
+        cancelText="Отмена"
+        confirmVariant="destructive"
+        onConfirm={confirmDeleteMessage}
+        onCancel={() => {
+          setShowDeleteMessageConfirm(false)
+          setMessageToDelete(null)
+        }}
+      />
     </div>
   )
 }

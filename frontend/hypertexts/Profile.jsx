@@ -9,6 +9,9 @@ import { usePostInteractions } from "../hooks/usePostInteractions"
 import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog"
 import { MyApplicationsList } from "../components/rooms"
 import PostRoomJoinButton from "../components/PostRoomJoinButton"
+import { getAvatarEmoji } from "../utils/avatarUtils"
+import { AlertDialog } from "../components/ui/AlertDialog"
+import { ConfirmDialog } from "../components/ui/ConfirmDialog"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -70,7 +73,8 @@ function ProfilePostCard({ post, userData, ratingSummary, onNavigate, currentUse
         console.log("Пост уже был удален на сервере")
       } else {
         // При другой ошибке показываем сообщение, но пост уже скрыт из UI
-        alert("Не удалось удалить пост на сервере, но он уже скрыт из списка.")
+        setAlertData({ title: "Предупреждение", message: "Не удалось удалить пост на сервере, но он уже скрыт из списка.", variant: "warning" })
+        setShowAlert(true)
       }
     } finally {
       setIsDeleting(false)
@@ -161,67 +165,7 @@ function ProfilePostCard({ post, userData, ratingSummary, onNavigate, currentUse
 
       {/* Show room label if post is attached to a room */}
       {post.room && (
-        <>
-          <div style={{ 
-            marginTop: "var(--spacing-sm)", 
-            marginBottom: "var(--spacing-sm)",
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--spacing-xs)"
-          }}>
-            <div
-              style={{
-                backgroundColor: "#FFD700", // Yellow background like in the image
-                color: "var(--text-primary)",
-                padding: "var(--spacing-xs) var(--spacing-sm)",
-                borderRadius: "var(--radius-md)",
-                fontSize: "var(--font-size-sm)",
-                fontWeight: "500",
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--spacing-xs)",
-                cursor: "pointer",
-                transition: "opacity 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = "0.8"
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = "1"
-              }}
-              onClick={(e) => {
-                e.stopPropagation()
-                const roomId = typeof post.room === "object" 
-                  ? (post.room?.id || post.roomId || null) 
-                  : post.roomId
-                if (roomId) {
-                  onNavigate("roomInfo", roomId)
-                }
-              }}
-            >
-              <span style={{ fontSize: "16px" }}>📌</span>
-              <span>
-                Закреплено в:{" "}
-                {typeof post.room === "object" && post.room?.name ? (
-                  <span
-                    style={{
-                      color: "var(--accent-blue)",
-                      textDecoration: "underline",
-                      cursor: "pointer",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {post.room.name}
-                  </span>
-                ) : (
-                  <span>Комната</span>
-                )}
-              </span>
-            </div>
-          </div>
-          {/* Кнопка присоединения к комнате */}
-          <PostRoomJoinButton post={post} onNavigate={onNavigate} />
-        </>
+        <PostRoomJoinButton post={post} onNavigate={onNavigate} />
       )}
 
       {post.image && (
@@ -370,6 +314,8 @@ function Profile({ onNavigate, userId, currentPage }) {
   const [ratingSummary, setRatingSummary] = useState({ average: null, count: 0 })
   const [isEditingAbout, setIsEditingAbout] = useState(false)
   const [aboutText, setAboutText] = useState("")
+  const [showAlert, setShowAlert] = useState(false)
+  const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })
 
   const defaultUser = {
     id: 1,
@@ -586,7 +532,8 @@ function Profile({ onNavigate, userId, currentPage }) {
         // Already handled above, but just in case
         console.log("Subscription conflict handled")
       } else {
-        alert("Не удалось выполнить действие: " + errorMsg)
+        setAlertData({ title: "Ошибка", message: "Не удалось выполнить действие: " + errorMsg, variant: "error" })
+        setShowAlert(true)
       }
     }
   }
@@ -598,7 +545,8 @@ function Profile({ onNavigate, userId, currentPage }) {
     if (!file) return
 
     if (file.size > 10 * 1024 * 1024) {
-      alert("Размер файла не должен превышать 10 МБ")
+      setAlertData({ title: "Ошибка", message: "Размер файла не должен превышать 10 МБ", variant: "error" })
+      setShowAlert(true)
       return
     }
 
@@ -612,7 +560,8 @@ function Profile({ onNavigate, userId, currentPage }) {
       }
     } catch (error) {
       console.error("Ошибка загрузки аватара:", error)
-      alert("Ошибка при загрузке аватара. Попробуйте еще раз.")
+      setAlertData({ title: "Ошибка", message: "Ошибка при загрузке аватара. Попробуйте еще раз.", variant: "error" })
+      setShowAlert(true)
     } finally {
       setAvatarUploading(false)
     }
@@ -679,44 +628,78 @@ function Profile({ onNavigate, userId, currentPage }) {
         <div className="profile-header">
           <div className="profile-avatar-section">
             {isOwnProfile ? (
-              <label style={{ position: "relative", cursor: "pointer" }}>
-                {userData.avatar?.id ? (
-                  <img
-                    src={imageAPI.getImageUrl(userData.avatar.id)}
-                    alt={userData.name}
-                    className="avatar avatar-xl"
-                    style={{ opacity: avatarUploading ? 0.5 : 1 }}
+              <div style={{ position: "relative", display: "inline-block" }}>
+                <label style={{ position: "relative", cursor: "pointer", display: "block" }}>
+                  {userData.avatar?.id ? (
+                    <img
+                      src={imageAPI.getImageUrl(userData.avatar.id)}
+                      alt={userData.name}
+                      className="avatar avatar-xl"
+                      style={{ opacity: avatarUploading ? 0.5 : 1 }}
+                    />
+                  ) : (
+                    <div
+                      className="avatar avatar-xl"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "var(--bg-tertiary)",
+                        border: "1px solid var(--border-primary)",
+                        borderRadius: "50%",
+                        fontSize: "var(--font-size-xl)",
+                        opacity: avatarUploading ? 0.5 : 1
+                      }}
+                    >
+                      {getAvatarEmoji(userData.id)}
+                    </div>
+                  )}
+                  {avatarUploading && (
+                    <div style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      fontSize: "var(--font-size-sm)",
+                      color: "var(--text-primary)",
+                    }}>
+                      Загрузка...
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    style={{ display: "none" }}
+                    disabled={avatarUploading}
+                    id="avatar-upload-input"
                   />
-                ) : (
-                  <div
-                    className="avatar avatar-xl"
-                    style={{
-                      backgroundColor: "transparent",
-                      border: "none",
-                      opacity: avatarUploading ? 0.5 : 1
-                    }}
-                  />
-                )}
-                {avatarUploading && (
-                  <div style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    fontSize: "var(--font-size-sm)",
-                    color: "var(--text-primary)",
-                  }}>
-                    Загрузка...
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarUpload}
-                  style={{ display: "none" }}
-                  disabled={avatarUploading}
-                />
-              </label>
+                </label>
+                {/* Кнопка-иконка для загрузки аватарки */}
+                <label
+                  htmlFor="avatar-upload-input"
+                  className="avatar-upload-button"
+                  style={{
+                    pointerEvents: avatarUploading ? "none" : "auto",
+                    opacity: avatarUploading ? 0.6 : 1,
+                  }}
+                  title="Изменить аватар"
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--bg-primary)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                </label>
+              </div>
             ) : (
               userData.avatar?.id ? (
                 <img
@@ -728,10 +711,17 @@ function Profile({ onNavigate, userId, currentPage }) {
                 <div
                   className="avatar avatar-xl"
                   style={{
-                    backgroundColor: "transparent",
-                    border: "none"
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "var(--bg-tertiary)",
+                    border: "1px solid var(--border-primary)",
+                    borderRadius: "50%",
+                    fontSize: "var(--font-size-xl)",
                   }}
-                />
+                >
+                  {getAvatarEmoji(userData.id)}
+                </div>
               )
             )}
             {ratingSummary.average != null && typeof ratingSummary.average === 'number' && !isNaN(ratingSummary.average) && (
@@ -856,7 +846,8 @@ function Profile({ onNavigate, userId, currentPage }) {
                         })
                         .catch(err => {
                           console.error("Ошибка сохранения about:", err)
-                          alert("Не удалось сохранить изменения")
+                          setAlertData({ title: "Ошибка", message: "Не удалось сохранить изменения", variant: "error" })
+                          setShowAlert(true)
                         })
                     } else {
                       // Edit
@@ -919,7 +910,8 @@ function Profile({ onNavigate, userId, currentPage }) {
                 // Component handles its own refresh
               }}
               onError={(error) => {
-                alert(error)
+                setAlertData({ title: "Ошибка", message: error, variant: "error" })
+                setShowAlert(true)
               }}
               onNavigate={(path) => {
                 // Handle navigation - path format: "rooms/{roomId}"
@@ -934,6 +926,15 @@ function Profile({ onNavigate, userId, currentPage }) {
       </div>
 
       {isOwnProfile && <BottomNavigation currentPage={currentPage || "profile"} onNavigate={onNavigate} />}
+
+      {/* Alert Dialog */}
+      <AlertDialog
+        open={showAlert}
+        title={alertData.title}
+        message={alertData.message}
+        variant={alertData.variant}
+        onClose={() => setShowAlert(false)}
+      />
     </div>
   )
 }
@@ -974,10 +975,15 @@ function ExternalLinksEditor({ userId, links, onLinksChange }) {
   const [editingLink, setEditingLink] = useState(null)
   const [newLink, setNewLink] = useState({ platformName: "", label: "", url: "" })
   const [saving, setSaving] = useState(false)
+  const [showAlert, setShowAlert] = useState(false)
+  const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })
+  const [showDeleteLinkConfirm, setShowDeleteLinkConfirm] = useState(false)
+  const [linkToDelete, setLinkToDelete] = useState(null)
 
   const handleAddLink = async () => {
     if (!newLink.url || !newLink.url.trim()) {
-      alert("URL обязателен")
+      setAlertData({ title: "Ошибка", message: "URL обязателен", variant: "error" })
+      setShowAlert(true)
       return
     }
 
@@ -988,7 +994,8 @@ function ExternalLinksEditor({ userId, links, onLinksChange }) {
       setNewLink({ platformName: "", label: "", url: "" })
     } catch (error) {
       console.error("Ошибка добавления ссылки:", error)
-      alert("Не удалось добавить ссылку: " + (error.message || "Неизвестная ошибка"))
+      setAlertData({ title: "Ошибка", message: "Не удалось добавить ссылку: " + (error.message || "Неизвестная ошибка"), variant: "error" })
+      setShowAlert(true)
     } finally {
       setSaving(false)
     }
@@ -1002,22 +1009,31 @@ function ExternalLinksEditor({ userId, links, onLinksChange }) {
       setEditingLink(null)
     } catch (error) {
       console.error("Ошибка обновления ссылки:", error)
-      alert("Не удалось обновить ссылку: " + (error.message || "Неизвестная ошибка"))
+      setAlertData({ title: "Ошибка", message: "Не удалось обновить ссылку: " + (error.message || "Неизвестная ошибка"), variant: "error" })
+      setShowAlert(true)
     } finally {
       setSaving(false)
     }
   }
 
   const handleDeleteLink = async (linkId) => {
-    if (!confirm("Удалить эту ссылку?")) return
+    setLinkToDelete(linkId)
+    setShowDeleteLinkConfirm(true)
+  }
 
+  const confirmDeleteLink = async () => {
+    if (!linkToDelete) return
+    
+    setShowDeleteLinkConfirm(false)
     setSaving(true)
     try {
-      await externalLinksAPI.delete(userId, linkId)
-      onLinksChange(links.filter(l => l.id !== linkId))
+      await externalLinksAPI.delete(userId, linkToDelete)
+      onLinksChange(links.filter(l => l.id !== linkToDelete))
+      setLinkToDelete(null)
     } catch (error) {
       console.error("Ошибка удаления ссылки:", error)
-      alert("Не удалось удалить ссылку: " + (error.message || "Неизвестная ошибка"))
+      setAlertData({ title: "Ошибка", message: "Не удалось удалить ссылку: " + (error.message || "Неизвестная ошибка"), variant: "error" })
+      setShowAlert(true)
     } finally {
       setSaving(false)
     }
@@ -1108,6 +1124,30 @@ function ExternalLinksEditor({ userId, links, onLinksChange }) {
           ))}
         </div>
       )}
+
+      {/* Alert Dialog */}
+      <AlertDialog
+        open={showAlert}
+        title={alertData.title}
+        message={alertData.message}
+        variant={alertData.variant}
+        onClose={() => setShowAlert(false)}
+      />
+
+      {/* Confirm Dialog for deleting link */}
+      <ConfirmDialog
+        open={showDeleteLinkConfirm}
+        title="Удалить ссылку"
+        message="Удалить эту ссылку?"
+        confirmText="Удалить"
+        cancelText="Отмена"
+        confirmVariant="destructive"
+        onConfirm={confirmDeleteLink}
+        onCancel={() => {
+          setShowDeleteLinkConfirm(false)
+          setLinkToDelete(null)
+        }}
+      />
     </div>
   )
 }

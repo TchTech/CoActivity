@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { twoFactorAPI } from "../lib/api"
 import { useUser } from "../context/UserContext"
+import { ConfirmDialog } from "../components/ui/ConfirmDialog"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/components.css"
@@ -20,6 +21,7 @@ function TwoFactorSettings({ onNavigate }) {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [verifying, setVerifying] = useState(false)
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false)
 
   useEffect(() => {
     if (currentUser && currentUser.id) {
@@ -87,11 +89,12 @@ function TwoFactorSettings({ onNavigate }) {
     }
   }
 
-  const handleDisable = async () => {
-    if (!confirm("Вы уверены, что хотите отключить двухфакторную аутентификацию? Это снизит безопасность вашего аккаунта.")) {
-      return
-    }
+  const handleDisable = () => {
+    setShowDisableConfirm(true)
+  }
 
+  const confirmDisable = async () => {
+    setShowDisableConfirm(false)
     try {
       setError("")
       setSuccess("")
@@ -303,6 +306,18 @@ function TwoFactorSettings({ onNavigate }) {
             Назад к настройкам
           </button>
         </div>
+
+        {/* Confirm Dialog for disabling 2FA */}
+        <ConfirmDialog
+          open={showDisableConfirm}
+          title="Отключить 2FA"
+          message="Вы уверены, что хотите отключить двухфакторную аутентификацию? Это снизит безопасность вашего аккаунта."
+          confirmText="Отключить"
+          cancelText="Отмена"
+          confirmVariant="destructive"
+          onConfirm={confirmDisable}
+          onCancel={() => setShowDisableConfirm(false)}
+        />
       </div>
     </div>
   )
