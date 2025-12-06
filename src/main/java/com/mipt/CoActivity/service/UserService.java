@@ -32,6 +32,7 @@ public class UserService {
   private final ImageService imageService;
   private final InterestRepository interestRepository;
   private final InterestCategoryRepository interestCategoryRepository;
+  private final NotificationService notificationService;
 
   @Autowired
   UserService(UserRepository userRepository,
@@ -42,7 +43,8 @@ public class UserService {
               ExternalLinkRepository externalLinkRepository,
               ImageService imageService,
               InterestRepository interestRepository,
-              InterestCategoryRepository interestCategoryRepository) {
+              InterestCategoryRepository interestCategoryRepository,
+              NotificationService notificationService) {
     this.userRepository = userRepository;
     this.userSettingsRepository = userSettingsRepository;
     this.roomRepository = roomRepository;
@@ -52,6 +54,7 @@ public class UserService {
     this.imageService = imageService;
     this.interestRepository = interestRepository;
     this.interestCategoryRepository = interestCategoryRepository;
+    this.notificationService = notificationService;
   }
 
   public User getUserByUsername(String username) {

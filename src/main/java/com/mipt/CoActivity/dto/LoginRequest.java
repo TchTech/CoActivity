@@ -1,19 +1,27 @@
 package com.mipt.CoActivity.dto;
 
-import jakarta.validation.constraints.Email;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class LoginRequest {
-    @NotNull(message = "Email is required")
-    @NotBlank(message = "Email cannot be blank")
-    @Email(message = "Email should be valid")
-    private String email;
+    // Может быть как email, так и username
+    @NotNull(message = "Login is required")
+    @NotBlank(message = "Login cannot be blank")
+    @JsonProperty("login")
+    @JsonAlias({"email", "username"}) // Поддержка обратной совместимости
+    private String login; // Изменено с email на login для ясности
 
     @NotNull(message = "Password is required")
     @NotBlank(message = "Password cannot be blank")
+    @JsonProperty("password")
     private String password;
 }
 
