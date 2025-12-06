@@ -29,6 +29,7 @@ public class RoomService {
   private final com.mipt.CoActivity.repository.RoomJoinRequestRepository roomJoinRequestRepository;
   private final com.mipt.CoActivity.repository.RoomPostPinRepository roomPostPinRepository;
   private final com.mipt.CoActivity.repository.PostRepository postRepository;
+  private final com.mipt.CoActivity.repository.ImageRepository imageRepository;
   private final NotificationService notificationService;
   private final RoomJoinRequestService roomJoinRequestService;
 
@@ -41,6 +42,7 @@ public class RoomService {
           com.mipt.CoActivity.repository.RoomJoinRequestRepository roomJoinRequestRepository,
           com.mipt.CoActivity.repository.RoomPostPinRepository roomPostPinRepository,
           com.mipt.CoActivity.repository.PostRepository postRepository,
+          com.mipt.CoActivity.repository.ImageRepository imageRepository,
           NotificationService notificationService,
           RoomJoinRequestService roomJoinRequestService) {
     this.roomRepository = roomRepository;
@@ -50,6 +52,7 @@ public class RoomService {
     this.roomJoinRequestRepository = roomJoinRequestRepository;
     this.roomPostPinRepository = roomPostPinRepository;
     this.postRepository = postRepository;
+    this.imageRepository = imageRepository;
     this.notificationService = notificationService;
     this.roomJoinRequestService = roomJoinRequestService;
   }
@@ -309,6 +312,11 @@ public class RoomService {
 
   @Transactional
   public Message sendRoomMessage(Long roomId, SendMessageRequest request) {
+    // Validate that either content or imageId is provided
+    if (!request.isValid()) {
+      throw new BadRequestException("Either content or imageId must be provided");
+    }
+    
     Room room = roomRepository.findById(roomId)
         .orElseThrow(() -> new ResourceNotFoundException("Room not found"));
     
@@ -329,8 +337,18 @@ public class RoomService {
       }
     }
     
-    Message message = new Message(room, sender, request.getContent());
+    // Use empty string if content is null
+    String content = request.getContent() != null ? request.getContent() : "";
+    Message message = new Message(room, sender, content);
     message.setDate(Instant.now());
+    
+    // Set image if provided
+    if (request.getImageId() != null) {
+      Image image = imageRepository.findById(request.getImageId())
+          .orElseThrow(() -> new ResourceNotFoundException("Image not found"));
+      message.setImage(image);
+    }
+    
     return messageRepository.save(message);
   }
 

@@ -555,6 +555,42 @@ function Comments({ onNavigate, postId, currentPage }) {
                     />
                     {comment.dislikedUsers?.length || comment.dislikes || 0}
                   </button>
+                  {currentUser && (authorId === currentUser.id) && (
+                    <button
+                      className="comment-action"
+                      onClick={async () => {
+                        if (confirm("Удалить этот комментарий?")) {
+                          try {
+                            const postIdValue = typeof postId === "object" ? (postId?.id || postId?.postId || null) : postId
+                            const commentIdValue = typeof comment.id === "object" ? (comment.id?.id || comment.id?.commentId || null) : comment.id
+                            const userIdValue = typeof currentUser.id === "object" ? (currentUser.id?.id || currentUser.id?.userId || null) : currentUser.id
+                            
+                            if (!postIdValue || !commentIdValue || !userIdValue) {
+                              console.error("[Comments] Invalid IDs for delete:", { postId, commentId: comment.id, userId: currentUser.id })
+                              return
+                            }
+                            
+                            await commentAPI.delete(postIdValue, commentIdValue, userIdValue)
+                            // Remove comment from local state
+                            setComments((prev) => prev.filter((c) => c.id !== comment.id))
+                            setPostComments((prev) => Math.max(0, prev - 1))
+                          } catch (error) {
+                            console.error("Ошибка при удалении комментария:", error)
+                            alert("Не удалось удалить комментарий: " + (error.message || "Неизвестная ошибка"))
+                          }
+                        }
+                      }}
+                      style={{ 
+                        marginLeft: "auto",
+                        color: "var(--error-color, #dc3545)",
+                        fontSize: "var(--font-size-sm)",
+                        padding: "4px 8px"
+                      }}
+                      title="Удалить комментарий"
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

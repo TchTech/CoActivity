@@ -12,6 +12,8 @@ function Chat({ onNavigate, roomId }) {
   const { currentUser } = useUser()
   const [messages, setMessages] = useState([])
   const [messageText, setMessageText] = useState("")
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
   const [roomInfo, setRoomInfo] = useState(null)
   const [roomMembers, setRoomMembers] = useState([]) // Список участников для упоминаний
   const [roomCreator, setRoomCreator] = useState(null) // Информация о создателе комнаты
@@ -47,6 +49,7 @@ function Chat({ onNavigate, roomId }) {
                   senderName: m.senderName,
                   senderAvatar: m.senderAvatar,
                   content: m.content,
+                  imageId: m.imageId || (m.image?.id),
                   timestamp: m.timestamp,
                 }
               })
@@ -141,13 +144,23 @@ function Chat({ onNavigate, roomId }) {
   }, [roomId, currentUser])
 
   const handleSendMessage = async () => {
-    if (!messageText.trim() || !currentUser?.id || !roomId) return
+    if ((!messageText.trim() && !selectedImage) || !currentUser?.id || !roomId) return
 
     const text = messageText
+    const imageFile = selectedImage
     setMessageText("")
+    setSelectedImage(null)
+    setImagePreview(null)
 
     try {
-      await roomAPI.sendMessage(roomId, currentUser.id, text)
+      let imageId = null
+      // Upload image if selected
+      if (imageFile) {
+        const imageResponse = await imageAPI.upload(imageFile)
+        imageId = imageResponse.id
+      }
+
+      await roomAPI.sendMessage(roomId, currentUser.id, text || "", imageId)
       // Optimistically append message
       setMessages((prev) => [
         ...prev,
@@ -157,12 +170,46 @@ function Chat({ onNavigate, roomId }) {
           senderName: currentUser.name || currentUser.username,
           senderAvatar: currentUser.avatar,
           content: text,
+          imageId: imageId,
           timestamp: new Date().toISOString(),
         },
       ])
     } catch (err) {
       console.error("Ошибка отправки сообщения:", err)
       setError(err.message || "Не удалось отправить сообщение")
+      // Restore image if upload failed
+      if (imageFile) {
+        setSelectedImage(imageFile)
+        setImagePreview(URL.createObjectURL(imageFile))
+      }
+    }
+  }
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file size (max 25MB for chat as per requirements)
+    if (file.size > 25 * 1024 * 1024) {
+      alert("Размер файла не должен превышать 25 МБ")
+      return
+    }
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      alert("Файл должен быть изображением")
+      return
+    }
+
+    setSelectedImage(file)
+    setImagePreview(URL.createObjectURL(file))
+  }
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null)
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview)
+      setImagePreview(null)
     }
   }
 
@@ -370,7 +417,25 @@ function Chat({ onNavigate, roomId }) {
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", justifyContent: "space-between" }}>
                     <div style={{ flex: 1 }}>
                       {!isOwn && <div className="message-sender">{senderName}</div>}
-                      <div className="message-text">{message.content}</div>
+                      {message.content && <div className="message-text">{message.content}</div>}
+                      {message.imageId && (
+                        <div style={{ marginTop: message.content ? "var(--spacing-xs)" : 0, marginBottom: "var(--spacing-xs)" }}>
+                          <img 
+                            src={imageAPI.getImageUrl(message.imageId)} 
+                            alt="Изображение в сообщении"
+                            style={{ 
+                              maxWidth: "100%", 
+                              maxHeight: "300px", 
+                              borderRadius: "var(--border-radius-md, 8px)",
+                              objectFit: "contain"
+                            }}
+                            onError={(e) => {
+                              console.error("[Chat] Failed to load message image:", message.imageId)
+                              e.target.style.display = 'none'
+                            }}
+                          />
+                        </div>
+                      )}
                       <div className="message-time">
                         {message.timestamp
                           ? new Date(message.timestamp).toLocaleTimeString("ru-RU", {
@@ -421,7 +486,67 @@ function Chat({ onNavigate, roomId }) {
 
       {/* Поле ввода */}
       <div className="chat-input-container">
-        <button className="btn-icon">📎</button>
+        <input
+          type="file"
+          accept="image/*"
+          style={{ display: "none" }}
+          id="chat-image-input"
+          onChange={handleImageSelect}
+        />
+        <label htmlFor="chat-image-input" style={{ cursor: "pointer" }}>
+          <button 
+            type="button"
+            className="btn-icon"
+            onClick={(e) => {
+              e.preventDefault()
+              document.getElementById("chat-image-input")?.click()
+            }}
+          >
+            📎
+          </button>
+        </label>
+        {imagePreview && (
+          <div style={{ 
+            position: "relative", 
+            display: "inline-block", 
+            marginRight: "var(--spacing-xs)",
+            maxWidth: "100px",
+            maxHeight: "100px"
+          }}>
+            <img 
+              src={imagePreview} 
+              alt="Предпросмотр"
+              style={{ 
+                maxWidth: "100%", 
+                maxHeight: "100%", 
+                borderRadius: "var(--border-radius-md, 8px)",
+                objectFit: "cover"
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleRemoveImage}
+              style={{
+                position: "absolute",
+                top: "-8px",
+                right: "-8px",
+                background: "var(--error-color, #dc3545)",
+                color: "white",
+                border: "none",
+                borderRadius: "50%",
+                width: "20px",
+                height: "20px",
+                cursor: "pointer",
+                fontSize: "12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
         <textarea
           className="chat-input"
           placeholder="Сообщение (до 500 символов)..."
@@ -431,7 +556,7 @@ function Chat({ onNavigate, roomId }) {
           maxLength="500"
           rows="1"
         />
-        <button className="chat-send-btn" onClick={handleSendMessage}>
+        <button className="chat-send-btn" onClick={handleSendMessage} disabled={!messageText.trim() && !selectedImage}>
           ➤
         </button>
       </div>

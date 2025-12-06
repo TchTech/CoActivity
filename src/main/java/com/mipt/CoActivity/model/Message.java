@@ -26,6 +26,9 @@ public class Message {
   @JoinColumn(name = "authorId")
   @JsonIgnoreProperties({"posts", "rooms", "interests", "feedbacks", "feedbacksAuthor", "subscriptions", "followers", "passwordHash"})
   private User author;
+  @ManyToOne
+  @JoinColumn(name = "imageId")
+  private Image image;
   public Message(Room room, User author, String text) {
     this.room = room;
     this.author = author;
