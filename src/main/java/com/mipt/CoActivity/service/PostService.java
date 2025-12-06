@@ -24,10 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class PostService {
@@ -40,6 +42,7 @@ public class PostService {
   private final RoomPostPinRepository roomPostPinRepository;
   private final CommentRepository commentRepository;
   private final NotificationService notificationService;
+  private final PostRecommendationService postRecommendationService;
 
   @Autowired
   public PostService(
@@ -49,7 +52,8 @@ public class PostService {
           ImageRepository imageRepository,
           RoomPostPinRepository roomPostPinRepository,
           CommentRepository commentRepository,
-          NotificationService notificationService) {
+          NotificationService notificationService,
+          PostRecommendationService postRecommendationService) {
     this.postRepository = postRepository;
     this.userRepository = userRepository;
     this.roomRepository = roomRepository;
@@ -57,6 +61,7 @@ public class PostService {
     this.roomPostPinRepository = roomPostPinRepository;
     this.commentRepository = commentRepository;
     this.notificationService = notificationService;
+    this.postRecommendationService = postRecommendationService;
   }
 
   @Transactional
@@ -402,5 +407,175 @@ public class PostService {
         // Continue with other mentions
       }
     }
+  }
+
+  /**
+   * Получает рекомендации постов для пользователя (без scores, обратная совместимость)
+   */
+  public List<Post> getRecommendedPosts(Long userId) {
+    RecommendedPostsResponse response = getRecommendedPostsWithScores(userId);
+    return response.getPosts() != null ? response.getPosts() : new ArrayList<>();
+  }
+
+  /**
+   * Получает рекомендации постов для пользователя с similarity scores
+   */
+  public RecommendedPostsResponse getRecommendedPostsWithScores(Long userId) {
+    User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    
+    List<Post> candidatePosts;
+    List<String> userInterests = new ArrayList<>();
+    List<Integer> subscribedUserIds = new ArrayList<>();
+    
+    // Проверяем, есть ли у пользователя подписки
+    List<User> subscriptions = user.getSubscriptions();
+    if (subscriptions != null && !subscriptions.isEmpty()) {
+      // Если есть подписки - используем все посты, но приоритизируем посты от подписок
+      logger.info("User {} has {} subscriptions, prioritizing subscription posts in recommendations", 
+              userId, subscriptions.size());
+      
+      List<Long> subscribedIds = subscriptions.stream()
+              .map(User::getId)
+              .collect(Collectors.toList());
+      
+      // Используем ВСЕ посты, но приоритизируем посты от подписок через Python API
+      candidatePosts = getAllPosts();
+      subscribedUserIds = subscribedIds.stream()
+              .map(Long::intValue)
+              .collect(Collectors.toList());
+      
+      // Также собираем интересы пользователя для улучшения рекомендаций
+      if (user.getInterests() != null) {
+        userInterests = user.getInterests().stream()
+                .map(Interest::getName)
+                .collect(Collectors.toList());
+      }
+    } else {
+      // Если подписок нет - используем все посты и интересы пользователя
+      logger.info("User {} has no subscriptions, using interests for recommendations", userId);
+      
+      candidatePosts = getAllPosts();
+      
+      // Получаем интересы пользователя
+      if (user.getInterests() != null && !user.getInterests().isEmpty()) {
+        userInterests = user.getInterests().stream()
+                .map(Interest::getName)
+                .collect(Collectors.toList());
+      }
+      
+      // Если нет интересов, возвращаем все посты без рекомендаций
+      if (userInterests.isEmpty()) {
+        logger.warn("User {} has no interests, returning all posts without recommendations", userId);
+        List<Post> sortedPosts = candidatePosts.stream()
+                .sorted((a, b) -> {
+                  // Сортируем по дате создания (новые первыми)
+                  if (a.getId() != null && b.getId() != null) {
+                    return b.getId().compareTo(a.getId());
+                  }
+                  return 0;
+                })
+                .collect(Collectors.toList());
+        // Возвращаем с нулевыми scores
+        List<Double> defaultScores = sortedPosts.stream().map(p -> 1.0).collect(Collectors.toList());
+        return new RecommendedPostsResponse(sortedPosts, defaultScores, "No interests, returning all posts");
+      }
+    }
+    
+    if (candidatePosts.isEmpty()) {
+      logger.info("No candidate posts found for user {}", userId);
+      return new RecommendedPostsResponse(new ArrayList<>(), new ArrayList<>(), "No posts available");
+    }
+    
+    // Преобразуем посты в формат для Python API
+    List<PostRecommendationRequest.PostData> postDataList = candidatePosts.stream()
+            .map(post -> {
+              PostRecommendationRequest.PostData postData = new PostRecommendationRequest.PostData();
+              postData.setId(post.getId());
+              postData.setName(post.getName() != null ? post.getName() : "");
+              postData.setText(post.getText() != null ? post.getText() : "");
+              
+              // Информация об авторе
+              if (post.getAuthor() != null) {
+                postData.setAuthorId(post.getAuthor().getId() != null ? 
+                        post.getAuthor().getId().intValue() : null);
+                postData.setAuthorName(post.getAuthor().getName() != null ? 
+                        post.getAuthor().getName() : post.getAuthor().getUsername());
+                
+                // Собираем интересы автора
+                if (post.getAuthor().getInterests() != null) {
+                  List<String> authorInterests = post.getAuthor().getInterests().stream()
+                          .map(Interest::getName)
+                          .collect(Collectors.toList());
+                  postData.setAuthorInterests(authorInterests);
+                }
+              }
+              
+              // Информация о комнате
+              if (post.getRoom() != null) {
+                postData.setRoomName(post.getRoom().getName());
+                postData.setRoomCategory(post.getRoom().getCategory());
+              }
+              
+              return postData;
+            })
+            .collect(Collectors.toList());
+    
+    // Формируем запрос к Python API
+    PostRecommendationRequest request = new PostRecommendationRequest();
+    request.setUserInterests(userInterests);
+    request.setPosts(postDataList);
+    request.setSubscribedUserIds(subscribedUserIds);
+    
+    // Получаем рекомендации от Python API
+    PostRecommendationResponse response = postRecommendationService.getRecommendations(request);
+    
+    if (response == null || response.getRecommendedPosts() == null || response.getRecommendedPosts().isEmpty()) {
+      logger.warn("No recommendations received from Python API for user {}, returning all candidate posts", userId);
+      // Возвращаем все посты, отсортированные по дате
+      List<Post> sortedPosts = candidatePosts.stream()
+              .sorted((a, b) -> {
+                if (a.getId() != null && b.getId() != null) {
+                  return b.getId().compareTo(a.getId());
+                }
+                return 0;
+              })
+              .collect(Collectors.toList());
+      // Возвращаем с нулевыми scores
+      List<Double> defaultScores = sortedPosts.stream().map(p -> 1.0).collect(Collectors.toList());
+      return new RecommendedPostsResponse(sortedPosts, defaultScores, "No recommendations from Python API, returning all posts");
+    }
+    
+    // Создаем Map для быстрого поиска постов по ID
+    Map<Integer, Post> postMap = candidatePosts.stream()
+            .collect(Collectors.toMap(Post::getId, post -> post));
+    
+    // Преобразуем рекомендации обратно в Post объекты
+    List<Post> recommendedPosts = response.getRecommendedPosts().stream()
+            .map(postData -> postMap.get(postData.getId()))
+            .filter(post -> post != null)
+            .collect(Collectors.toList());
+    
+    logger.info("Received {} recommended posts from Python API for user {}", 
+            recommendedPosts.size(), userId);
+    
+    // Логируем scores в консоль Java
+    if (response.getSimilarityScores() != null && !response.getSimilarityScores().isEmpty()) {
+      logger.info("Similarity scores for user {}: {}", userId, response.getSimilarityScores());
+      for (int i = 0; i < recommendedPosts.size() && i < response.getSimilarityScores().size(); i++) {
+        logger.info("Post {} (ID: {}) - Similarity Score: {}", 
+            i + 1, 
+            recommendedPosts.get(i).getId(), 
+            response.getSimilarityScores().get(i));
+      }
+    }
+    
+    RecommendedPostsResponse result = new RecommendedPostsResponse(
+        recommendedPosts,
+        response.getSimilarityScores() != null ? response.getSimilarityScores() : new ArrayList<>(),
+        response.getMessage() != null ? response.getMessage() : "Recommendations received"
+    );
+    
+    return result;
   }
 }
