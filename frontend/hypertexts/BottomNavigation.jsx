@@ -1,9 +1,49 @@
 "use client"
+import { useState, useEffect } from "react"
+import { notificationAPI } from "../lib/api"
+import { useUser } from "../context/UserContext"
 import "../styles/variables.css"
 import "../styles/global.css"
 import "../styles/navigation.css"
 
 function BottomNavigation({ currentPage, onNavigate }) {
+  const { currentUser } = useUser()
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  // Загружаем количество непрочитанных уведомлений
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setUnreadCount(0)
+      return
+    }
+
+    const loadUnreadCount = async () => {
+      try {
+        const countData = await notificationAPI.getUnreadCount(currentUser.id)
+        setUnreadCount(countData?.count || 0)
+      } catch (error) {
+        console.error("Ошибка загрузки количества непрочитанных уведомлений:", error)
+        setUnreadCount(0)
+      }
+    }
+
+    loadUnreadCount()
+
+    // Обновляем счетчик каждые 10 секунд
+    const interval = setInterval(loadUnreadCount, 10000)
+
+    // Также обновляем при возврате фокуса на вкладку
+    const handleFocus = () => {
+      loadUnreadCount()
+    }
+    window.addEventListener("focus", handleFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("focus", handleFocus)
+    }
+  }, [currentUser?.id])
+
   return (
     <nav className="bottom-nav">
       <button className={`nav-item ${currentPage === "home" ? "active" : ""}`} onClick={() => onNavigate("home")}>
@@ -48,12 +88,16 @@ function BottomNavigation({ currentPage, onNavigate }) {
       <button
         className={`nav-item ${currentPage === "notifications" ? "active" : ""}`}
         onClick={() => onNavigate("notifications")}
+        style={{ position: "relative" }}
       >
         <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
         <span className="nav-label">Уведомления</span>
+        {unreadCount > 0 && (
+          <span className="nav-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+        )}
       </button>
 
       <button className={`nav-item ${currentPage === "profile" ? "active" : ""}`} onClick={() => onNavigate("profile")}>
