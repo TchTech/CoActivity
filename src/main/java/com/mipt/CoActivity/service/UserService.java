@@ -167,6 +167,12 @@ public class UserService {
                     .findById(userToSubscribeId)
                     .orElseThrow(() -> new ResourceNotFoundException("User to subscribe not found"));
 
+    // Prevent self-subscription
+    if (userId.equals(userToSubscribeId)) {
+      logger.debug("User {} attempted to subscribe to themselves, ignoring", userId);
+      throw new BadRequestException("Cannot subscribe to yourself");
+    }
+
     // Idempotent: if already subscribed, just return success
     if (user.getSubscriptions().contains(userToSubscribe)) {
       logger.debug("User {} is already subscribed to user {}, returning success", userId, userToSubscribeId);
