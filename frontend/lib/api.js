@@ -41,6 +41,23 @@ async function request(path, { method = "GET", params, body, headers } = {}) {
     })
   }
 
+  let bodyString = undefined
+  if (body) {
+    if (body instanceof FormData) {
+      bodyString = body
+    } else {
+      // Убеждаемся, что body является объектом перед сериализацией
+      if (typeof body === 'object' && body !== null) {
+        bodyString = JSON.stringify(body)
+        console.log(`[API] Request body (stringified):`, bodyString)
+        console.log(`[API] Request body (object):`, body)
+      } else {
+        console.error(`[API] Invalid body type:`, typeof body, body)
+        bodyString = String(body)
+      }
+    }
+  }
+
   const options = {
     method,
     headers: {
@@ -49,13 +66,16 @@ async function request(path, { method = "GET", params, body, headers } = {}) {
         : {}),
       ...headers,
     },
-    body:
-      body && body instanceof FormData
-        ? body
-        : body
-        ? JSON.stringify(body)
-        : undefined,
+    body: bodyString,
   }
+
+  console.log(`[API] Fetch options:`, {
+    method: options.method,
+    url: url.toString(),
+    hasBody: !!bodyString,
+    bodyType: bodyString ? (bodyString instanceof FormData ? 'FormData' : typeof bodyString) : 'none',
+    headers: options.headers
+  })
 
   const res = await fetch(url.toString(), options)
   console.log(`[API] Response status: ${res.status} ${res.statusText}`)
@@ -241,11 +261,35 @@ export const userAPI = {
   },
 
   async login(loginOrEmail, password) {
-    // Swagger: POST /auth/login { email, password }
-    const email = loginOrEmail
+    // Backend accepts login field which can be email or username
+    const login = loginOrEmail
+    if (!login || (typeof login === 'string' && login.trim() === "")) {
+      console.error("[userAPI.login] Invalid login value:", { login, type: typeof login })
+      throw new Error("Login cannot be empty")
+    }
+    if (!password || (typeof password === 'string' && password.trim() === "")) {
+      console.error("[userAPI.login] Invalid password value:", { passwordLength: password?.length, type: typeof password })
+      throw new Error("Password cannot be empty")
+    }
+    
+    // Убеждаемся, что значения являются строками
+    const loginStr = String(login).trim()
+    const passwordStr = String(password)
+    
+    console.log("[userAPI.login] Attempting login with:", { 
+      login: loginStr, 
+      loginLength: loginStr.length,
+      passwordLength: passwordStr?.length,
+      originalLogin: login,
+      originalPasswordType: typeof password
+    })
+    
+    const requestBody = { login: loginStr, password: passwordStr }
+    console.log("[userAPI.login] Request body object:", requestBody)
+    
     const loginResponse = await request("/auth/login", {
       method: "POST",
-      body: { email, password },
+      body: requestBody, // Используем login вместо email
     })
 
     console.log("[userAPI.login] Login response:", loginResponse)
@@ -258,7 +302,7 @@ export const userAPI = {
         console.log("[userAPI.login] Loaded user profile:", user)
       } catch (error) {
         console.warn("[userAPI.login] Failed to load user profile, using minimal user object:", error)
-        user = { id: loginResponse.userId, email }
+        user = { id: loginResponse.userId, email: loginOrEmail }
       }
     }
 
@@ -266,7 +310,8 @@ export const userAPI = {
       id: loginResponse.userId,
       token: loginResponse.token,
       userId: loginResponse.userId,
-      email: email,
+      email: loginOrEmail,
+      requiresTwoFactor: loginResponse.requiresTwoFactor || false,
       ...(user || {}),
     }
     console.log("[userAPI.login] Returning user object:", result)
@@ -342,12 +387,28 @@ export const userAPI = {
     return request(`/users/${userId}/ratings/summary`, { method: "GET" })
   },
 
-  async updateAbout(userId, currentUserId, about) {
+  async updateName(userId, nameRequest) {
+    // Backend: PUT /users/{userId}/profile/personal-info/name
+    return request(`/users/${userId}/profile/personal-info/name`, {
+      method: "PUT",
+      body: nameRequest,
+    })
+  },
+
+  async updateAddress(userId, addressRequest) {
+    // Backend: PUT /users/{userId}/profile/personal-info/address
+    return request(`/users/${userId}/profile/personal-info/address`, {
+      method: "PUT",
+      body: addressRequest,
+    })
+  },
+
+  async updateAbout(userId, aboutRequest) {
     // Backend: PUT /users/{userId}/about?currentUserId=
     return request(`/users/${userId}/about`, {
       method: "PUT",
-      params: { currentUserId },
-      body: { about },
+      params: { currentUserId: userId },
+      body: aboutRequest,
     })
   },
 
@@ -461,6 +522,75 @@ export const postAPI = {
       throw new Error(`Invalid postId: ${postId}`)
     }
     return request(`/posts/${postIdValue}`, { method: "GET" })
+  },
+
+  async getRecommended(userId) {
+    // Backend: GET /posts/recommended?userId=&includeScores=true
+    const response = await request("/posts/recommended", {
+      method: "GET",
+      params: { userId, includeScores: true },
+    })
+    
+    console.log("[postAPI.getRecommended] Raw response:", response)
+    
+    // Проверяем различные форматы ответа
+    let posts = []
+    let scores = []
+    let message = ""
+    
+    if (Array.isArray(response)) {
+      // Если ответ - просто массив постов (старый формат)
+      posts = response
+      console.warn("[postAPI.getRecommended] Received array response (old format), no scores available")
+    } else if (response && response.posts) {
+      // Новый формат с scores
+      posts = response.posts
+      scores = response.similarityScores || []
+      message = response.message || ""
+    } else if (response) {
+      // Возможно, response сам по себе массив постов
+      posts = Array.isArray(response) ? response : [response]
+    }
+    
+    // Выводим scores в консоль
+    if (scores && scores.length > 0) {
+      console.log("=".repeat(60))
+      console.log("[postAPI.getRecommended] 📊 РЕКОМЕНДАЦИИ С SCORES")
+      console.log("=".repeat(60))
+      console.log(`[postAPI.getRecommended] Пользователь ID: ${userId}`)
+      console.log(`[postAPI.getRecommended] Всего постов: ${posts.length}`)
+      console.log(`[postAPI.getRecommended] Сообщение: ${message}`)
+      console.log("-".repeat(60))
+      
+      // Выводим scores для каждого поста
+      posts.forEach((post, index) => {
+        if (index < scores.length) {
+          const score = scores[index]
+          console.log(
+            `[${index + 1}] Post ID: ${post.id} | ` +
+            `Score: ${score.toFixed(4)} | ` +
+            `Title: "${post.name || 'No title'}"`
+          )
+        }
+      })
+      
+      console.log("-".repeat(60))
+      
+      // Выводим статистику scores
+      const maxScore = Math.max(...scores)
+      const minScore = Math.min(...scores)
+      const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length
+      console.log(`📈 Статистика scores:`)
+      console.log(`   Максимум: ${maxScore.toFixed(4)}`)
+      console.log(`   Минимум:  ${minScore.toFixed(4)}`)
+      console.log(`   Среднее:  ${avgScore.toFixed(4)}`)
+      console.log("=".repeat(60))
+    } else {
+      console.log("[postAPI.getRecommended] ⚠️ Scores не получены. Постов:", posts.length)
+    }
+    
+    // Возвращаем только посты для обратной совместимости
+    return posts
   },
 
   async getByUser(userId) {

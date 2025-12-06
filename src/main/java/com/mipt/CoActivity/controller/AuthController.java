@@ -3,6 +3,7 @@ package com.mipt.CoActivity.controller;
 import com.mipt.CoActivity.dto.LoginRequest;
 import com.mipt.CoActivity.dto.LoginResponse;
 import com.mipt.CoActivity.dto.RegisterRequest;
+import com.mipt.CoActivity.exception.BadRequestException;
 import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.service.AuthService;
 import jakarta.validation.Valid;
@@ -44,8 +45,34 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> loginUser(@RequestBody LoginRequest request) {
-        LoginResponse response = authService.loginUser(request);
-        return ResponseEntity.ok(response);
+        logger.info("Login request received: login={}, passwordPresent={}", 
+            request != null ? request.getLogin() : "null",
+            request != null && request.getPassword() != null ? "yes" : "no");
+        
+        // Дополнительная проверка для диагностики
+        if (request == null) {
+            logger.error("LoginRequest is null!");
+            throw new BadRequestException("Request body is required");
+        }
+        
+        if (request.getLogin() == null || request.getLogin().trim().isEmpty()) {
+            logger.error("Login field is null or empty. Request object toString: {}", 
+                request.toString());
+            logger.error("Login field value: '{}', password field value present: {}", 
+                request.getLogin(), 
+                request.getPassword() != null);
+            throw new BadRequestException("Login cannot be empty");
+        }
+        
+        try {
+            LoginResponse response = authService.loginUser(request);
+            logger.info("Login successful: userId={}, requiresTwoFactor={}", 
+                response.getUserId(), response.getRequiresTwoFactor());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error during login: ", e);
+            throw e; // Глобальный обработчик перехватит это
+        }
     }
 }
 

@@ -219,9 +219,6 @@ function Register({ onNavigate }) {
         return
       }
       
-      // Сохраняем пользователя в контекст
-      login(user)
-      
       // Получаем ID пользователя (может быть как id, так и userId)
       const userId = user?.id || user?.userId
       
@@ -241,11 +238,92 @@ function Register({ onNavigate }) {
         }
       }
       
-      // TODO: После регистрации нужно заполнить профиль (имя, фамилия, город, о себе)
-      // Это можно сделать через обновление профиля, если есть такой эндпоинт
+      // Обновляем профиль пользователя (имя, адрес для города, о себе)
+      if (userId) {
+        try {
+          const fullName = `${formData.firstName} ${formData.lastName}`.trim()
+          console.log("Обновляем профиль пользователя:", { name: fullName, address: formData.city, about: formData.about })
+          
+          // Обновляем имя
+          if (fullName) {
+            await userAPI.updateName(userId, { name: fullName })
+          }
+          
+          // Обновляем адрес (город)
+          if (formData.city) {
+            await userAPI.updateAddress(userId, { address: formData.city })
+          }
+          
+          // Обновляем "о себе"
+          if (formData.about) {
+            await userAPI.updateAbout(userId, { about: formData.about })
+          }
+          
+          console.log("Профиль пользователя обновлен")
+        } catch (profileError) {
+          console.error("Ошибка при обновлении профиля (не критично):", profileError)
+          // Не блокируем регистрацию
+        }
+      }
       
-      // НЕ сохраняем пользователя в контекст и НЕ переходим на главную
-      // Пользователь должен сначала подтвердить email
+      // После успешной регистрации автоматически входим в систему
+      try {
+        // Проверяем, что email и password доступны
+        // Используем email из формы или из объекта user
+        const loginEmail = formData.email?.trim() || user?.email?.trim()
+        const loginPassword = formData.password
+        
+        console.log("Данные для автоматического входа:", {
+          formDataEmail: formData.email,
+          userEmail: user?.email,
+          loginEmail: loginEmail,
+          passwordLength: loginPassword?.length,
+          formDataKeys: Object.keys(formData)
+        })
+        
+        if (!loginEmail) {
+          console.error("Email не найден для автоматического входа. formData:", formData, "user:", user)
+          throw new Error("Email отсутствует для автоматического входа")
+        }
+        
+        if (!loginPassword) {
+          console.error("Пароль не найден для автоматического входа")
+          throw new Error("Пароль отсутствует для автоматического входа")
+        }
+        
+        console.log("Вызываем userAPI.login с:", { login: loginEmail, passwordLength: loginPassword.length })
+        const loginResponse = await userAPI.login(loginEmail, loginPassword)
+        console.log("Автоматический вход после регистрации:", loginResponse)
+        
+        if (loginResponse && loginResponse.token) {
+          login(loginResponse)
+          // Переход на главную страницу
+          onNavigate("home")
+        } else {
+          // Если автоматический вход не удался, показываем сообщение об успешной регистрации
+          setAlert({ 
+            visible: true, 
+            message: "Регистрация завершена успешно! Теперь вы можете войти в систему.", 
+            type: "success" 
+          })
+          // Предлагаем перейти на страницу входа через 3 секунды
+          setTimeout(() => {
+            onNavigate("login")
+          }, 3000)
+        }
+      } catch (loginError) {
+        console.error("Ошибка автоматического входа после регистрации:", loginError)
+        // Регистрация успешна, но автоматический вход не удался
+        setAlert({ 
+          visible: true, 
+          message: "Регистрация завершена успешно! Теперь вы можете войти в систему.", 
+          type: "success" 
+        })
+        // Предлагаем перейти на страницу входа через 3 секунды
+        setTimeout(() => {
+          onNavigate("login")
+        }, 3000)
+      }
     } catch (err) {
       console.error("Ошибка регистрации:", err)
       console.error("Детали ошибки:", {

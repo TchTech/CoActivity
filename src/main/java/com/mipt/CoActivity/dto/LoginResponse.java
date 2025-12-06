@@ -12,5 +12,6 @@ import lombok.NoArgsConstructor;
 public class LoginResponse {
     private String token;
     private Long userId;
+    private Boolean requiresTwoFactor; // Флаг для 2FA
 }
 
