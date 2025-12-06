@@ -170,5 +170,79 @@ class UserServiceTest {
         // Then
         verify(userRepository, never()).save(any(User.class));
     }
+
+    @Test
+    void testGetUserByUsername_Success() {
+        // Given
+        when(userRepository.findByUsername("user1")).thenReturn(user1);
+
+        // When
+        User result = userService.getUserByUsername("user1");
+
+        // Then
+        assertNotNull(result);
+        assertEquals(user1.getUsername(), result.getUsername());
+    }
+
+    @Test
+    void testGetUserByEmail_Success() {
+        // Given
+        when(userRepository.findByEmail("user1@test.com")).thenReturn(user1);
+
+        // When
+        User result = userService.getUserByEmail("user1@test.com");
+
+        // Then
+        assertNotNull(result);
+        assertEquals(user1.getEmail(), result.getEmail());
+    }
+
+    @Test
+    void testIsUsernameExists_ReturnsTrue() {
+        // Given
+        when(userRepository.findByUsername("user1")).thenReturn(user1);
+
+        // When
+        boolean result = userService.isUsernameExists("user1");
+
+        // Then
+        assertTrue(result);
+    }
+
+    @Test
+    void testIsUsernameExists_ReturnsFalse() {
+        // Given
+        when(userRepository.findByUsername("nonexistent")).thenReturn(null);
+
+        // When
+        boolean result = userService.isUsernameExists("nonexistent");
+
+        // Then
+        assertFalse(result);
+    }
+
+    @Test
+    void testIsEmailExists_ReturnsTrue() {
+        // Given
+        when(userRepository.findByEmail("user1@test.com")).thenReturn(user1);
+
+        // When
+        boolean result = userService.isEmailExists("user1@test.com");
+
+        // Then
+        assertTrue(result);
+    }
+
+    @Test
+    void testIsEmailExists_ReturnsFalse() {
+        // Given
+        when(userRepository.findByEmail("nonexistent@test.com")).thenReturn(null);
+
+        // When
+        boolean result = userService.isEmailExists("nonexistent@test.com");
+
+        // Then
+        assertFalse(result);
+    }
 }
 

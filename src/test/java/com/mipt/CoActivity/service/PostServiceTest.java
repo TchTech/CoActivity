@@ -4,6 +4,7 @@ import com.mipt.CoActivity.exception.ResourceNotFoundException;
 import com.mipt.CoActivity.model.Image;
 import com.mipt.CoActivity.model.Post;
 import com.mipt.CoActivity.model.Room;
+import com.mipt.CoActivity.model.RoomPostPin;
 import com.mipt.CoActivity.model.User;
 import com.mipt.CoActivity.repository.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -259,6 +260,174 @@ class PostServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> {
             postService.createPost(post);
         });
+    }
+
+    @Test
+    void testCreatePost_WithRoom_PinsPostToRoom() {
+        // Given
+        post.setRoom(room);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(author));
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
+        when(roomPostPinRepository.findByRoomIdAndPostId(1L, 1)).thenReturn(Optional.empty());
+        when(postRepository.save(any(Post.class))).thenReturn(post);
+
+        // When
+        postService.createPost(post);
+
+        // Then
+        verify(roomPostPinRepository, times(1)).save(any(RoomPostPin.class));
+    }
+
+    @Test
+    void testCreatePost_WithImage_LoadsImage() {
+        // Given
+        Image image = new Image();
+        image.setId(1);
+        post.setImage(image);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(author));
+        when(imageRepository.findById(1)).thenReturn(Optional.of(image));
+        when(postRepository.save(any(Post.class))).thenReturn(post);
+
+        // When
+        Post result = postService.createPost(post);
+
+        // Then
+        assertNotNull(result);
+        verify(imageRepository, times(1)).findById(1);
+    }
+
+    @Test
+    void testCreatePost_ThrowsExceptionWhenAuthorIsNull() {
+        // Given
+        post.setAuthor(null);
+
+        // When & Then
+        assertThrows(IllegalArgumentException.class, () -> {
+            postService.createPost(post);
+        });
+    }
+
+    @Test
+    void testPublishPost_Success() {
+        // Given
+        Image image = new Image();
+        when(postRepository.save(any(Post.class))).thenReturn(post);
+
+        // When
+        Post result = postService.publishPost("Test", author, "Content", image);
+
+        // Then
+        assertNotNull(result);
+        verify(postRepository, times(1)).save(any(Post.class));
+    }
+
+    @Test
+    void testGetAllPosts_Success() {
+        // Given
+        List<Post> posts = List.of(post);
+        when(postRepository.findAll()).thenReturn(posts);
+
+        // When
+        List<Post> result = postService.getAllPosts();
+
+        // Then
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        verify(postRepository, times(1)).findAll();
+    }
+
+    @Test
+    void testGetPostById_Success() {
+        // Given
+        when(postRepository.findById(1)).thenReturn(Optional.of(post));
+
+        // When
+        Post result = postService.getPostById(1L);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(post.getId(), result.getId());
+    }
+
+    @Test
+    void testGetPostById_ThrowsExceptionWhenNotFound() {
+        // Given
+        when(postRepository.findById(999)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThrows(ResourceNotFoundException.class, () -> {
+            postService.getPostById(999L);
+        });
+    }
+
+    @Test
+    void testDeletePost_Success() {
+        // Given
+        post.setLikedUsers(new ArrayList<>());
+        post.setDislikedUsers(new ArrayList<>());
+        when(postRepository.findById(1)).thenReturn(Optional.of(post));
+        when(roomPostPinRepository.findByPostId(1)).thenReturn(new ArrayList<>());
+        when(commentRepository.findByPostId(1)).thenReturn(new ArrayList<>());
+        when(postRepository.save(any(Post.class))).thenReturn(post);
+
+        // When
+        postService.deletePost(1L, 1L);
+
+        // Then
+        verify(postRepository, times(1)).delete(post);
+    }
+
+    @Test
+    void testDeletePost_ThrowsExceptionWhenNotAuthor() {
+        // Given
+        when(postRepository.findById(1)).thenReturn(Optional.of(post));
+
+        // When & Then
+        assertThrows(IllegalArgumentException.class, () -> {
+            postService.deletePost(1L, 999L);
+        });
+    }
+
+    @Test
+    void testAddOrRemoveLike_RemovesLikeWhenAlreadyLiked() {
+        // Given
+        User liker = new User("liker", "liker@test.com", "password");
+        liker.setId(3L);
+        post.setLikedUsers(new ArrayList<>());
+        post.setDislikedUsers(new ArrayList<>());
+        post.getLikedUsers().add(liker);
+
+        when(userRepository.findById(3L)).thenReturn(Optional.of(liker));
+        when(postRepository.findById(1)).thenReturn(Optional.of(post));
+        when(postRepository.save(any(Post.class))).thenReturn(post);
+
+        // When
+        postService.addOrRemoveLike(3L, 1L);
+
+        // Then
+        assertFalse(post.getLikedUsers().contains(liker));
+        verify(postRepository, times(1)).save(post);
+    }
+
+    @Test
+    void testAddOrRemoveDislike_RemovesDislikeWhenAlreadyDisliked() {
+        // Given
+        User disliker = new User("disliker", "disliker@test.com", "password");
+        disliker.setId(3L);
+        post.setLikedUsers(new ArrayList<>());
+        post.setDislikedUsers(new ArrayList<>());
+        post.getDislikedUsers().add(disliker);
+
+        when(userRepository.findById(3L)).thenReturn(Optional.of(disliker));
+        when(postRepository.findById(1)).thenReturn(Optional.of(post));
+        when(postRepository.save(any(Post.class))).thenReturn(post);
+
+        // When
+        postService.addOrRemoveDislike(3L, 1L);
+
+        // Then
+        assertFalse(post.getDislikedUsers().contains(disliker));
+        verify(postRepository, times(1)).save(post);
     }
 }
 

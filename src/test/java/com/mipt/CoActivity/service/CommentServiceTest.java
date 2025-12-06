@@ -190,5 +190,169 @@ class CommentServiceTest {
         assertNotNull(result);
         verify(commentRepository, times(1)).save(any(Comment.class));
     }
+
+    @Test
+    void testGetComments_ReturnsRootCommentsWithReplies() {
+        // Given
+        Comment reply = new Comment();
+        reply.setId(3L);
+        reply.setParentComment(comment);
+        
+        when(commentRepository.findByPostIdAndParentCommentIsNull(1)).thenReturn(List.of(comment));
+        when(commentRepository.findByParentCommentId(1L)).thenReturn(List.of(reply));
+
+        // When
+        List<Comment> result = commentService.getComments(1L);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals(comment.getId(), result.get(0).getId());
+        verify(commentRepository, times(1)).findByPostIdAndParentCommentIsNull(1);
+    }
+
+    @Test
+    void testDeleteComment_Success() {
+        // Given
+        comment.setLikedUsers(new ArrayList<>());
+        comment.setDislikedUsers(new ArrayList<>());
+        comment.setReplies(new ArrayList<>());
+        when(commentRepository.findById(1L)).thenReturn(Optional.of(comment));
+        when(commentRepository.save(any(Comment.class))).thenReturn(comment);
+
+        // When
+        commentService.deleteComment(1L, 2L);
+
+        // Then
+        verify(commentRepository, times(1)).delete(comment);
+    }
+
+    @Test
+    void testDeleteComment_ThrowsExceptionWhenNotAuthor() {
+        // Given
+        when(commentRepository.findById(1L)).thenReturn(Optional.of(comment));
+
+        // When & Then
+        assertThrows(IllegalArgumentException.class, () -> {
+            commentService.deleteComment(1L, 999L);
+        });
+    }
+
+    @Test
+    void testDeleteComment_DeletesReplies() {
+        // Given
+        Comment reply = new Comment();
+        reply.setId(3L);
+        reply.setLikedUsers(new ArrayList<>());
+        reply.setDislikedUsers(new ArrayList<>());
+        comment.setReplies(new ArrayList<>());
+        comment.getReplies().add(reply);
+        comment.setLikedUsers(new ArrayList<>());
+        comment.setDislikedUsers(new ArrayList<>());
+        
+        when(commentRepository.findById(1L)).thenReturn(Optional.of(comment));
+        when(commentRepository.save(any(Comment.class))).thenReturn(comment);
+
+        // When
+        commentService.deleteComment(1L, 2L);
+
+        // Then
+        verify(commentRepository, times(1)).deleteAll(comment.getReplies());
+        verify(commentRepository, times(1)).delete(comment);
+    }
+
+    @Test
+    void testAddOrRemoveLike_AddsLike() {
+        // Given
+        comment.setLikedUsers(new ArrayList<>());
+        comment.setDislikedUsers(new ArrayList<>());
+        when(userRepository.findById(2L)).thenReturn(Optional.of(commentAuthor));
+        when(commentRepository.findById(1L)).thenReturn(Optional.of(comment));
+        when(commentRepository.save(any(Comment.class))).thenReturn(comment);
+
+        // When
+        commentService.addOrRemoveLike(2L, 1L);
+
+        // Then
+        assertTrue(comment.getLikedUsers().contains(commentAuthor));
+        verify(commentRepository, times(1)).save(comment);
+    }
+
+    @Test
+    void testAddOrRemoveLike_RemovesLike() {
+        // Given
+        comment.setLikedUsers(new ArrayList<>());
+        comment.setDislikedUsers(new ArrayList<>());
+        comment.getLikedUsers().add(commentAuthor);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(commentAuthor));
+        when(commentRepository.findById(1L)).thenReturn(Optional.of(comment));
+        when(commentRepository.save(any(Comment.class))).thenReturn(comment);
+
+        // When
+        commentService.addOrRemoveLike(2L, 1L);
+
+        // Then
+        assertFalse(comment.getLikedUsers().contains(commentAuthor));
+        verify(commentRepository, times(1)).save(comment);
+    }
+
+    @Test
+    void testAddOrRemoveDislike_AddsDislike() {
+        // Given
+        comment.setLikedUsers(new ArrayList<>());
+        comment.setDislikedUsers(new ArrayList<>());
+        when(userRepository.findById(2L)).thenReturn(Optional.of(commentAuthor));
+        when(commentRepository.findById(1L)).thenReturn(Optional.of(comment));
+        when(commentRepository.save(any(Comment.class))).thenReturn(comment);
+
+        // When
+        commentService.addOrRemoveDislike(2L, 1L);
+
+        // Then
+        assertTrue(comment.getDislikedUsers().contains(commentAuthor));
+        verify(commentRepository, times(1)).save(comment);
+    }
+
+    @Test
+    void testAddOrRemoveDislike_RemovesDislike() {
+        // Given
+        comment.setLikedUsers(new ArrayList<>());
+        comment.setDislikedUsers(new ArrayList<>());
+        comment.getDislikedUsers().add(commentAuthor);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(commentAuthor));
+        when(commentRepository.findById(1L)).thenReturn(Optional.of(comment));
+        when(commentRepository.save(any(Comment.class))).thenReturn(comment);
+
+        // When
+        commentService.addOrRemoveDislike(2L, 1L);
+
+        // Then
+        assertFalse(comment.getDislikedUsers().contains(commentAuthor));
+        verify(commentRepository, times(1)).save(comment);
+    }
+
+    @Test
+    void testCreateComment_ThrowsExceptionWhenAuthorIsNull() {
+        // Given
+        comment.setAuthor(null);
+        when(postRepository.findById(1)).thenReturn(Optional.of(post));
+
+        // When & Then
+        assertThrows(IllegalArgumentException.class, () -> {
+            commentService.createComment(1L, comment);
+        });
+    }
+
+    @Test
+    void testAddComment_ThrowsExceptionWhenUserNotFound() {
+        // Given
+        when(postRepository.findById(1)).thenReturn(Optional.of(post));
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThrows(ResourceNotFoundException.class, () -> {
+            commentService.addComment(1L, 999L, "Test");
+        });
+    }
 }
 

@@ -205,5 +205,58 @@ class RoomServiceTest {
         // Then
         assertFalse(result);
     }
+
+    @Test
+    void testCloseRoom_AdminCanClose() {
+        // Given
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+        when(roomRepository.save(any(Room.class))).thenReturn(room);
+
+        // When
+        roomService.closeRoom(1L, 2L);
+
+        // Then
+        assertTrue(room.getIsClosed());
+        verify(roomRepository, times(1)).save(room);
+    }
+
+    @Test
+    void testPromoteToAdmin_ThrowsExceptionWhenNotCreator() {
+        // Given
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+
+        // When & Then
+        assertThrows(ForbiddenException.class, () -> {
+            roomService.promoteToAdmin(1L, 3L, 2L);
+        });
+    }
+
+    @Test
+    void testDemoteFromAdmin_ThrowsExceptionWhenNotCreator() {
+        // Given
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+
+        // When & Then
+        assertThrows(ForbiddenException.class, () -> {
+            roomService.demoteFromAdmin(1L, 3L, 2L);
+        });
+    }
+
+    @Test
+    void testKickUserFromRoom_ThrowsExceptionWhenNotAdmin() {
+        // Given
+        User unauthorizedUser = new User("unauthorized", "unauthorized@test.com", "password");
+        unauthorizedUser.setId(4L);
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
+        when(userRepository.findById(4L)).thenReturn(Optional.of(unauthorizedUser));
+
+        // When & Then
+        assertThrows(ForbiddenException.class, () -> {
+            roomService.kickUserFromRoom(1L, 3L, 4L);
+        });
+    }
 }
 
