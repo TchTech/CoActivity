@@ -102,5 +102,26 @@ class GlobalExceptionHandlerTest {
         assertEquals("Generic error", response.getBody().get("error"));
         assertEquals("Exception", response.getBody().get("type"));
     }
+
+    @Test
+    void testHandleGenericException_WithNullMessage() {
+        // Given
+        Exception exception = new Exception() {
+            @Override
+            public String getMessage() {
+                return null;
+            }
+        };
+
+        // When
+        ResponseEntity<Map<String, String>> response = handler.handleGenericException(exception);
+
+        // Then
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Exception", response.getBody().get("message"));
+        assertEquals("Exception", response.getBody().get("error"));
+        assertEquals("Exception", response.getBody().get("type"));
+    }
 }
 

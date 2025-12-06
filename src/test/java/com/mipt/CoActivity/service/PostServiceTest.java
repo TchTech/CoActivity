@@ -429,5 +429,35 @@ class PostServiceTest {
         assertFalse(post.getDislikedUsers().contains(disliker));
         verify(postRepository, times(1)).save(post);
     }
+
+    @Test
+    void testGetRecommendedPosts_Success() {
+        // Given
+        List<Post> posts = List.of(post);
+        when(postRepository.findAll()).thenReturn(posts);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(author));
+
+        // When
+        List<Post> result = postService.getRecommendedPosts(1L);
+
+        // Then
+        assertNotNull(result);
+        verify(postRepository, atLeastOnce()).findAll();
+    }
+
+    @Test
+    void testGetRecommendedPostsWithScores_Success() {
+        // Given
+        List<Post> posts = List.of(post);
+        when(postRepository.findAll()).thenReturn(posts);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(author));
+
+        // When
+        com.mipt.CoActivity.dto.RecommendedPostsResponse result = postService.getRecommendedPostsWithScores(1L);
+
+        // Then
+        assertNotNull(result);
+        verify(postRepository, atLeastOnce()).findAll();
+    }
 }
 

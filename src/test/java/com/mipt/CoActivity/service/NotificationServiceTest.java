@@ -303,8 +303,7 @@ class NotificationServiceTest {
     @Test
     void cleanupDeduplicationLog_DeletesOldEntries() {
         // Arrange
-        Instant cutoffTime = Instant.now().minusSeconds(3700); // More than 1 hour ago
-        when(deduplicationLogRepository.deleteOlderThan(cutoffTime)).thenReturn(5);
+        when(deduplicationLogRepository.deleteOlderThan(any(Instant.class))).thenReturn(5);
 
         // Act
         int deletedCount = notificationService.cleanupDeduplicationLog();
