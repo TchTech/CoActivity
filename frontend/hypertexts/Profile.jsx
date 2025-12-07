@@ -829,7 +829,7 @@ function Profile({ onNavigate, userId, currentPage }) {
                   onClick={() => {
                     if (isEditingAbout) {
                       // Save
-                      userAPI.updateAbout(profileUserId, currentUser.id, aboutText)
+                      userAPI.updateAbout(profileUserId, { about: aboutText })
                         .then(() => {
                           setIsEditingAbout(false)
                           setUserData({ ...userData, about: aboutText })
