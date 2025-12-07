@@ -9,17 +9,32 @@
 ## 🚀 Быстрый старт (TL;DR)
 
 ```bash
-# 1. Запуск PostgreSQL
-docker run -d --name psql-db -e POSTGRES_USER=Gr1zBear -e POSTGRES_PASSWORD=qwerty -e POSTGRES_DB=CoPos -p 5433:5432 postgres:17
+# 1. Клонирование репозитория
+git clone <repository-url>
+cd CoActivity
 
-# 2. Запуск Backend
-mvn spring-boot:run
+# 2. Запуск PostgreSQL через Docker
+docker run -d --name postgres -e POSTGRES_USER=Gr1zBear -e POSTGRES_PASSWORD=qwerty -e POSTGRES_DB=CoPos -p 5432:5432 postgres:17
 
-# 3. Запуск Frontend (в новом терминале)
-cd frontend && pnpm install && pnpm dev
+# Или через Docker Compose (включает все сервисы)
+docker-compose up -d
 
-# 4. Запуск ML сервиса (в новом терминале)
-cd ml/fastapi && pip install -r requirements.txt && python main.py
+# 3. Запуск Backend (используйте Maven Wrapper - не требует установки Maven)
+./mvnw spring-boot:run
+# или на Windows:
+mvnw.cmd spring-boot:run
+
+# 4. Запуск Frontend (в новом терминале)
+cd frontend
+pnpm install  # или npm install
+pnpm dev      # или npm run dev
+
+# 5. Запуск ML сервиса (в новом терминале)
+cd ml/fastapi
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
 ```
 
 **Проверка:**
@@ -27,14 +42,25 @@ cd ml/fastapi && pip install -r requirements.txt && python main.py
 - Frontend: http://localhost:3000
 - ML API: http://localhost:8000/health
 
-## Требования
+## 📋 Требования
 
-Перед запуском убедитесь, что у вас установлены:
-- **Java 21** (JDK)
-- **Maven 3.6+**
-- **Node.js 18+** и **pnpm** (или npm)
-- **Python 3.8+** и **pip**
-- **Docker** и **Docker Compose** (опционально, для упрощенного запуска)
+**⚠️ Важно:** Проект использует фиксированные версии инструментов для обеспечения воспроизводимости. Используйте файлы `.java-version`, `.nvmrc`, `.tool-versions` для автоматической настройки версий через менеджеры версий.
+
+### Обязательные компоненты
+
+- **Java 21** (JDK) - см. `.java-version`
+- **Maven 3.9+** (или используйте Maven Wrapper - `mvnw`/`mvnw.cmd`)
+- **Node.js 20 LTS** - см. `.nvmrc`
+- **pnpm** (рекомендуется) или npm
+- **Python 3.11+** - см. `.tool-versions`
+- **PostgreSQL 17** или **Docker**
+
+### Опциональные компоненты
+
+- **Docker Compose** - для запуска всех сервисов одновременно
+- **asdf** / **nvm** / **sdkman** / **pyenv** - менеджеры версий (рекомендуется)
+
+📖 **Детальная инструкция по настройке:** см. [README_SETUP.md](README_SETUP.md)
 
 ## Быстрый старт
 
@@ -77,10 +103,17 @@ docker run -d --name psql-db \
 ### Шаг 2: Запуск Backend (Spring Boot)
 
 ```bash
-# Сборка проекта
-mvn clean package
+# Используйте Maven Wrapper (рекомендуется - не требует установки Maven)
+./mvnw clean package
 
 # Запуск приложения
+./mvnw spring-boot:run
+
+# Или на Windows:
+mvnw.cmd spring-boot:run
+
+# Если Maven установлен глобально, можно использовать:
+mvn clean package
 mvn spring-boot:run
 ```
 
@@ -100,16 +133,22 @@ Invoke-RestMethod -Uri "http://localhost:8080/users/register" -Method POST -Body
 ```bash
 cd frontend
 
-# Установка зависимостей
+# Установка зависимостей (используйте pnpm для воспроизводимости)
 pnpm install
 # или
 npm install
+
+# Создайте файл .env.local с настройками (опционально)
+# NEXT_PUBLIC_API_BASE=http://localhost:8080
+# NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
 
 # Запуск в режиме разработки
 pnpm dev
 # или
 npm run dev
 ```
+
+**Примечание:** Lock файлы (`pnpm-lock.yaml`, `package-lock.json`) зафиксированы в репозитории для обеспечения воспроизводимости установки зависимостей.
 
 Frontend будет доступен на `http://localhost:3000`
 
@@ -118,12 +157,25 @@ Frontend будет доступен на `http://localhost:3000`
 ```bash
 cd ml/fastapi
 
+# Создайте виртуальное окружение (рекомендуется)
+python -m venv venv
+
+# Активация виртуального окружения
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
 # Установка зависимостей
 pip install -r requirements.txt
 
 # Запуск сервиса
 python main.py
+# или через uvicorn
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+**Примечание:** Версии зависимостей зафиксированы в `requirements.txt` для обеспечения воспроизводимости.
 
 ML сервис будет доступен на `http://localhost:8000`
 
@@ -443,10 +495,27 @@ curl -X POST http://localhost:8000/recommend-from-sample \
 
 ## Порты по умолчанию
 
-- **Backend:** `8080`
-- **Frontend:** `3000`
-- **ML API:** `8000`
-- **PostgreSQL:** `5433` (Docker) или `5432` (локально)
+- **Backend:** `8080` (настраивается через `server.port` в `application.properties`)
+- **Frontend:** `3000` (автоматически меняется при занятости порта)
+- **ML API:** `8000` (настраивается в `main.py`)
+- **PostgreSQL:** `5432` (Docker и локально)
+
+## Версии инструментов
+
+Проект использует фиксированные версии для обеспечения воспроизводимости:
+
+- **Java:** 21 (см. `.java-version`)
+- **Maven:** 3.9+ (используется Maven Wrapper)
+- **Node.js:** 20 LTS (см. `.nvmrc`)
+- **Python:** 3.11+ (см. `.tool-versions`)
+- **PostgreSQL:** 17
+- **Spring Boot:** 3.3.5 (см. `pom.xml`)
+- **Next.js:** 16.0.0 (см. `frontend/package.json`)
+
+Менеджеры версий автоматически используют эти файлы:
+- **asdf** - читает `.tool-versions`
+- **nvm** - читает `.nvmrc`
+- **sdkman** - читает `.java-version`
 
 ## Разработка
 
@@ -474,6 +543,23 @@ pip install package-name
 pip freeze > requirements.txt
 ```
 
+## Воспроизводимость
+
+Проект настроен для обеспечения воспроизводимости на любой машине:
+
+- ✅ Фиксированные версии всех инструментов (Java 21, Node.js 20, Python 3.11+)
+- ✅ Lock файлы зависимостей зафиксированы в Git
+- ✅ Maven Wrapper для воспроизводимой сборки
+- ✅ Docker Compose для изолированной среды
+
+📖 **Детальная информация:** см. [REPRODUCIBILITY.md](REPRODUCIBILITY.md)
+
+## Документация
+
+- [README_SETUP.md](README_SETUP.md) - Детальная инструкция по настройке
+- [REPRODUCIBILITY.md](REPRODUCIBILITY.md) - Обеспечение воспроизводимости проекта
+- [LIB_UTILS_SETUP.md](LIB_UTILS_SETUP.md) - Настройка lib и utils
+
 ## Лицензия
 
 См. файл [LICENSE](LICENSE)
@@ -483,5 +569,24 @@ pip freeze > requirements.txt
 При возникновении проблем:
 1. Проверьте раздел "Устранение проблем"
 2. Убедитесь, что все зависимости установлены
-3. Проверьте логи приложения
-4. Убедитесь, что все сервисы запущены и доступны
+3. Проверьте версии инструментов (см. раздел "Версии инструментов")
+4. Проверьте логи приложения
+5. Убедитесь, что все сервисы запущены и доступны
+6. См. [README_SETUP.md](README_SETUP.md) для детальной инструкции по настройке
+
+## Воспроизводимость
+
+Проект настроен для обеспечения воспроизводимости на любой машине:
+
+- ✅ Фиксированные версии всех инструментов (Java 21, Node.js 20, Python 3.11+)
+- ✅ Lock файлы зависимостей зафиксированы в Git
+- ✅ Maven Wrapper для воспроизводимой сборки
+- ✅ Docker Compose для изолированной среды
+
+📖 **Детальная информация:** см. [REPRODUCIBILITY.md](REPRODUCIBILITY.md)
+
+## Документация
+
+- [README_SETUP.md](README_SETUP.md) - Детальная инструкция по настройке
+- [REPRODUCIBILITY.md](REPRODUCIBILITY.md) - Обеспечение воспроизводимости проекта
+6. См. [README_SETUP.md](README_SETUP.md) для детальной инструкции по настройке

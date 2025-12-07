@@ -1,28 +1,80 @@
 services:
   postgres:
     image: postgres:17
-    container_name: postgres
-    restart: always
+    container_name: coactivity_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: Gr1zBear
       POSTGRES_PASSWORD: qwerty
       POSTGRES_DB: CoPos
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=ru_RU.UTF-8"
     ports:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U Gr1zBear -d CoPos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  app:
-    build: .
-    container_name: coactivity_app
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: coactivity_backend
+    restart: unless-stopped
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/CoPos
       SPRING_DATASOURCE_USERNAME: Gr1zBear
       SPRING_DATASOURCE_PASSWORD: qwerty
+      SERVER_PORT: 8080
+      APP_RECOMMENDATION_API_URL: http://ml-service:8000
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ml-service:
+    build:
+      context: ./ml/fastapi
+      dockerfile: Dockerfile
+    container_name: coactivity_ml
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ml/fastapi:/app
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: coactivity_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:8080
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
 
 volumes:
   pg_data:
+    driver: local
+
+networks:
+  default:
+    name: coactivity_network

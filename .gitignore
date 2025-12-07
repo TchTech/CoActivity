@@ -1,64 +1,149 @@
-data.txt
-*#
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*~
+.#*
+
+# IDE - IntelliJ IDEA
+.idea/
 *.iml
 *.ipr
 *.iws
-*.jar
-*.sw?
-*~
-.#*
-.*.md.html
-.DS_Store
-.attach_pid*
+.idea_modules/
+out/
+
+# IDE - Eclipse
 .classpath
 .factorypath
-.gradle
-.idea
-.metadata
 .project
-.recommenders
-.settings
-.springBeans
-.vscode
-/code
-MANIFEST.MF
-_site/
-activemq-data
-bin
-build
-!/**/src/**/bin
-!/**/src/**/build
-build.log
-dependency-reduced-pom.xml
-dump.rdb
-interpolated*.xml
-lib/
-manifest.yml
-out
-overridedb.*
-target
-.flattened-pom.xml
-secrets.yml
-.gradletasknamecache
-.sts4-cache*.class
-/target/
-/build/
-.idea/
 .settings/
+.metadata
+.recommenders/
+
+# IDE - VSCode
+.vscode/
+*.code-workspace
+
+# IDE - Other
+*.sublime-project
+*.sublime-workspace
+
+# Build outputs
+target/
+build/
+dist/
+out/
+bin/
+*.jar
+!**/src/**/bin/
+!**/src/**/build/
+
+# Maven
+dependency-reduced-pom.xml
+.flattened-pom.xml
+.gradletasknamecache
+
+# Gradle
 .gradle/
-/out/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# Logs
 *.log
+logs/
 *.tmp
-temp/
-*.properties
+
+# Environment variables and secrets
 *.env
-Thumbs.db
-.mtj.tmp/
+*.env.local
+*.env.*.local
+.envrc
+secrets.yml
+*.properties.local
+
+# Application specific
+data.txt
+activemq-data
+dump.rdb
+overridedb.*
+interpolated*.xml
+manifest.yml
+MANIFEST.MF
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+*.bak
+*.cache
+.sts4-cache/
+
+# Java
+hs_err_pid*
+replay_pid*
+.attach_pid*
+
+# Archives
 *.war
 *.ear
 *.nar
-hs_err_pid*
-replay_pid*
-out/
-.idea_modules/
-.gitattributes
+*.zip
+*.tar.gz
+
+# Node.js / Frontend
+# Note: Lock files (pnpm-lock.yaml, package-lock.json) should be committed for reproducibility
+node_modules/
+.pnp
+.pnp.js
+.next/
+.next/
+.next/out
+frontend/.next/
+frontend/out/
+frontend/build/
+# Lock files are committed for reproducibility - do not ignore
+!frontend/pnpm-lock.yaml
+!frontend/package-lock.json
+
+# Python / ML
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+ml/fastapi/__pycache__/
+ml/fastapi/*.pyc
+ml/fastapi/.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Docker
+docker-compose.override.yml
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output/
+.jacoco/
+
+# Misc
+_site/
+/code
+.*.md.html
+*.sw?
