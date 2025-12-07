@@ -22,7 +22,7 @@ docker-compose up -d
 # 3. Запуск Backend (используйте Maven Wrapper - не требует установки Maven)
 ./mvnw spring-boot:run
 # или на Windows:
-mvnw.cmd spring-boot:run
+.\mvnw.cmd spring-boot:run
 
 # 4. Запуск Frontend (в новом терминале)
 cd frontend
