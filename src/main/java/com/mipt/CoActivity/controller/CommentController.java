@@ -24,7 +24,7 @@ public class CommentController {
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(commentService.createComment(postId, comment));
   }
-  
+
   @PostMapping("/{parentCommentId}/reply")
   @ResponseStatus(HttpStatus.CREATED)
   public ResponseEntity<Comment> createReply(
