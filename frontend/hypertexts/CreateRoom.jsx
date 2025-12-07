@@ -99,6 +99,16 @@ function CreateRoom({ onNavigate, currentPage }) {
       setAlert({ visible: true, message: "Описание не должно превышать 500 символов", type: "error" })
       return
     }
+
+    if (formData.city && formData.city.length > 100) {
+      setAlert({ visible: true, message: "Название города не должно превышать 100 символов", type: "error" })
+      return
+    }
+
+    if (formData.address && formData.address.length > 200) {
+      setAlert({ visible: true, message: "Адрес не должен превышать 200 символов", type: "error" })
+      return
+    }
     
     if (formData.format === "online" && formData.maxMembers > 20) {
       setAlert({ visible: true, message: "Для онлайн формата максимум 20 участников", type: "error" })
@@ -308,8 +318,10 @@ function CreateRoom({ onNavigate, currentPage }) {
                     value={formData.city}
                     onChange={handleChange}
                     onInvalid={handleInvalid}
+                    maxLength="100"
                     required
                   />
+                  <div className="char-counter">{formData.city.length}/100</div>
                 </div>
                 <div className="input-group">
                   <label className="input-label">Адрес *</label>
@@ -321,8 +333,10 @@ function CreateRoom({ onNavigate, currentPage }) {
                     value={formData.address}
                     onChange={handleChange}
                     onInvalid={handleInvalid}
+                    maxLength="200"
                     required
                   />
+                  <div className="char-counter">{formData.address.length}/200</div>
                 </div>
                 <div className="input-group">
                   <label className="input-label">Максимальное количество участников *</label>

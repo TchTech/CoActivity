@@ -1101,6 +1101,79 @@ function RoomPostsTab({ roomId, onNavigate, currentUser }) {
           <h3 className="post-title">{post.name || post.title}</h3>
           <p className="post-content">{post.text || post.content}</p>
 
+          {post.image && (
+            <img
+              src={
+                typeof post.image === "object" && post.image.id
+                  ? imageAPI.getImageUrl(post.image.id)
+                  : post.image?.url || post.image || "/placeholder.svg"
+              }
+              alt={post.name || post.title}
+              className="post-image"
+              style={{ marginTop: "var(--spacing-sm)", marginBottom: "var(--spacing-sm)" }}
+            />
+          )}
+
+          {post.externalLinks && (
+            <div className="post-external-links" style={{ marginTop: "var(--spacing-sm)", marginBottom: "var(--spacing-sm)" }}>
+              {(() => {
+                try {
+                  const links = typeof post.externalLinks === "string" 
+                    ? JSON.parse(post.externalLinks) 
+                    : post.externalLinks
+                  if (Array.isArray(links) && links.length > 0) {
+                    return (
+                      <div>
+                        <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылки:</strong>
+                        {links.map((link, idx) => (
+                          <a
+                            key={idx}
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: "block",
+                              color: "var(--accent-blue)",
+                              textDecoration: "underline",
+                              marginTop: "var(--spacing-xs)",
+                              fontSize: "var(--font-size-sm)",
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {link}
+                          </a>
+                        ))}
+                      </div>
+                    )
+                  }
+                } catch (e) {
+                  // If parsing fails, try to display as plain text
+                  return (
+                    <div>
+                      <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылка:</strong>
+                      <a
+                        href={post.externalLinks}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "block",
+                          color: "var(--accent-blue)",
+                          textDecoration: "underline",
+                          marginTop: "var(--spacing-xs)",
+                          fontSize: "var(--font-size-sm)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {post.externalLinks}
+                      </a>
+                    </div>
+                  )
+                }
+                return null
+              })()}
+            </div>
+          )}
+
           {/* Show room label if post is attached to a room (different from current room) */}
           {post.room && (typeof post.room === "object" ? post.room.id !== roomId : true) && (
             <div style={{ 

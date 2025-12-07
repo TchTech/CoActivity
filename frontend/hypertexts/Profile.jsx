@@ -311,7 +311,6 @@ function Profile({ onNavigate, userId, currentPage }) {
   const [externalLinks, setExternalLinks] = useState([])
   const [activeTab, setActiveTab] = useState("posts") // "posts", "about", "applications"
   const [ratingSummary, setRatingSummary] = useState({ average: null, count: 0 })
-  const [isEditingAbout, setIsEditingAbout] = useState(false)
   const [aboutText, setAboutText] = useState("")
   const [showAlert, setShowAlert] = useState(false)
   const [alertData, setAlertData] = useState({ title: "", message: "", variant: "info" })

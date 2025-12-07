@@ -486,6 +486,66 @@ function Comments({ onNavigate, postId, currentPage }) {
             />
           )}
 
+          {postData.externalLinks && (
+            <div className="post-external-links" style={{ marginTop: "var(--spacing-sm)", marginBottom: "var(--spacing-sm)" }}>
+              {(() => {
+                try {
+                  const links = typeof postData.externalLinks === "string" 
+                    ? JSON.parse(postData.externalLinks) 
+                    : postData.externalLinks
+                  if (Array.isArray(links) && links.length > 0) {
+                    return (
+                      <div>
+                        <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылки:</strong>
+                        {links.map((link, idx) => (
+                          <a
+                            key={idx}
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: "block",
+                              color: "var(--accent-blue)",
+                              textDecoration: "underline",
+                              marginTop: "var(--spacing-xs)",
+                              fontSize: "var(--font-size-sm)",
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {link}
+                          </a>
+                        ))}
+                      </div>
+                    )
+                  }
+                } catch (e) {
+                  // If parsing fails, try to display as plain text
+                  return (
+                    <div>
+                      <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылка:</strong>
+                      <a
+                        href={postData.externalLinks}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "block",
+                          color: "var(--accent-blue)",
+                          textDecoration: "underline",
+                          marginTop: "var(--spacing-xs)",
+                          fontSize: "var(--font-size-sm)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {postData.externalLinks}
+                      </a>
+                    </div>
+                  )
+                }
+                return null
+              })()}
+            </div>
+          )}
+
           <div className="post-actions">
             {/* Кнопка "Лайк" */}
             <button 

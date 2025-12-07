@@ -43,6 +43,66 @@ function PostCard({ post }) {
 
       {post.imageUrl && <img src={post.imageUrl || "/placeholder.svg"} alt={post.title} className="post-image" />}
 
+      {post.externalLinks && (
+        <div className="post-external-links" style={{ marginTop: "var(--spacing-sm)", marginBottom: "var(--spacing-sm)" }}>
+          {(() => {
+            try {
+              const links = typeof post.externalLinks === "string" 
+                ? JSON.parse(post.externalLinks) 
+                : post.externalLinks
+              if (Array.isArray(links) && links.length > 0) {
+                return (
+                  <div>
+                    <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылки:</strong>
+                    {links.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "block",
+                          color: "var(--accent-blue)",
+                          textDecoration: "underline",
+                          marginTop: "var(--spacing-xs)",
+                          fontSize: "var(--font-size-sm)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {link}
+                      </a>
+                    ))}
+                  </div>
+                )
+              }
+            } catch (e) {
+              // If parsing fails, try to display as plain text
+              return (
+                <div>
+                  <strong style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)" }}>Ссылка:</strong>
+                  <a
+                    href={post.externalLinks}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "block",
+                      color: "var(--accent-blue)",
+                      textDecoration: "underline",
+                      marginTop: "var(--spacing-xs)",
+                      fontSize: "var(--font-size-sm)",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {post.externalLinks}
+                  </a>
+                </div>
+              )
+            }
+            return null
+          })()}
+        </div>
+      )}
+
       <div className="post-actions">
         <div className="post-interactions">
           <button className="interaction-btn" onClick={handleLike} aria-label="Лайк">
