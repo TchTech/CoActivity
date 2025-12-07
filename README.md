@@ -32,7 +32,12 @@ pnpm dev      # или npm run dev
 # 5. Запуск ML сервиса (в новом терминале)
 cd ml/fastapi
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+
+PowerShell: .\venv\Scripts\Activate.ps1
+CMD: venv\Scripts\activate.bat
+Git Bash: source venv/Scripts/activate
+Linux: source venv/bin/activate
+
 pip install -r requirements.txt
 python main.py
 ```
