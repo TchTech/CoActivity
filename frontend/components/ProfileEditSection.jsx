@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect } from "react"
 import React from "react"
 import { userAPI } from "../lib/api"
 import { AlertDialog } from "./ui/AlertDialog"
@@ -23,12 +23,10 @@ export function ProfileEditSection({
 }) {
   const [localProfileData, setLocalProfileData] = useState(profileData)
   
-  // Sync localProfileData when profileData changes (only when not editing)
+  // Sync localProfileData when profileData changes
   React.useEffect(() => {
-    if (!editingProfile) {
-      setLocalProfileData(profileData)
-    }
-  }, [profileData, editingProfile])
+    setLocalProfileData(profileData)
+  }, [profileData])
   
   // Parse name into first and last name
   const parseName = (fullName) => {
@@ -113,154 +111,106 @@ export function ProfileEditSection({
     setEditingProfile(false)
   }
 
-  // Handlers for input fields - using useCallback to prevent recreation on each render
-  const handleFirstNameChange = useCallback((e) => {
-    const newFirstName = e.target.value
-    setLocalProfileData((prev) => {
-      const prevNameParts = parseName(prev.name)
-      const fullName = newFirstName.trim() 
-        ? (newFirstName + (prevNameParts.lastName ? " " + prevNameParts.lastName : "")).trim()
-        : prevNameParts.lastName
-      return { ...prev, name: fullName }
-    })
-  }, [])
+  // Material Design Input Component
+  const MaterialInput = ({ label, value, onChange, type = "text", placeholder, maxLength, disabled }) => (
+    <div style={{ marginBottom: "var(--spacing-lg)" }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: "var(--font-size-sm)",
+          fontWeight: "500",
+          color: "var(--text-primary)",
+          marginBottom: "var(--spacing-xs)",
+        }}
+      >
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        disabled={disabled || savingProfile}
+        style={{
+          width: "100%",
+          padding: "12px 16px",
+          fontSize: "var(--font-size-base)",
+          border: `2px solid ${editingProfile ? "var(--accent-gold)" : "var(--border-primary)"}`,
+          borderRadius: "8px",
+          backgroundColor: disabled ? "var(--bg-tertiary)" : "var(--bg-primary)",
+          color: "var(--text-primary)",
+          transition: "all 0.2s ease",
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+        onFocus={(e) => {
+          if (editingProfile) {
+            e.target.style.borderColor = "var(--accent-gold)"
+            e.target.style.boxShadow = "0 0 0 3px rgba(255, 215, 0, 0.1)"
+          }
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = editingProfile ? "var(--accent-gold)" : "var(--border-primary)"
+          e.target.style.boxShadow = "none"
+        }}
+      />
+    </div>
+  )
 
-  const handleLastNameChange = useCallback((e) => {
-    const newLastName = e.target.value
-    setLocalProfileData((prev) => {
-      const prevNameParts = parseName(prev.name)
-      const fullName = prevNameParts.firstName.trim()
-        ? (prevNameParts.firstName + (newLastName ? " " + newLastName : "")).trim()
-        : newLastName
-      return { ...prev, name: fullName }
-    })
-  }, [])
-
-  const handleEmailChange = useCallback((e) => {
-    setLocalProfileData((prev) => ({ ...prev, email: e.target.value }))
-  }, [])
-
-  const handleAboutChange = useCallback((e) => {
-    setLocalProfileData((prev) => ({ ...prev, about: e.target.value }))
-  }, [])
-
-  // Material Design Input Component - memoized to prevent recreation on each render
-  const MaterialInput = React.memo(({ label, value, onChange, type = "text", placeholder, maxLength, disabled }) => {
-    const handleChange = useCallback((e) => {
-      onChange(e)
-    }, [onChange])
-
-    return (
-      <div style={{ marginBottom: "var(--spacing-lg)" }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: "var(--font-size-sm)",
-            fontWeight: "500",
-            color: "var(--text-primary)",
-            marginBottom: "var(--spacing-xs)",
-          }}
-        >
-          {label}
-        </label>
-        <input
-          type={type}
-          value={value || ""}
-          onChange={handleChange}
-          placeholder={placeholder}
-          maxLength={maxLength}
-          disabled={disabled || savingProfile}
-          style={{
-            width: "100%",
-            padding: "12px 16px",
-            fontSize: "var(--font-size-base)",
-            border: `2px solid ${editingProfile ? "var(--accent-gold)" : "var(--border-primary)"}`,
-            borderRadius: "8px",
-            backgroundColor: disabled ? "var(--bg-tertiary)" : "var(--bg-primary)",
-            color: "var(--text-primary)",
-            transition: "all 0.2s ease",
-            outline: "none",
-            boxSizing: "border-box",
-          }}
-          onFocus={(e) => {
-            if (editingProfile) {
-              e.target.style.borderColor = "var(--accent-gold)"
-              e.target.style.boxShadow = "0 0 0 3px rgba(255, 215, 0, 0.1)"
-            }
-          }}
-          onBlur={(e) => {
-            e.target.style.borderColor = editingProfile ? "var(--accent-gold)" : "var(--border-primary)"
-            e.target.style.boxShadow = "none"
-          }}
-        />
-        {maxLength && (
-          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-muted)", marginTop: "4px", textAlign: "right" }}>
-            {value?.length || 0} / {maxLength}
-          </div>
-        )}
-      </div>
-    )
-  })
-
-  // Material Design Textarea Component - memoized to prevent recreation on each render
-  const MaterialTextarea = React.memo(({ label, value, onChange, placeholder, maxLength, rows = 4 }) => {
-    const handleChange = useCallback((e) => {
-      onChange(e)
-    }, [onChange])
-
-    return (
-      <div style={{ marginBottom: "var(--spacing-lg)" }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: "var(--font-size-sm)",
-            fontWeight: "500",
-            color: "var(--text-primary)",
-            marginBottom: "var(--spacing-xs)",
-          }}
-        >
-          {label}
-        </label>
-        <textarea
-          value={value || ""}
-          onChange={handleChange}
-          placeholder={placeholder}
-          maxLength={maxLength}
-          rows={rows}
-          disabled={!editingProfile || savingProfile}
-          style={{
-            width: "100%",
-            padding: "12px 16px",
-            fontSize: "var(--font-size-base)",
-            border: `2px solid ${editingProfile ? "var(--accent-gold)" : "var(--border-primary)"}`,
-            borderRadius: "8px",
-            backgroundColor: !editingProfile ? "var(--bg-tertiary)" : "var(--bg-primary)",
-            color: "var(--text-primary)",
-            transition: "all 0.2s ease",
-            outline: "none",
-            resize: "vertical",
-            fontFamily: "inherit",
-            boxSizing: "border-box",
-          }}
-          onFocus={(e) => {
-            if (editingProfile) {
-              e.target.style.borderColor = "var(--accent-gold)"
-              e.target.style.boxShadow = "0 0 0 3px rgba(255, 215, 0, 0.1)"
-            }
-          }}
-          onBlur={(e) => {
-            e.target.style.borderColor = editingProfile ? "var(--accent-gold)" : "var(--border-primary)"
-            e.target.style.boxShadow = "none"
-          }}
-        />
-        {maxLength && (
-          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-muted)", marginTop: "4px", textAlign: "right" }}>
-            {value?.length || 0} / {maxLength}
-          </div>
-        )}
-      </div>
-    )
-  })
+  // Material Design Textarea Component
+  const MaterialTextarea = ({ label, value, onChange, placeholder, maxLength, rows = 4 }) => (
+    <div style={{ marginBottom: "var(--spacing-lg)" }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: "var(--font-size-sm)",
+          fontWeight: "500",
+          color: "var(--text-primary)",
+          marginBottom: "var(--spacing-xs)",
+        }}
+      >
+        {label}
+      </label>
+      <textarea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        rows={rows}
+        disabled={!editingProfile || savingProfile}
+        style={{
+          width: "100%",
+          padding: "12px 16px",
+          fontSize: "var(--font-size-base)",
+          border: `2px solid ${editingProfile ? "var(--accent-gold)" : "var(--border-primary)"}`,
+          borderRadius: "8px",
+          backgroundColor: !editingProfile ? "var(--bg-tertiary)" : "var(--bg-primary)",
+          color: "var(--text-primary)",
+          transition: "all 0.2s ease",
+          outline: "none",
+          resize: "vertical",
+          fontFamily: "inherit",
+          boxSizing: "border-box",
+        }}
+        onFocus={(e) => {
+          if (editingProfile) {
+            e.target.style.borderColor = "var(--accent-gold)"
+            e.target.style.boxShadow = "0 0 0 3px rgba(255, 215, 0, 0.1)"
+          }
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = editingProfile ? "var(--accent-gold)" : "var(--border-primary)"
+          e.target.style.boxShadow = "none"
+        }}
+      />
+      {maxLength && (
+        <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-muted)", marginTop: "4px", textAlign: "right" }}>
+          {value?.length || 0} / {maxLength}
+        </div>
+      )}
+    </div>
+  )
 
   // Material Design Button
   const MaterialButton = ({ onClick, disabled, variant = "primary", children, style = {} }) => {
@@ -320,18 +270,28 @@ export function ProfileEditSection({
         <MaterialInput
           label="Имя"
           value={nameParts.firstName || ""}
-          onChange={handleFirstNameChange}
+          onChange={(e) => {
+            const newFirstName = e.target.value
+            const fullName = newFirstName.trim() 
+              ? (newFirstName + (nameParts.lastName ? " " + nameParts.lastName : "")).trim()
+              : nameParts.lastName
+            setLocalProfileData({ ...localProfileData, name: fullName })
+          }}
           placeholder="Введите ваше имя"
-          maxLength="50"
           disabled={!editingProfile}
         />
 
         <MaterialInput
           label="Фамилия"
           value={nameParts.lastName || ""}
-          onChange={handleLastNameChange}
+          onChange={(e) => {
+            const newLastName = e.target.value
+            const fullName = nameParts.firstName.trim()
+              ? (nameParts.firstName + (newLastName ? " " + newLastName : "")).trim()
+              : newLastName
+            setLocalProfileData({ ...localProfileData, name: fullName })
+          }}
           placeholder="Введите вашу фамилию"
-          maxLength="50"
           disabled={!editingProfile}
         />
 
@@ -339,16 +299,15 @@ export function ProfileEditSection({
           label="Email"
           type="email"
           value={localProfileData.email || ""}
-          onChange={handleEmailChange}
+          onChange={(e) => setLocalProfileData({ ...localProfileData, email: e.target.value })}
           placeholder="Введите ваш email"
-          maxLength="255"
           disabled={!editingProfile}
         />
 
         <MaterialTextarea
           label="О себе"
           value={localProfileData.about || ""}
-          onChange={handleAboutChange}
+          onChange={(e) => setLocalProfileData({ ...localProfileData, about: e.target.value })}
           placeholder="Расскажите о себе..."
           maxLength={500}
           rows={4}

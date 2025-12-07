@@ -245,10 +245,8 @@ function CreatePost({ onNavigate, currentPage }) {
                 placeholder="Введите ссылки, разделенные запятыми или переносами строк (например: https://example.com, https://another.com)"
                 value={formData.externalLinks}
                 onChange={handleChange}
-                maxLength="1000"
                 rows="3"
               />
-              <div className="char-counter">{formData.externalLinks.length}/1000</div>
               <div
                 style={{ fontSize: "var(--font-size-sm)", color: "var(--text-muted)", marginTop: "var(--spacing-xs)" }}
               >
